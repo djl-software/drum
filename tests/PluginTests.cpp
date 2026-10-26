@@ -9,12 +9,15 @@ static void require(bool condition, const char* message)
 }
 
 void runManagementTests();
+void runPlaybackTests();
+void runVst3PlaybackTest(const juce::String&);
 
-int main()
+int main(int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI initialiseJuce;
     try
     {
+        if(argc==3 && juce::String(argv[1])=="--vst3") { runVst3PlaybackTest(argv[2]); return 0; }
         DrumAudioProcessor processor;
         require(processor.acceptsMidi(), "Instrument must accept MIDI");
         require(!processor.producesMidi(), "Instrument must not expose MIDI output");
@@ -66,6 +69,7 @@ int main()
         std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
         require(editor && editor->getWidth() > 0 && editor->getHeight() > 0, "Editor creation failed");
         runManagementTests();
+        runPlaybackTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
     }

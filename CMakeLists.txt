@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DJLDrum VERSION 0.2.0 LANGUAGES C CXX)
+project(DJLDrum VERSION 0.3.0 LANGUAGES C CXX)
 if(APPLE)
   enable_language(OBJC OBJCXX)
 endif()
@@ -30,7 +30,7 @@ juce_add_plugin(DJLDrum
   HARDENED_RUNTIME_ENABLED TRUE)
 juce_add_binary_data(DJLDrumAssets NAMESPACE DJLAssets HEADER_NAME DJLAssets.h
   SOURCES assets/DJLLogoWhite.png)
-target_sources(DJLDrum PRIVATE src/PluginProcessor.cpp src/PluginEditor.cpp src/KitLibrary.cpp)
+target_sources(DJLDrum PRIVATE src/PluginProcessor.cpp src/PluginEditor.cpp src/KitLibrary.cpp src/SampleEngine.cpp)
 target_compile_definitions(DJLDrum PUBLIC
   DRUM_VERSION_STRING="${PROJECT_VERSION}"
   JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
@@ -38,10 +38,18 @@ target_link_libraries(DJLDrum PRIVATE DJLDrumAssets juce::juce_audio_utils juce:
   PUBLIC juce::juce_recommended_config_flags)
 if(BUILD_TESTING)
   juce_add_console_app(drum_tests PRODUCT_NAME "Drum Processor Tests")
-  target_sources(drum_tests PRIVATE tests/PluginTests.cpp tests/ManagementTests.cpp)
+  target_sources(drum_tests PRIVATE tests/PluginTests.cpp tests/ManagementTests.cpp tests/PlaybackTests.cpp)
   target_include_directories(drum_tests PRIVATE src)
   target_link_libraries(drum_tests PRIVATE DJLDrum juce::juce_audio_utils juce::juce_dsp)
+  target_compile_definitions(drum_tests PRIVATE JUCE_PLUGINHOST_VST3=1)
   add_test(NAME drum_processor COMMAND drum_tests)
+  add_dependencies(drum_tests DJLDrum_VST3)
+  if(APPLE)
+    set(drum_vst3_path "$<TARGET_BUNDLE_DIR:DJLDrum_VST3>")
+  else()
+    set(drum_vst3_path "$<TARGET_FILE_DIR:DJLDrum_VST3>/../..")
+  endif()
+  add_test(NAME vst3_sample_playback COMMAND drum_tests --vst3 "${drum_vst3_path}")
 endif()
 # Keep Windows resource versions current after a project version change.
 if(WIN32)

@@ -43,7 +43,9 @@ bool validate(const State& state)
             if (!validId(group.id) || !validName(group.name) || group.colour < 0 || group.colour >= 8) return false;
             for (const auto& instrument : group.instruments)
                 if (!validId(instrument.id) || !validName(instrument.name) || instrument.note < firstNote
-                    || instrument.note >= firstNote + maxInstruments || !notes.insert(instrument.note).second) return false;
+                    || instrument.note >= firstNote + maxInstruments || !notes.insert(instrument.note).second
+                    || instrument.samplePath.length() > 32767
+                    || (instrument.samplePath.isNotEmpty() && !juce::File::isAbsolutePath(instrument.samplePath))) return false;
         }
     }
     return true;
@@ -77,7 +79,8 @@ Result KitLibrary::edit(const std::function<Result(State&)>& operation)
     if (!result.ok) return result;
     if (!validate(candidate)) return Result::fail("This change would exceed a limit or create an invalid assignment.");
     candidate.revision = state.revision + 1;
-    state = std::move(candidate);
+    candidate.kitEpoch = state.kitEpoch + (candidate.activeKit != state.activeKit ? 1 : 0);
+    state = std::move(candidate); activeEpoch.store(state.kitEpoch);
     return result;
 }
 Result KitLibrary::addKit(bool example)
@@ -249,10 +252,19 @@ Result KitLibrary::assignNote(const juce::String& kitId, const juce::String& ins
         find(g->instruments, instrumentId)->note = note; return Result::success(instrumentId);
     });
 }
+Result KitLibrary::assignSample(const juce::String& kitId, const juce::String& instrumentId, const juce::String& path)
+{
+    return edit([&](State& s) {
+        auto* k = find(s.kits, kitId); if (!k) return Result::fail("Kit no longer exists.");
+        auto* g = containing(*k, instrumentId); if (!g) return Result::fail("Instrument no longer exists.");
+        find(g->instruments, instrumentId)->samplePath = path;
+        return Result::success(instrumentId);
+    });
+}
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 2); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 3); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
@@ -263,6 +275,7 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
             {
                 auto* instrument = group->createNewChildElement("Instrument"); instrument->setAttribute("id", i.id);
                 instrument->setAttribute("name", i.name); instrument->setAttribute("note", i.note);
+                instrument->setAttribute("samplePath", i.samplePath);
             }
         }
     }
@@ -275,9 +288,9 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
     if (version == 1 && xml.getNumChildElements() == 0)
     {
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
-        fresh.revision = state.revision + 1; state = std::move(fresh); return true;
+        fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); return true;
     }
-    if (version != 2) return false;
+    if (version != 2 && version != 3) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -291,13 +304,13 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
             for (auto* i : g->getChildIterator())
             {
                 if (!i->hasTagName("Instrument") || ++count > maxInstruments || i->getNumChildElements() != 0) return false;
-                group.instruments.push_back({ i->getStringAttribute("id"), i->getStringAttribute("name"), integerAttribute(*i, "note") });
+                group.instruments.push_back({ i->getStringAttribute("id"), i->getStringAttribute("name"), integerAttribute(*i, "note"), version >= 3 ? i->getStringAttribute("samplePath") : juce::String() });
             }
             kit.groups.push_back(std::move(group));
         }
         candidate.kits.push_back(std::move(kit));
     }
     if (!validate(candidate)) return false;
-    const juce::ScopedLock guard(lock); candidate.revision = state.revision + 1; state = std::move(candidate); return true;
+    const juce::ScopedLock guard(lock); candidate.revision = state.revision + 1; candidate.kitEpoch = state.kitEpoch + 1; state = std::move(candidate); activeEpoch.store(state.kitEpoch); return true;
 }
 }

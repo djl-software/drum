@@ -1,6 +1,6 @@
 # Drum product specification
 
-Initial design recorded 26 October 2026. This document distinguishes confirmed requirements, proposed interaction rules and outstanding scope decisions. It describes the intended product; the current build includes management and an initial interface, with sample playback still pending.
+Initial design recorded 26 October 2026. This document distinguishes confirmed requirements, proposed interaction rules and outstanding scope decisions. The current 0.3 build includes management, an initial interface, sample loading and MIDI-triggered one-shot playback; the full instrument controls remain future work.
 
 ## Purpose and release order
 
@@ -16,7 +16,7 @@ Drum replaces the drum-rack workflow in Ableton Live and other VST3-capable DAWs
 | Group | Variable number of instruments; groups share the kit's 88-key capacity |
 | Instrument | Consistent controls and capabilities, using the standard drum-rack workflow as the reference |
 
-Eight kits can therefore store up to 704 instrument definitions, with at most 88 instrument assignments in the active kit. Instrument count is distinct from polyphony: several hits may overlap on the same instrument. Voice limits will be designed separately.
+Eight kits can therefore store up to 704 instrument definitions, with at most 88 instrument assignments in the active kit. Instrument count is distinct from polyphony: several hits may overlap on the same instrument. The 0.3 preview supports 128 simultaneous voices, stealing the oldest at capacity.
 
 Groups organise instruments and their key ranges. A choke assignment is an independent playback control; grouping instruments together must not make them cut one another off.
 
@@ -71,13 +71,13 @@ The implementation must define the source engine and effects supplied by Drum. L
 
 1. Capture the brief and configure a VST3 MIDI instrument (complete).
 2. Implement and test the kit/group/instrument state model and mapping rules; create a navigable interface prototype (implemented in 0.2 for review).
-3. Add sample loading and sample-accurate playback, voice management and the common instrument controls.
+3. Add sample loading, MIDI event timing and voice management (implemented in 0.3); add the common instrument controls next.
 4. Extend mixing, choking, effects, routing and automation against the reference checklist.
 5. Validate session recall, host compatibility, performance and usability; add the separate standalone edition later.
 
 ## Decisions still open
 
-The confirmed capacities and single-active-kit behaviour are settled. Before sample-engine and mapping implementation, resolve the default note range, remapping workflow, source engine/features (Drum Sampler, Simpler or a combined set), effects/plugin hosting, and whether group audio buses are required in addition to organisational grouping.
+The confirmed capacities and single-active-kit behaviour are settled. Review the preview's note range and one-shot behaviour, then resolve remapping workflow, the full source-engine feature set (Drum Sampler, Simpler or a combined set), effects/plugin hosting, and whether group audio buses are required in addition to organisational grouping.
 
 ## Initial management implementation (0.2)
 
@@ -88,3 +88,9 @@ The library opens with one empty kit and one group. The optional example adds a 
 Saved state contains stable IDs, names, group colours, instrument notes, order and the active kit. State is validated before replacement; invalid documents preserve the current library. The original empty scaffold state migrates to one empty kit. Selection of the editor's group/instrument is local UI state and resets when reopening the editor.
 
 Organisational groups and instruments can be reordered with explicit buttons. Deletion retains at least one kit and one group per kit. The UI confirms removal of a kit, group or instrument. There is no undo history yet.
+
+## Initial sample playback (0.3)
+
+One file per instrument, loaded through a file chooser or single-file drop. Sample paths copy with instruments, groups and kits. The active kit loads in the background, with status and a manual Play/Stop audition. The preview accepts mono/stereo WAV, AIFF, FLAC, OGG and MP3. Files remain external absolute references; Replace locates a missing file. Samples are not bundled into the DAW project by Drum.
+
+All MIDI channels trigger the active kit. Note-on velocity scales level; one-shots overlap and ignore note-off. Kit changes cut existing voices and suppress old-kit triggers while the next kit loads. One mono/stereo output bus is available. Organisational groups do not choke or process audio. Gain/pan, tuning, envelopes, filtering, choke assignments, effects, layering, waveform editing and multi-output routing remain to be implemented.

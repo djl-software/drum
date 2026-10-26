@@ -5,8 +5,14 @@ DrumAudioProcessor::DrumAudioProcessor()
     : AudioProcessor(BusesProperties()
         .withOutput("Output", juce::AudioChannelSet::stereo(), true)) {}
 
-void DrumAudioProcessor::prepareToPlay(double, int) {}
-void DrumAudioProcessor::releaseResources() {}
+DrumAudioProcessor::~DrumAudioProcessor() { sampleEngine.shutdown(); cancelPendingUpdate(); }
+void DrumAudioProcessor::handleAsyncUpdate()
+{
+    updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+}
+
+void DrumAudioProcessor::prepareToPlay(double rate, int) { sampleEngine.prepare(rate); }
+void DrumAudioProcessor::releaseResources() { sampleEngine.release(); }
 
 bool DrumAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout) const
 {
@@ -19,9 +25,7 @@ bool DrumAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout) const
 void DrumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
-    // Instrument output must be initialised even before the sample engine is added.
-    // Future voices will render MIDI events into this buffer at their sample offsets.
-    buffer.clear();
+    sampleEngine.process(buffer, midi);
     midi.clear();
 }
 

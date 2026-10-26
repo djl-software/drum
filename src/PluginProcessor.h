@@ -1,12 +1,15 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "KitLibrary.h"
+#include "SampleEngine.h"
 
-class DrumAudioProcessor final : public juce::AudioProcessor
+class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater
 {
 public:
     DrumAudioProcessor();
+    ~DrumAudioProcessor() override;
     drum::KitLibrary& getLibrary() { return library; }
+    drum::SampleEngine& getSampleEngine() { return sampleEngine; }
     void prepareToPlay(double, int) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
@@ -17,7 +20,7 @@ public:
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    double getTailLengthSeconds() const override { return sampleEngine.tailSeconds(); }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
@@ -27,5 +30,7 @@ public:
     void setStateInformation(const void*, int) override;
 private:
     drum::KitLibrary library;
+    drum::SampleEngine sampleEngine { library, [this] { triggerAsyncUpdate(); } };
+    void handleAsyncUpdate() override;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrumAudioProcessor)
 };
