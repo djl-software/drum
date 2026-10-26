@@ -28,3 +28,10 @@ __pycache__/
 
 # Generated DAW validation audio and projects
 test-audio/
+
+# CMake and local output
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt
+output/
+*.log
