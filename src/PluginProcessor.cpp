@@ -3,7 +3,6 @@
 
 DrumAudioProcessor::DrumAudioProcessor()
     : AudioProcessor(BusesProperties()
-        .withInput("Input", juce::AudioChannelSet::stereo(), true)
         .withOutput("Output", juce::AudioChannelSet::stereo(), true)) {}
 
 void DrumAudioProcessor::prepareToPlay(double, int) {}
@@ -14,15 +13,15 @@ bool DrumAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout) const
     const auto output = layout.getMainOutputChannelSet();
     return (output == juce::AudioChannelSet::mono()
          || output == juce::AudioChannelSet::stereo())
-        && output == layout.getMainInputChannelSet();
+        && layout.getMainInputChannelSet().isDisabled();
 }
 
 void DrumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
-    // Transparent starting point: add Drum DSP here without allocating on the audio thread.
-    for (int channel = getTotalNumInputChannels(); channel < buffer.getNumChannels(); ++channel)
-        buffer.clear(channel, 0, buffer.getNumSamples());
+    // Instrument output must be initialised even before the sample engine is added.
+    // Future voices will render MIDI events into this buffer at their sample offsets.
+    buffer.clear();
     midi.clear();
 }
 

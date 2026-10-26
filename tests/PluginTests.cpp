@@ -14,10 +14,13 @@ int main()
     try
     {
         DrumAudioProcessor processor;
+        require(processor.acceptsMidi(), "Instrument must accept MIDI");
+        require(!processor.producesMidi(), "Instrument must not expose MIDI output");
+        require(!processor.isMidiEffect(), "Instrument classified as a MIDI effect");
+        require(processor.getTotalNumInputChannels() == 0, "Instrument has an audio input");
         for (int channels : { 1, 2 })
         {
             auto layout = processor.getBusesLayout();
-            layout.inputBuses.set(0, juce::AudioChannelSet::canonicalChannelSet(channels));
             layout.outputBuses.set(0, juce::AudioChannelSet::canonicalChannelSet(channels));
             require(processor.setBusesLayout(layout), "Mono/stereo layout rejected");
             for (double rate : { 44100.0, 48000.0, 96000.0 })
@@ -30,21 +33,24 @@ int main()
                     for (int c = 0; c < channels; ++c)
                         for (int s = 0; s < samples; ++s)
                             buffer.setSample(c, s, float((s % 31) - 15) / 32.0f);
-                    juce::AudioBuffer<float> original;
-                    original.makeCopyOf(buffer);
                     juce::MidiBuffer midi;
+                    if (samples > 0)
+                        midi.addEvent(juce::MidiMessage::noteOn(1, 36, (juce::uint8) 100), 0);
                     processor.processBlock(buffer, midi);
                     for (int c = 0; c < channels; ++c)
                         for (int s = 0; s < samples; ++s)
-                            require(buffer.getSample(c, s) == original.getSample(c, s), "Audio changed");
+                            require(buffer.getSample(c, s) == 0.0f, "Empty instrument must render silence");
+                    require(midi.isEmpty(), "Input MIDI was passed through");
                 }
                 processor.releaseResources();
             }
         }
         auto invalid = processor.getBusesLayout();
-        invalid.outputBuses.set(0, juce::AudioChannelSet::mono());
-        require(!processor.isBusesLayoutSupported(invalid), "Mismatched channels accepted");
-        invalid.inputBuses.set(0, juce::AudioChannelSet::create5point1());
+        invalid.inputBuses.add(juce::AudioChannelSet::stereo());
+        require(!processor.isBusesLayoutSupported(invalid), "Audio input accepted");
+        invalid = processor.getBusesLayout();
+        invalid.outputBuses.set(0, juce::AudioChannelSet::disabled());
+        require(!processor.isBusesLayoutSupported(invalid), "Disabled output accepted");
         invalid.outputBuses.set(0, juce::AudioChannelSet::create5point1());
         require(!processor.isBusesLayoutSupported(invalid), "Surround accepted");
         juce::MemoryBlock state;

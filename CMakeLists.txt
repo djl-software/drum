@@ -15,16 +15,19 @@ else()
   FetchContent_Declare(JUCE GIT_REPOSITORY https://github.com/juce-framework/JUCE.git GIT_TAG 8.0.12 GIT_SHALLOW TRUE)
   FetchContent_MakeAvailable(JUCE)
 endif()
+option(DRUM_BUILD_STANDALONE "Build the optional standalone development app" OFF)
+set(drum_formats VST3)
+if(DRUM_BUILD_STANDALONE)
+  list(APPEND drum_formats Standalone)
+endif()
 juce_add_plugin(DJLDrum
   COMPANY_NAME "DJ Leslieson" BUNDLE_ID "com.djleslieson.drum"
   PLUGIN_MANUFACTURER_CODE DjlS PLUGIN_CODE DjDr
-  FORMATS VST3 Standalone PRODUCT_NAME "DJL Drum"
-  IS_SYNTH FALSE NEEDS_MIDI_INPUT FALSE NEEDS_MIDI_OUTPUT FALSE
+  FORMATS ${drum_formats} PRODUCT_NAME "DJL Drum"
+  VST3_CATEGORIES Instrument Drum
+  IS_SYNTH TRUE NEEDS_MIDI_INPUT TRUE NEEDS_MIDI_OUTPUT FALSE
   COPY_PLUGIN_AFTER_BUILD FALSE
-  MICROPHONE_PERMISSION_ENABLED TRUE
-  MICROPHONE_PERMISSION_TEXT "DJL Drum needs audio input access for standalone audio processing."
-  HARDENED_RUNTIME_ENABLED TRUE
-  HARDENED_RUNTIME_OPTIONS com.apple.security.device.audio-input)
+  HARDENED_RUNTIME_ENABLED TRUE)
 juce_add_binary_data(DJLDrumAssets NAMESPACE DJLAssets HEADER_NAME DJLAssets.h
   SOURCES assets/DJLLogoWhite.png)
 target_sources(DJLDrum PRIVATE src/PluginProcessor.cpp src/PluginEditor.cpp)
