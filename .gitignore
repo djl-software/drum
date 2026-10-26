@@ -1,0 +1,30 @@
+# Build output
+build/
+build-*/
+dist/
+
+# Local development files
+.local/
+.vs/
+.vscode/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# Dependencies and caches
+node_modules/
+__pycache__/
+*.pyc
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.dev.vars
+*.pem
+*.pfx
+*.p12
+
+# Generated DAW validation audio and projects
+test-audio/
