@@ -8,6 +8,8 @@ static void require(bool condition, const char* message)
     if (!condition) throw std::runtime_error(message);
 }
 
+void runManagementTests();
+
 int main()
 {
     juce::ScopedJuceInitialiser_GUI initialiseJuce;
@@ -63,6 +65,7 @@ int main()
         processor.setStateInformation("invalid", 7);
         std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
         require(editor && editor->getWidth() > 0 && editor->getHeight() > 0, "Editor creation failed");
+        runManagementTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
     }

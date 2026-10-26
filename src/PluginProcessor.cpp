@@ -32,17 +32,14 @@ juce::AudioProcessorEditor* DrumAudioProcessor::createEditor()
 
 void DrumAudioProcessor::getStateInformation(juce::MemoryBlock& data)
 {
-    juce::XmlElement state("DrumState");
-    state.setAttribute("schemaVersion", 1);
-    copyXmlToBinary(state, data);
+    const auto state = library.toXml();
+    copyXmlToBinary(*state, data);
 }
 
 void DrumAudioProcessor::setStateInformation(const void* data, int size)
 {
-    // No parameters yet. Validate the envelope before adding future state restoration.
-    const auto state = getXmlFromBinary(data, size);
-    if (state == nullptr || !state->hasTagName("DrumState"))
-        return;
+    if (data == nullptr || size <= 0 || size > 4 * 1024 * 1024) return;
+    if (const auto state = getXmlFromBinary(data, size)) library.restore(*state);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new DrumAudioProcessor(); }

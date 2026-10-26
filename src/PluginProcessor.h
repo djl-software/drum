@@ -1,10 +1,12 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "KitLibrary.h"
 
 class DrumAudioProcessor final : public juce::AudioProcessor
 {
 public:
     DrumAudioProcessor();
+    drum::KitLibrary& getLibrary() { return library; }
     void prepareToPlay(double, int) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
@@ -24,5 +26,6 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 private:
+    drum::KitLibrary library;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrumAudioProcessor)
 };

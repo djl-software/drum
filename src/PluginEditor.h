@@ -6,8 +6,10 @@ class DrumAudioProcessorEditor final : public juce::AudioProcessorEditor
 {
 public:
     explicit DrumAudioProcessorEditor(DrumAudioProcessor&);
-    void paint(juce::Graphics&) override;
+    ~DrumAudioProcessorEditor() override;
+    void resized() override;
 private:
-    juce::Image logo;
+    class Workspace;
+    std::unique_ptr<Workspace> workspace;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrumAudioProcessorEditor)
 };

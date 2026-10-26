@@ -1,6 +1,6 @@
 # Drum product specification
 
-Initial design recorded 26 October 2026. This document distinguishes confirmed requirements, proposed interaction rules and outstanding scope decisions. It describes the intended product; the current build is an instrument scaffold.
+Initial design recorded 26 October 2026. This document distinguishes confirmed requirements, proposed interaction rules and outstanding scope decisions. It describes the intended product; the current build includes management and an initial interface, with sample playback still pending.
 
 ## Purpose and release order
 
@@ -69,8 +69,8 @@ The implementation must define the source engine and effects supplied by Drum. L
 
 ## Implementation sequence
 
-1. Capture the brief and configure a VST3 MIDI instrument (this change).
-2. Implement and test the kit/group/instrument state model and mapping rules; create a navigable interface prototype.
+1. Capture the brief and configure a VST3 MIDI instrument (complete).
+2. Implement and test the kit/group/instrument state model and mapping rules; create a navigable interface prototype (implemented in 0.2 for review).
 3. Add sample loading and sample-accurate playback, voice management and the common instrument controls.
 4. Extend mixing, choking, effects, routing and automation against the reference checklist.
 5. Validate session recall, host compatibility, performance and usability; add the separate standalone edition later.
@@ -78,3 +78,13 @@ The implementation must define the source engine and effects supplied by Drum. L
 ## Decisions still open
 
 The confirmed capacities and single-active-kit behaviour are settled. Before sample-engine and mapping implementation, resolve the default note range, remapping workflow, source engine/features (Drum Sampler, Simpler or a combined set), effects/plugin hosting, and whether group audio buses are required in addition to organisational grouping.
+
+## Initial management implementation (0.2)
+
+The first interface uses MIDI notes 21–108 and labels MIDI 60 as C4. This convention is visible alongside numeric notes; DAWs may use different octave labels. New instruments take a free key, preferably after the previous instrument in the same group. Adding to an existing group, moving between groups and changing display order preserve other assignments, so a group can acquire non-contiguous keys. The key map shows actual assignments. A dedicated range-compaction workflow remains a future design decision.
+
+The library opens with one empty kit and one group. The optional example adds a separate Studio Kit with four groups and twelve empty instrument slots. Copies receive fresh IDs; copied instruments/groups receive unused notes in the same kit, while a copied kit preserves its internal note map. Instrument counts include empty slots.
+
+Saved state contains stable IDs, names, group colours, instrument notes, order and the active kit. State is validated before replacement; invalid documents preserve the current library. The original empty scaffold state migrates to one empty kit. Selection of the editor's group/instrument is local UI state and resets when reopening the editor.
+
+Organisational groups and instruments can be reordered with explicit buttons. Deletion retains at least one kit and one group per kit. The UI confirms removal of a kit, group or instrument. There is no undo history yet.

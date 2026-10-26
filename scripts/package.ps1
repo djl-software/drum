@@ -17,5 +17,8 @@ $drumDestination = Join-Path $OutputDirectory 'DJL Drum.vst3'
 New-Item -ItemType Directory -Force -Path $drumDestination | Out-Null
 Copy-Item -Path (Join-Path $drumBundle '*') -Destination $drumDestination -Recurse -Force
 if ($Standalone) { Copy-Item -LiteralPath $drumApp -Destination $OutputDirectory -Force }
-Copy-Item -LiteralPath "$PSScriptRoot\..\README.md", "$PSScriptRoot\..\docs\third-party.md" -Destination $OutputDirectory -Force
+Copy-Item -LiteralPath "$PSScriptRoot\..\README.md" -Destination $OutputDirectory -Force
+$drumDocsDestination = Join-Path $OutputDirectory 'docs'
+New-Item -ItemType Directory -Force -Path $drumDocsDestination | Out-Null
+Copy-Item -Path "$PSScriptRoot\..\docs\*" -Destination $drumDocsDestination -Recurse -Force
 Write-Output "Packaged development build: $OutputDirectory"
