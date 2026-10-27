@@ -1,6 +1,6 @@
 # Drum product specification
 
-Initial design recorded 26 October 2026. This document distinguishes confirmed requirements, proposed interaction rules and outstanding scope decisions. The current 0.3 build includes management, an initial interface, sample loading and MIDI-triggered one-shot playback; the full instrument controls remain future work.
+Initial design recorded 26 October 2026. This document distinguishes confirmed requirements, proposed interaction rules and outstanding scope decisions. The current 0.4 build includes management, sample loading, one-shot playback, volume, pan, tuning, mute, solo and choke groups. The full rack/sampler reference checklist remains broader than the current implementation.
 
 ## Purpose and release order
 
@@ -94,3 +94,11 @@ Organisational groups and instruments can be reordered with explicit buttons. De
 One file per instrument, loaded through a file chooser or single-file drop. Sample paths copy with instruments, groups and kits. The active kit loads in the background, with status and a manual Play/Stop audition. The preview accepts mono/stereo WAV, AIFF, FLAC, OGG and MP3. Files remain external absolute references; Replace locates a missing file. Samples are not bundled into the DAW project by Drum.
 
 All MIDI channels trigger the active kit. Note-on velocity scales level; one-shots overlap and ignore note-off. Kit changes cut existing voices and suppress old-kit triggers while the next kit loads. One mono/stereo output bus is available. Organisational groups do not choke or process audio. Gain/pan, tuning, envelopes, filtering, choke assignments, effects, layering, waveform editing and multi-output routing remain to be implemented.
+
+## Instrument controls and sample drops (0.4)
+
+Per-instrument volume (-60 to +12 dB, with the minimum silent), pan (-100% left to +100% right), tuning (-24 to +24 semitones), mute, solo and choke group (Off or 1–16) are implemented. Pan balances stereo channels without swapping or collapsing them. Tuning changes sample speed and duration. Gain, balance and tuning changes smooth over 5 ms on sounding voices. Mute and solo suppression end sounding hits with a 2 ms release; unmuting does not resume them. Multiple solos are allowed across the active kit and mute takes precedence. A muted/suppressed hit does not choke other instruments. Choke is kit-wide across MIDI channels, including self-choking repeated hits; organisational groups remain independent.
+
+Controls copy with instruments/groups/kits and persist in schema 4. Earlier states migrate to neutral controls. DAW automation lanes are not implemented for these controls yet.
+
+The user clarified that Ableton browser drag-and-drop means audio samples only. A single sample dropped onto a card replaces that sample while preserving name, MIDI note and controls. One or more samples dropped into empty space create named instruments in the selected group, assigning unused notes. Invalid audio does not create an empty slot. A drop that exceeds the kit's remaining capacity is rejected. Native Live instrument/kit presets are not imported.

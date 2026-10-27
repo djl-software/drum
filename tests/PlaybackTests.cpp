@@ -116,6 +116,7 @@ void runPlaybackTests()
 void runVst3PlaybackTest(const juce::String& path)
 {
     Setup setup; setup.load(fixture("host.wav",2));
+    check(setup.processor.getLibrary().setControls(setup.kit,setup.instrument,{-6.020599913,1.0,12.0,false,true,2}).ok,"Hosted control setup failed");
     juce::MemoryBlock state; setup.processor.getStateInformation(state);
     juce::VST3PluginFormat format; juce::OwnedArray<juce::PluginDescription> types; format.findAllTypesForFile(types,juce::File(path).getFullPathName());
     check(types.size()==1 && types[0]->isInstrument,"VST3 scan failed");
@@ -136,12 +137,13 @@ void runVst3PlaybackTest(const juce::String& path)
             midi.addEvent(juce::MidiMessage::allSoundOff(1),0);
             midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),31);
             instance.processBlock(output,midi);
-            if(output.getSample(1,31)>0.4f) { played=true; break; }
+            if(output.getSample(1,31)>0.2f) { played=true; break; }
             juce::Thread::sleep(10);
         }
         check(played,"Compiled VST3 did not render a loaded sample");
         near(output.getSample(0,30),0,"VST3 started before MIDI event");
-        near(output.getSample(1,31),0.5f,"VST3 sample playback incorrect");
+        near(output.getSample(0,31),0,"VST3 pan control incorrect");
+        near(output.getSample(1,31),0.25f,"VST3 volume or sample playback incorrect");
     };
     verifyPlayback(*plugin);
     juce::MemoryBlock recalled; plugin->getStateInformation(recalled);

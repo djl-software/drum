@@ -1,4 +1,4 @@
-# Testing Drum 0.3 in Ableton Live
+# Testing Drum 0.4 in Ableton Live
 
 This is a Windows x64 development VST3, with sample loading and one-shot MIDI playback. It is ready for host testing, not a commercial release.
 
@@ -8,12 +8,15 @@ Copy the complete `DJL Drum.vst3` bundle from `build/DJLDrum_artefacts/Release/V
 
 1. In Live's Settings/Preferences, open Plug-Ins and rescan the enabled VST3 folder. If it is not detected, hold Alt while clicking Rescan for a full scan.
 2. Find **DJL Drum** in Plug-Ins and place it on a MIDI track.
-3. Open the editor, create an instrument (or select a slot in Add example kit), and click **Load sample**. You can also drop one audio file onto its card.
+3. Open the editor and drag audio from Live's **Samples** browser into empty instrument-grid space. One or more files create named instruments in the selected group. Drop a single file onto a card to replace that instrument's sample. You can also create an instrument (or use Add example kit) and click **Load sample**. Use actual audio files such as WAV or AIFF; Live's Drums category also includes kit/device presets, which are not audio samples.
 4. Wait for **Ready**. Use **Play** to audition it.
 5. Assign **MIDI 36** for an easy first test. Drum calls this **C2**; Live calls it **C1**. The numeric MIDI note is the same. New empty slots initially start at MIDI 21, so their default keys may be below your usual drum pattern.
 6. Draw the matching note in a MIDI clip, or arm the track and play it from your controller. Vary velocity and repeat notes to check overlapping hits. Live's track needs to be active and routed to your audio output.
 7. Add another sample on a different note, then another kit. Switching kits should silence the previous kit and use the new assignments.
-8. Save the Live Set, close and reopen it, then check names, groups, note assignments, active kit and sample playback.
+8. Adjust volume, pan and tuning while a longer hit plays. Changes should be smooth and should not restart the sample. Tuning changes its playback duration.
+9. Try Mute and Solo on instruments in different organisational groups. Multiple solos are allowed; mute takes priority. Unmuting should not resume an old hit.
+10. Set open and closed hi-hats to choke group 1. Trigger the open hat then the closed hat: the closed hat should cut the open hat. Off allows overlapping hits; matching choke groups also choke repeated hits of the same instrument.
+11. Save the Live Set, close and reopen it, then check names, groups, note assignments, active kit, controls and sample playback.
 
 Official setup reference: [Ableton: Using VST plug-ins on Windows](https://help.ableton.com/hc/en-us/articles/209071729-Using-VST-plug-ins-on-Windows).
 
@@ -21,15 +24,22 @@ Official setup reference: [Ableton: Using VST plug-ins on Windows](https://help.
 
 - Mono/stereo WAV, AIFF, FLAC, OGG and MP3; maximum 30 seconds and 64 MiB decoded per file, 512 MiB of unique decoded data in the active kit.
 - Velocity-sensitive one-shot playback on every MIDI channel. Note-off does not stop a hit. Up to 128 voices; Stop clears them all.
-- One stereo output, with mono also supported. Adjust overall level on Live's track; individual gain/pan and other sound controls come next.
+- Volume: silence at the minimum (-60 dB), up to +12 dB. Pan: -100% left to +100% right, implemented as stereo balance. Tuning: -24 to +24 semitones in 0.01 increments. Double-click sliders to reset to zero.
+- Mute and Solo apply across the active kit, including manual Play. Choke groups 1–16 are independent of organisational groups and work across MIDI channels, using a short 2 ms release. There is one stereo output, with mono also supported.
 - Loading or replacing a sample changes the active bank and cuts existing voices. Renaming or moving an instrument within the kit preserves its MIDI assignment and does not cut audio.
 - Samples stay at their original absolute paths. Keep those files available. Use **Replace** to relink a missing file. Live's Collect All and Save is not a Drum sample-collection mechanism.
 - Wait for Ready after loading a Set or switching kits before recording/exporting. Offline-export loading synchronisation is not implemented yet.
 
-The example kit supplies names and layout only. No commercial sample library is bundled. This preview does not yet have envelopes, tuning, choke groups, effects, multiple outputs or automation for sound controls.
+The example kit supplies names and layout only. No commercial sample library is bundled. This preview does not yet have envelopes, effects, multiple outputs or automation for sound controls. Controls are saved as project state; they are not exposed in Live's automation lanes yet.
 
 ## Validation boundary
 
-Automated tests exercise the processor and compiled VST3, including MIDI-triggered output and recall into a fresh hosted instance. Steinberg's validator checks the VST3 interface separately. Native Ableton session, controller and audio-device testing still need to be completed using the checklist above.
+Automated tests exercise the processor and compiled VST3, including MIDI-triggered output and recall into a fresh hosted instance. Steinberg's validator checks the VST3 interface separately. Hardware-controller, MIDI-clip and wider audio-device testing remain to be completed using the checklist above.
 
 On 26 October 2026, version 0.3.0 was installed in the custom location above. The installed x64 module matched the tested build, SHA-256 `42b7c8f00376abebaf05b3f904e4023017ded27ed5baa6cb81d81563d261b50a`. CTest passed 2/2 and Steinberg validation passed 47/47. The native file picker also loaded a WAV successfully in the development harness.
+
+Version 0.4.0 was subsequently built, installed and checked in Live 12 Suite. CTest passed 2/2 and Steinberg validation passed 47/47. The installed module matches the tested build, SHA-256 `2022e4b3254191f80b1255c2676e52e569b14d3f057f8b8ea90659df6a016074`. Direct browser drops of Core Library `Tom 909 Tran 5.wav` and `Tom 909 Mid.aif` created named instruments on MIDI 21 and 22. Dropping `Tom 909 Tran 4.wav` onto the first card replaced its sample while preserving its name and note. The native volume slider changed that instrument to -17.4 dB. The editor was resized and positioned beside the browser; its scaled layout and all controls remained visible.
+
+Known compatibility limit: the separate browser entry `Tom-909-Mid.aif` returned an unsupported-audio error and created no instrument. Its underlying encoding/source has not been identified; the `.aif` extension alone does not guarantee compatibility. Standard Core Library AIFF loading succeeded. For an unreadable source, try exporting the sound from Live as a standard PCM WAV and importing that file. Do not assume every Pack/browser entry is directly decodable by Drum.
+
+The native test Set was saved and reopened on 27 October 2026. Both instruments, their sample references and the -17.4 dB volume setting recalled successfully with Ready status. Manual Play produced output on Live's track and Main meters before and after recall. This checks audition through Live's audio engine; it does not substitute for a controller or MIDI-clip performance test. The local test Set is retained under `.local/Controls Test/` and is excluded from Git and packages.

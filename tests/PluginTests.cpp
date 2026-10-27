@@ -10,6 +10,7 @@ static void require(bool condition, const char* message)
 
 void runManagementTests();
 void runPlaybackTests();
+void runControlTests();
 void runVst3PlaybackTest(const juce::String&);
 
 int main(int argc, char** argv)
@@ -70,6 +71,7 @@ int main(int argc, char** argv)
         require(editor && editor->getWidth() > 0 && editor->getHeight() > 0, "Editor creation failed");
         runManagementTests();
         runPlaybackTests();
+        runControlTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
     }

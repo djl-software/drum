@@ -61,14 +61,19 @@ public:
     juce::String selected;
     int colour = 0;
     std::function<void(juce::String)> select;
-    std::function<void(juce::String,juce::File)> load;
-    bool isInterestedInFileDrag(const juce::StringArray& files) override { return files.size()==1; }
+    std::function<void(const juce::StringArray&,juce::String)> drop;
+    bool dragging = false;
+    bool isInterestedInFileDrag(const juce::StringArray& files) override { return !files.isEmpty(); }
+    void fileDragEnter(const juce::StringArray&,int,int) override { dragging=true; repaint(); }
+    void fileDragExit(const juce::StringArray&) override { dragging=false; repaint(); }
     void filesDropped(const juce::StringArray& files,int x,int y) override
     {
+        dragging=false; repaint();
         for(int n=0;n<(int)instruments.size();++n) if(cell(n).contains(x,y))
         {
-            auto id=instruments[(size_t)n].id; if(select) select(id); if(load) load(id,juce::File(files[0])); return;
+            auto id=instruments[(size_t)n].id; if(select) select(id); if(drop) drop(files,id); return;
         }
+        if(drop) drop(files,{});
     }
     int columns() const { return juce::jmax(1, (getWidth() + 12) / 170); }
     int contentHeight() const { return juce::jmax(220, ((int)instruments.size() + columns() - 1) / columns() * 112); }
@@ -79,10 +84,11 @@ public:
     }
     void paint(juce::Graphics& g) override
     {
+        if(dragging) { g.setColour(accent.withAlpha(0.12f)); g.fillRoundedRectangle(getLocalBounds().toFloat(),8); }
         if (instruments.empty())
         {
             label(g, "Build your group", { 12, 55, getWidth()-24, 30 }, 22.0f);
-            label(g, "Add instruments, then name and map them.", { 12, 94, getWidth()-24, 28 }, 14.0f, muted);
+            label(g, "Drop audio samples here, or add an instrument.", { 12, 94, getWidth()-24, 28 }, 14.0f, muted);
             return;
         }
         for (int n = 0; n < (int)instruments.size(); ++n)
@@ -95,7 +101,9 @@ public:
             label(g, drum::noteName(i.note), { area.getX()+12, area.getY()+10, 56, 19 }, 12, groupColour(colour));
             label(g, "MIDI " + juce::String(i.note), { area.getX()+68, area.getY()+10, area.getWidth()-80, 19 }, 11, muted, juce::Justification::centredRight);
             label(g, i.name, area.withTrimmedTop(37).withHeight(24).reduced(12,0), 16.0f);
-            label(g, i.samplePath.isEmpty() ? "No sample" : juce::File(i.samplePath).getFileName(), area.withTrimmedTop(71).withHeight(18).reduced(12,0), 11, muted);
+            juce::String flags=i.controls.mute?"MUTE  ":i.controls.solo?"SOLO  ":"";
+            if(i.controls.choke>0) flags+="CH "+juce::String(i.controls.choke)+"  ";
+            label(g, flags+(i.samplePath.isEmpty() ? "No sample" : juce::File(i.samplePath).getFileName()), area.withTrimmedTop(71).withHeight(18).reduced(12,0), 11, i.controls.mute?juce::Colour(0xfff2a3a3):muted);
         }
     }
     void mouseDown(const juce::MouseEvent& event) override
@@ -206,14 +214,34 @@ public:
         };
         setup(playSample, "Play", "play-sample"); playSample.onClick=[this] { if(auto* i=instrument()) processor.getSampleEngine().audition(i->note); };
         setup(stopSample, "Stop", "stop-samples"); stopSample.onClick=[this] { processor.getSampleEngine().stop(); };
+        setupSlider(volume,"instrument-volume",-60,12,0.1," dB");
+        volume.textFromValueFunction=[](double v) { return v<=-60 ? juce::String("-inf") : juce::String(v,1); };
+        volume.valueFromTextFunction=[](const juce::String& t) { return t.containsIgnoreCase("inf")?-60.0:t.getDoubleValue(); };
+        volume.onValueChange=[this] { editControls([this](auto& c){c.volumeDb=volume.getValue();}); };
+        setupSlider(pan,"instrument-pan",-100,100,1," %");
+        pan.setTooltip("Stereo balance: -100 left, 0 centre, +100 right.");
+        pan.onValueChange=[this] { editControls([this](auto& c){c.pan=pan.getValue()/100.0;}); };
+        setupSlider(tuning,"instrument-tuning",-24,24,0.01," st");
+        tuning.setTooltip("Semitones; tuning changes sample speed and duration.");
+        tuning.onValueChange=[this] { editControls([this](auto& c){c.tuning=tuning.getValue();}); };
+        setup(mute,"Mute","instrument-mute"); mute.setClickingTogglesState(true);
+        mute.onClick=[this] { editControls([this](auto& c){c.mute=mute.getToggleState();}); };
+        setup(solo,"Solo","instrument-solo"); solo.setClickingTogglesState(true);
+        solo.setTooltip("Only soloed instruments in the active kit play. Mute takes priority.");
+        solo.onClick=[this] { editControls([this](auto& c){c.solo=solo.getToggleState();}); };
+        addAndMakeVisible(choke); choke.setComponentID("instrument-choke"); choke.setName("Choke group");
+        choke.setTooltip("Off or 1-16. A hit cuts earlier hits in the same choke group, across the kit.");
+        choke.addItem("Off",1); for(int n=1;n<=16;++n) choke.addItem(juce::String(n),n+1);
+        choke.onChange=[this] { editControls([this](auto& c){c.choke=choke.getSelectedId()-1;}); };
         setupName(kitName,"kit-name",[this]{ return view.activeKit; });
         setupName(groupName,"group-name",[this]{ return groupId; });
         setupName(instrumentName,"instrument-name",[this]{ return instrumentId; });
         addAndMakeVisible(groups); groups.setModel(this); groups.setRowHeight(61); groups.setOutlineThickness(0);
         groups.setComponentID("groups"); groups.setName("Instrument groups");
         addAndMakeVisible(viewport); viewport.setViewedComponent(&grid,false); viewport.setScrollBarsShown(true,false);
-        grid.load=[this](juce::String id,juce::File file) { beginLoad(view.activeKit,id,file); };
-        viewport.setScrollBarThickness(8); grid.select = [this](juce::String id) { instrumentId=id; refresh(); };
+        grid.drop=[this](const juce::StringArray& files,juce::String id) { handleDrop(files,id); };
+        grid.setComponentID("instrument-grid");
+        viewport.setScrollBarThickness(8); grid.select = [this](juce::String id) { importStatus=false; instrumentId=id; refresh(); };
         addAndMakeVisible(keyboard); keyboard.select = [this](juce::String id) {
             for(auto& g:kit().groups) for(auto& i:g.instruments) if(i.id==id) { groupId=g.id; instrumentId=id; refresh(); scrollToSelected(); return; }
         };
@@ -237,7 +265,7 @@ public:
         g.drawImageWithin(logo,24,20,64,38,juce::RectanglePlacement::centred);
         label(g,"DRUM",{104,17,180,36},29);
         label(g,"KIT WORKSPACE",{106,53,200,18},10,muted);
-        label(g,"PLAYBACK PREVIEW  /  v" DRUM_VERSION_STRING,{getWidth()-440,22,225,28},11,muted,juce::Justification::centredRight);
+        label(g,"INSTRUMENT PREVIEW / v" DRUM_VERSION_STRING,{getWidth()-440,22,225,28},11,muted,juce::Justification::centredRight);
         label(g,"ACTIVE KIT",{24,139,86,32},10,accent);
         label(g,juce::String(view.kits.size())+" / 8 kits",{getWidth()-360,139,95,32},12,muted,juce::Justification::centredRight);
         box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
@@ -249,16 +277,19 @@ public:
         label(g,"INSTRUMENT",{right.getX()+18,right.getY()+16,right.getWidth()-36,24},12,muted);
         if (const auto* i=instrument())
         {
-            label(g,"NAME",{right.getX()+18,right.getY()+57,right.getWidth()-36,18},10,muted);
-            label(g,"KEY ASSIGNMENT",{right.getX()+18,right.getY()+127,right.getWidth()-36,18},10,muted);
-            label(g,"GROUP",{right.getX()+18,right.getY()+190,right.getWidth()-36,18},10,muted);
-            auto source=juce::Rectangle<int>(right.getX()+18,right.getY()+264,right.getWidth()-36,94);
+            label(g,"NAME",{right.getX()+18,right.getY()+43,right.getWidth()-36,16},10,muted);
+            label(g,"KEY",{right.getX()+18,right.getY()+98,112,16},10,muted);
+            label(g,"GROUP",{right.getX()+150,right.getY()+98,120,16},10,muted);
+            auto source=juce::Rectangle<int>(right.getX()+18,right.getY()+153,right.getWidth()-36,66);
             g.setColour(background); g.fillRoundedRectangle(source.toFloat(),8);
-            label(g,"SOUND SOURCE",source.reduced(12,0).withTrimmedTop(10).withHeight(20),10,muted);
-            label(g,i->samplePath.isEmpty()?"Drop audio here":juce::File(i->samplePath).getFileName(),source.reduced(12,0).withTrimmedTop(32).withHeight(22),14);
+            label(g,i->samplePath.isEmpty()?"Drop audio here":juce::File(i->samplePath).getFileName(),source.reduced(10,0).withTrimmedTop(8).withHeight(22),13);
             auto info=processor.getSampleEngine().statusFor(i->id);
             auto detail=info.ready ? juce::String(info.seconds,2)+" s / one-shot / velocity" : info.message.isNotEmpty()?info.message:"WAV, AIFF, FLAC, OGG, MP3";
-            label(g,detail,source.reduced(12,0).withTrimmedTop(61).withHeight(22),11,info.ready?accent:muted);
+            label(g,detail,source.reduced(10,0).withTrimmedTop(35).withHeight(22),11,info.ready?accent:muted);
+            label(g,"Volume",{right.getX()+18,right.getY()+264,56,30},11,muted);
+            label(g,"Pan",{right.getX()+18,right.getY()+300,56,30},11,muted);
+            label(g,"Tuning",{right.getX()+18,right.getY()+336,56,30},11,muted);
+            label(g,"Choke",{right.getX()+18,right.getY()+409,56,28},11,muted);
             juce::ignoreUnused(i);
         }
         else
@@ -272,6 +303,7 @@ public:
         if(auto* i=instrument()) mapping=i->name+"   /   "+drum::noteName(i->note)+"   /   MIDI "+juce::String(i->note);
         label(g,mapping,{keyPanel.getX()+280,keyPanel.getY()+9,keyPanel.getWidth()-298,27},12,muted,juce::Justification::centredRight);
         label(g,status,{24,getHeight()-29,getWidth()-48,22},12,statusError?juce::Colour(0xfff2a3a3):muted);
+        label(g,"Drop samples in empty space to add instruments",{centre.getX()+18,centre.getBottom()-67,centre.getWidth()-36,22},11,muted);
     }
     void resized() override
     {
@@ -289,24 +321,68 @@ public:
         addGroup.setBounds(left.getX()+16,left.getBottom()-65,84,29); copyGroup.setBounds(left.getX()+108,left.getBottom()-65,42,29); deleteGroup.setBounds(left.getX()+156,left.getBottom()-65,48,29);
         groupUp.setBounds(left.getX()+16,left.getBottom()-29,84,23); groupDown.setBounds(left.getX()+108,left.getBottom()-29,96,23);
         addInstrument.setBounds(centre.getRight()-145,centre.getY()+18,127,32);
-        viewport.setBounds(centre.getX()+18,centre.getY()+90,centre.getWidth()-36,centre.getHeight()-108);
-        grid.setSize(juce::jmax(100,viewport.getWidth()-10),grid.getHeight()); grid.setSize(grid.getWidth(),grid.contentHeight());
-        instrumentName.setBounds(right.getX()+18,right.getY()+80,right.getWidth()-36,34);
-        note.setBounds(right.getX()+18,right.getY()+149,right.getWidth()-36,34);
-        destination.setBounds(right.getX()+18,right.getY()+212,right.getWidth()-36,34);
-        loadSample.setBounds(right.getX()+18,right.getY()+365,108,29);
-        playSample.setBounds(right.getX()+134,right.getY()+365,62,29);
-        stopSample.setBounds(right.getX()+204,right.getY()+365,66,29);
-        copyInstrument.setBounds(right.getX()+18,right.getBottom()-72,120,29); deleteInstrument.setBounds(right.getX()+150,right.getBottom()-72,120,29);
-        instrumentUp.setBounds(right.getX()+18,right.getBottom()-35,120,23); instrumentDown.setBounds(right.getX()+150,right.getBottom()-35,120,23);
+        viewport.setBounds(centre.getX()+18,centre.getY()+90,centre.getWidth()-36,centre.getHeight()-166);
+        grid.setSize(juce::jmax(100,viewport.getWidth()-10),grid.getHeight()); grid.setSize(grid.getWidth(),juce::jmax(viewport.getHeight(),grid.contentHeight()));
+        instrumentName.setBounds(right.getX()+18,right.getY()+63,right.getWidth()-36,29);
+        note.setBounds(right.getX()+18,right.getY()+116,122,29);
+        destination.setBounds(right.getX()+148,right.getY()+116,122,29);
+        loadSample.setBounds(right.getX()+18,right.getY()+225,108,28);
+        playSample.setBounds(right.getX()+134,right.getY()+225,62,28);
+        stopSample.setBounds(right.getX()+204,right.getY()+225,66,28);
+        volume.setBounds(right.getX()+75,right.getY()+264,195,30);
+        pan.setBounds(right.getX()+75,right.getY()+300,195,30);
+        tuning.setBounds(right.getX()+75,right.getY()+336,195,30);
+        mute.setBounds(right.getX()+18,right.getY()+375,120,28); solo.setBounds(right.getX()+150,right.getY()+375,120,28);
+        choke.setBounds(right.getX()+80,right.getY()+409,190,28);
+        copyInstrument.setBounds(right.getX()+18,right.getBottom()-37,120,27); deleteInstrument.setBounds(right.getX()+150,right.getBottom()-37,120,27);
+        instrumentUp.setBounds(centre.getX()+18,centre.getBottom()-35,120,23); instrumentDown.setBounds(centre.getX()+150,centre.getBottom()-35,120,23);
         keyboard.setBounds(keyPanel.reduced(18,0).withTrimmedTop(43).withTrimmedBottom(14));
     }
-    bool isInterestedInFileDrag(const juce::StringArray& files) override { return files.size()==1 && instrument()!=nullptr; }
-    void filesDropped(const juce::StringArray& files,int,int) override
-    { if(instrument()) beginLoad(view.activeKit,instrumentId,juce::File(files[0])); }
+    bool isInterestedInFileDrag(const juce::StringArray& files) override { return !files.isEmpty(); }
+    void filesDropped(const juce::StringArray& files,int x,int y) override
+    { handleDrop(files,right.contains(x,y)&&instrument()?instrumentId:juce::String()); }
 private:
+    void handleDrop(const juce::StringArray& files,const juce::String& target)
+    {
+        auto fail=[this](juce::String message){status=message; statusError=true; repaint();};
+        if(files.isEmpty()) return;
+        if(target.isNotEmpty() && files.size()!=1) { fail("Drop one sample on a card, or several in empty space to create instruments."); return; }
+        if(target.isEmpty() && drum::instrumentCount(kit())+files.size()>88) { fail("Not enough free instrument slots for this drop (88 per kit)."); return; }
+        for(auto& path:files)
+        {
+            if(!juce::File::isAbsolutePath(path)) { fail("The browser did not provide an audio file path."); return; }
+            juce::File file(path);
+            if(!file.hasFileExtension("wav;aif;aiff;flac;ogg;mp3"))
+            { fail("Drag audio samples from Live's Samples browser. For instrument presets, render the sound to WAV first."); return; }
+        }
+        for(auto& path:files)
+            if(target.isEmpty()) processor.getSampleEngine().requestImport(view.activeKit,groupId,juce::File(path));
+            else processor.getSampleEngine().requestLoad(view.activeKit,target,juce::File(path));
+        status="Loading dropped audio..."; statusError=false;
+        importStatus=target.isEmpty(); refresh(false);
+    }
+    void setupSlider(juce::Slider& slider,const char* id,double minimum,double maximum,double step,const char* suffix)
+    {
+        addAndMakeVisible(slider); slider.setComponentID(id); slider.setName(juce::String(id).replaceCharacter('-',' ')); slider.setTitle(slider.getName());
+        slider.setSliderStyle(juce::Slider::LinearHorizontal); slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,72,26);
+        slider.setRange(minimum,maximum,step); slider.setTextValueSuffix(suffix); slider.setDoubleClickReturnValue(true,0);
+        slider.setColour(juce::Slider::trackColourId,accent); slider.setColour(juce::Slider::thumbColourId,accent);
+        slider.setColour(juce::Slider::textBoxTextColourId,text); slider.setColour(juce::Slider::textBoxBackgroundColourId,background);
+        slider.setColour(juce::Slider::textBoxOutlineColourId,border);
+    }
+    void editControls(const std::function<void(drum::InstrumentControls&)>& edit)
+    {
+        if(refreshing) return;
+        auto state=library.snapshot(); auto* k=drum::activeKit(state);
+        auto* i=drum::findInstrument(*k,instrumentId); if(!i || k->id!=view.activeKit) return;
+        auto controls=i->controls; edit(controls);
+        auto result=library.setControls(k->id,i->id,controls);
+        if(result.ok) processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+        status=result.ok?"Instrument controls saved with the kit.":result.message; statusError=!result.ok; refresh(false);
+    }
     void beginLoad(juce::String kitId,juce::String id,juce::File file)
     {
+        importStatus=false;
         processor.getSampleEngine().requestLoad(kitId,id,file);
         status="Loading "+file.getFileName()+"..."; statusError=false; refresh();
     }
@@ -372,15 +448,23 @@ private:
         grid.instruments=group().instruments; grid.selected=instrumentId; grid.colour=group().colour; grid.repaint();
         keyboard.kit=kit(); keyboard.selected=instrumentId; keyboard.repaint();
         auto* i=instrument();
-        for(auto* c:std::initializer_list<juce::Component*>{&instrumentName,&note,&destination,&copyInstrument,&deleteInstrument,&instrumentUp,&instrumentDown,&loadSample,&playSample,&stopSample}) c->setVisible(i!=nullptr);
+        for(auto* c:std::initializer_list<juce::Component*>{&instrumentName,&note,&destination,&copyInstrument,&deleteInstrument,&instrumentUp,&instrumentDown,&loadSample,&playSample,&stopSample,&volume,&pan,&tuning,&mute,&solo,&choke}) c->setVisible(i!=nullptr);
         note.clear(juce::dontSendNotification); destination.clear(juce::dontSendNotification);
         if(i)
         {
+            const bool controlsSelectionChanged=controlsInstrumentId!=i->id;
+            if(controlsSelectionChanged) { volume.hideTextBox(true); pan.hideTextBox(true); tuning.hideTextBox(true); }
+            controlsInstrumentId=i->id;
             if(forceNames || !instrumentName.hasKeyboardFocus(true)) instrumentName.setText(i->name,false);
             auto info=processor.getSampleEngine().statusFor(i->id);
             playSample.setEnabled(info.ready && !info.loading);
             loadSample.setButtonText(i->samplePath.isEmpty()?"Load sample":"Replace");
             loadSample.setTooltip(info.message.isNotEmpty()?info.message:"Choose an audio file");
+            if(controlsSelectionChanged || (!volume.isMouseButtonDown() && !volume.hasKeyboardFocus(true))) volume.setValue(i->controls.volumeDb,juce::dontSendNotification);
+            if(controlsSelectionChanged || (!pan.isMouseButtonDown() && !pan.hasKeyboardFocus(true))) pan.setValue(i->controls.pan*100,juce::dontSendNotification);
+            if(controlsSelectionChanged || (!tuning.isMouseButtonDown() && !tuning.hasKeyboardFocus(true))) tuning.setValue(i->controls.tuning,juce::dontSendNotification);
+            mute.setToggleState(i->controls.mute,juce::dontSendNotification); solo.setToggleState(i->controls.solo,juce::dontSendNotification);
+            choke.setSelectedId(i->controls.choke+1,juce::dontSendNotification);
             for(int n=21;n<=108;++n)
             {
                 note.addItem("MIDI "+juce::String(n)+"  /  "+drum::noteName(n),n+1);
@@ -427,7 +511,12 @@ private:
         if(library.snapshot().revision!=view.revision || epoch!=sampleEpoch)
         {
             sampleEpoch=epoch; refresh(false);
-            if(auto* i=instrument())
+            if(importStatus)
+            {
+                auto info=processor.getSampleEngine().statusFor(groupId);
+                status=info.message; statusError=!info.ready && !info.loading;
+            }
+            else if(auto* i=instrument())
             {
                 auto info=processor.getSampleEngine().statusFor(i->id);
                 if(info.message.isNotEmpty()) { status=info.ready?"Ready. Trigger the assigned MIDI note or press Play.":info.message; statusError=!info.ready && !info.loading; }
@@ -438,18 +527,20 @@ private:
     DrumAudioProcessor& processor;
     drum::KitLibrary& library;
     drum::State view;
-    juce::String groupId,instrumentId,status;
-    bool refreshing=false,statusError=false;
+    juce::String groupId,instrumentId,status,controlsInstrumentId;
+    bool refreshing=false,statusError=false,importStatus=false;
     juce::Image logo;
     juce::TooltipWindow tooltip;
     std::array<juce::TextButton,8> kitTabs;
     juce::TextButton addKit,example,copyKit,deleteKit,addGroup,copyGroup,deleteGroup,groupUp,groupDown;
     juce::TextButton addInstrument,copyInstrument,deleteInstrument,instrumentUp,instrumentDown;
     juce::TextButton loadSample,playSample,stopSample;
+    juce::TextButton mute,solo;
+    juce::Slider volume,pan,tuning;
     std::unique_ptr<juce::FileChooser> chooser;
     uint64_t sampleEpoch = 0;
     juce::TextEditor kitName,groupName,instrumentName;
-    juce::ComboBox note,destination;
+    juce::ComboBox note,destination,choke;
     juce::ListBox groups;
     InstrumentGrid grid;
     juce::Viewport viewport;
@@ -460,7 +551,20 @@ private:
 DrumAudioProcessorEditor::DrumAudioProcessorEditor(DrumAudioProcessor& p)
     : AudioProcessorEditor(p), workspace(std::make_unique<Workspace>(p))
 {
-    addAndMakeVisible(*workspace); setResizable(true,true); setResizeLimits(1080,860,1920,1200); setSize(1280,900);
+    addAndMakeVisible(*workspace); setResizable(true,true); setResizeLimits(800,600,1920,1200);
+    int width=1280,height=900;
+    if(auto* display=juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
+    {
+        width=juce::jlimit(800,1280,(int)(display->userArea.getWidth()*0.84));
+        height=juce::jlimit(600,900,(int)(display->userArea.getHeight()*0.90));
+    }
+    setSize(width,height);
 }
 DrumAudioProcessorEditor::~DrumAudioProcessorEditor() = default;
-void DrumAudioProcessorEditor::resized() { workspace->setBounds(getLocalBounds()); }
+void DrumAudioProcessorEditor::resized()
+{
+    const float scale=juce::jmin(1.0f,(float)getWidth()/1080.0f,(float)getHeight()/860.0f);
+    if(scale<=0) return;
+    workspace->setTransform(juce::AffineTransform::scale(scale));
+    workspace->setBounds(0,0,juce::roundToInt(getWidth()/scale),juce::roundToInt(getHeight()/scale));
+}

@@ -100,6 +100,9 @@ void runManagementTests()
     DrumAudioProcessorEditor editor(processor);
     screenshot(editor,"drum-layout.png");
     editor.setSize(1080,860); screenshot(editor,"drum-layout-minimum.png");
+    editor.setSize(800,600); screenshot(editor,"drum-layout-compact.png");
+    check(editor.getChildComponent(0)->getBoundsInParent().getWidth()<=801 && editor.getChildComponent(0)->getBoundsInParent().getHeight()<=601,"Compact editor exceeds window");
+    editor.setSize(1080,860);
     click(editor,"add-group");
     auto* name=dynamic_cast<juce::TextEditor*>(control(editor,"group-name")); check(name!=nullptr,"Missing group name editor");
     name->setText("replace me"); name->setHighlightedRegion({0,10});

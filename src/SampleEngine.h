@@ -28,6 +28,7 @@ public:
     void shutdown();
     ~SampleEngine() override;
     void requestLoad(juce::String kit, juce::String instrument, juce::File file);
+    void requestImport(juce::String kit, juce::String group, juce::File file);
     SampleStatus statusFor(const juce::String& instrument) const;
     uint64_t statusRevision() const { return statusEpoch.load(); }
     // For deterministic offline tests. Never call from processBlock.
@@ -39,12 +40,22 @@ public:
     void stop() { previewNote.store(-1); panic.store(true); }
     double tailSeconds() const { return tail.load(); }
 private:
+    struct RenderControls
+    {
+        float left = 1, right = 1;
+        double pitch = 1;
+        int choke = 0;
+        bool audible = true;
+        bool operator==(const RenderControls&) const = default;
+    };
     struct Bank
     {
         juce::String kitId;
         uint64_t kitEpoch = 0;
+        uint64_t sampleGeneration = 0;
         std::array<juce::String,128> ids;
         std::array<std::shared_ptr<const Sample>,128> samples;
+        std::array<RenderControls,128> controls;
     };
     struct Voice
     {
@@ -53,8 +64,12 @@ private:
         float velocity = 0.0f;
         int channel = 1;
         uint64_t age = 0;
+        int note = 0, choke = 0, releaseRemaining = -1;
+        juce::SmoothedValue<float> left, right;
+        juce::SmoothedValue<double> step;
     };
-    struct Request { juce::String kit, instrument; juce::File file; };
+    struct Request { juce::String kit, instrument, group; juce::File file; };
+    void enqueue(Request);
     void run() override;
     std::shared_ptr<const Sample> decode(const juce::File&, juce::String& error);
     void setStatus(const juce::String&, SampleStatus);
@@ -62,6 +77,8 @@ private:
     void reclaim();
     void startVoice(int note, int channel, float velocity) noexcept;
     void stopVoices(int channel = 0) noexcept;
+    void fadeVoice(Voice&) noexcept;
+    void updateVoices() noexcept;
     void render(juce::AudioBuffer<float>&, int start, int end) noexcept;
     KitLibrary& library;
     std::function<void()> onAssignment;
@@ -81,6 +98,8 @@ private:
     Bank* current = nullptr;
     std::array<Voice,128> voices {};
     uint64_t clock = 0;
+    uint64_t sampleGeneration = UINT64_MAX;
+    int releaseSamples = 96;
     double hostRate = 44100.0;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SampleEngine)
 };

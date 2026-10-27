@@ -13,7 +13,7 @@ The build foundation follows Meter: CMake 3.22+, C++20, JUCE 8.0.12, a static MS
 
 Drum has its own bundle ID `com.djleslieson.drum` and four-character plugin code `DjDr`, distinct from Meter. The manufacturer code remains `DjlS`.
 
-The processor is a MIDI instrument with no audio input and mono/stereo audio output. `IS_SYNTH`, MIDI input and the `Instrument|Drum` VST3 category agree with that layout. The kit/group/instrument model and editor follow the [product specification](product-specification.md). Version 0.3 adds asynchronous sample loading and MIDI playback; per-instrument sound parameters remain pending.
+The processor is a MIDI instrument with no audio input and mono/stereo audio output. `IS_SYNTH`, MIDI input and the `Instrument|Drum` VST3 category agree with that layout. The kit/group/instrument model and editor follow the [product specification](product-specification.md). Version 0.3 added asynchronous sample loading and MIDI playback; 0.4 adds per-instrument volume, balance, tuning, mute, solo and choke groups.
 
 VST3 builds by default. `DRUM_BUILD_STANDALONE=ON` enables the optional standalone development harness; a separate product edition comes later.
 
@@ -31,7 +31,7 @@ These checks validate the scaffold and host interface. They do not validate samp
 
 `KitLibrary` owns a versioned library snapshot behind a lock for UI edits and DAW state operations. Edits apply to a candidate snapshot and publish only after validation. The audio callback uses a separately prepared sample bank and an atomic active-kit epoch; it never reads the locked management snapshot.
 
-The editor polls model and sample-status revisions on the message thread so host restores and completed loads refresh an open window. Management edits and successful sample assignments notify the host that non-parameter state changed. Schema 3 preserves all kits and absolute sample paths; schema 2 migrates the management preview and schema 1 the original empty scaffold. Sample audio is not embedded.
+The editor polls model and sample-status revisions on the message thread so host restores and completed loads refresh an open window. Management edits and successful sample assignments notify the host that non-parameter state changed. Schema 4 preserves all kits, absolute sample paths and instrument controls. Schemas 1–3 migrate with neutral controls. Sample audio is not embedded.
 
 Management tests exercise capacities, note uniqueness, identity preservation, copying/moving/removal, malformed state, legacy migration, full processor recall and UI callbacks. Layout snapshots cover normal, empty, minimum-size and dense libraries.
 
@@ -54,3 +54,15 @@ Playback tests cover timing, velocity, overlap, resampling duration, stereo/mono
 ### Playback validation — 26 October 2026
 
 Windows x64 Release VST3 and standalone harness built successfully. CTest passed both suites (2/2), including compiled-VST3 sample output and session recall. Steinberg VST3 SDK validator passed 47 tests with zero failures. Actual editor renders were inspected at normal and minimum sizes. In the running standalone harness, the native Load sample picker loaded a stereo WAV, displayed its filename and duration, changed to Replace and enabled Play. Native Ableton playback/recall and macOS remain unverified.
+
+## Instrument controls and import (0.4)
+
+Render banks now include immutable controls and a sample-generation counter. Control-only publications retain the same samples and generation, allowing voices to keep playing across bank changes. Their buffers remain owned by the new bank. Volume/balance/pitch targets ramp over 5 ms per voice; sample position is preserved. New hits start at the current settings. Mapping/sample changes still stop old voices. A 2 ms fade is used for mute/solo suppression and choke; CC panic and UI Stop remain immediate. Choke assignment is kit-wide and independent of MIDI channel or organisational group. Muted/solo-suppressed triggers cannot choke other voices.
+
+Volume uses dB gain with the minimum silent; stereo balance attenuates the opposite channel and preserves unity at centre. Tuning multiplies the resampling step by `2^(semitones/12)` and changes the reported tail. Multiple solos are additive, with mute taking priority. Controls are snapshot/state values, not host automation parameters yet.
+
+The worker processes one queued import per pass, with at most 88 requests outstanding. New instruments are created only after successful decoding, using one validated model transaction for name, free MIDI note and path. Single-card replacement preserves controls. Bulk drops create instruments in the selected group and reject a selection that exceeds remaining kit capacity. Invalid or unsupported files do not create slots. Files remain external references. Importing Live device presets is outside the audio-sample workflow requested by the user.
+
+`ControlTests.cpp` checks gain and balance, tuning duration, smoothing without retriggering, mute/solo across groups, no resurrection after unmute, choke timing and isolation, self-choking, muted-trigger behaviour, copying, persistence, legacy migration, invalid values, editor callbacks and bulk drop behaviour. Hosted VST3 tests also save and restore non-default controls and verify the resulting channel levels. Native macOS validation and automated DAW parameter lanes remain pending.
+
+The editor scales its workspace below 1080×860 and permits resizing down to 800×600. Initial dimensions are bounded using the primary display work area; the host controls window position. Compact, normal and dense snapshots were inspected. Windows Release builds, both CTest suites and all 47 Steinberg checks passed. Live 12 Suite browser drops were verified with Core Library WAV and AIFF files, including card replacement and a native volume edit. See `ableton-testing.md` for the separate unreadable AIFF browser entry and the remaining host-testing boundary.

@@ -7,7 +7,14 @@
 namespace drum
 {
 constexpr int maxKits = 8, maxGroups = 16, maxInstruments = 88, firstNote = 21;
-struct Instrument { juce::String id, name; int note = firstNote; juce::String samplePath; };
+struct InstrumentControls
+{
+    double volumeDb = 0.0, pan = 0.0, tuning = 0.0;
+    bool mute = false, solo = false;
+    int choke = 0;
+    bool operator==(const InstrumentControls&) const = default;
+};
+struct Instrument { juce::String id, name; int note = firstNote; juce::String samplePath; InstrumentControls controls; };
 struct Group { juce::String id, name; int colour = 0; std::vector<Instrument> instruments; };
 struct Kit { juce::String id, name; std::vector<Group> groups; };
 struct State { std::vector<Kit> kits; juce::String activeKit; uint64_t revision = 0, kitEpoch = 0; };
@@ -47,6 +54,8 @@ public:
     Result reorderInstrument(const juce::String& kitId, const juce::String& instrumentId, int direction);
     Result assignNote(const juce::String& kitId, const juce::String& instrumentId, int note);
     Result assignSample(const juce::String& kitId, const juce::String& instrumentId, const juce::String& path);
+    Result setControls(const juce::String& kitId, const juce::String& instrumentId, InstrumentControls);
+    Result addSampleInstrument(const juce::String& kitId, const juce::String& groupId, const juce::String& path);
     std::unique_ptr<juce::XmlElement> toXml() const;
     bool restore(const juce::XmlElement&);
 private:
