@@ -22,7 +22,7 @@ Official setup reference: [Ableton: Using VST plug-ins on Windows](https://help.
 
 ## What to expect
 
-- Mono/stereo WAV, AIFF, FLAC, OGG and MP3; maximum 30 seconds and 64 MiB decoded per file, 512 MiB of unique decoded data in the active kit.
+- Mono/stereo WAV, AIFF, FLAC, OGG and MP3; maximum 30 seconds and 64 MiB decoded per file, 512 MiB of unique sample data including waveform caches in the active kit.
 - Velocity-sensitive Trigger playback is the default; Gate and Classic respond to note-off. Up to 128 voices; Stop clears them all.
 - Volume: silence at the minimum (-60 dB), up to +12 dB. Pan: -100% left to +100% right, implemented as stereo balance. Tuning: -48 to +48 semitones in 0.01 increments, plus fine tuning. Double-click sliders to reset to their defaults.
 - Mute and Solo apply across the active kit, including manual Play. Choke groups 1–16 are independent of organisational groups and work across MIDI channels, using a short 2 ms release. Main supports mono/stereo; auxiliary and send buses are stereo.
@@ -51,6 +51,12 @@ Computer Use was stopped by the user during the final update. The tested native 
 Automated processor tests cover every editing field's persistence, Gate/Classic release, loops in both directions, ADSR, pitch, filters, LFO bypass, voice limits, macros, routing, slicing and UI wiring. The compiled VST3 test verifies gate timing, auxiliary/send audio and host macro automation as well as earlier playback/recall. Native MIDI performance, Live output-track routing and automation-lane recording still require their separate host checks; they are not implied by the audition test.
 
 ## Validation boundary
+
+### Waveform update — 28 October 2026
+
+After the user closed Live, version 0.5.1 was installed in the custom VST3 location above. Every installed bundle file was checked against the tested build. The x64 module SHA-256 is `c5013b274d92a83235fbe5653258a76863baeb0388fea92bc6bb58985319f748`. The previous installation is backed up under `.local/installed-pre-0.5.1-20261028-214228/`. This supersedes the earlier pending-copy note and includes the final 0.5 playback fixes.
+
+CTest passed 2/2 and Steinberg validation passed 47/47. Actual editor renders were checked at normal/compact sizes, 128x zoom and 2x display resolution. Reopen Live to review the installed waveform: **Ctrl + wheel** zooms at the pointer, **Shift + wheel** scrolls, and **Fit** restores the whole file. This patch's native Live session check remains pending; Live was left closed.
 
 Automated tests exercise the processor and compiled VST3, including MIDI-triggered output and recall into a fresh hosted instance. Steinberg's validator checks the VST3 interface separately. Hardware-controller, MIDI-clip and wider audio-device testing remain to be completed using the checklist above.
 

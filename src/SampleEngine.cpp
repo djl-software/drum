@@ -42,10 +42,10 @@ SampleStatus SampleEngine::statusFor(const juce::String& id) const
     const juce::ScopedLock guard(statusLock);
     auto found=statuses.find(id); return found==statuses.end() ? SampleStatus{} : found->second;
 }
-std::array<float,512> SampleEngine::waveformFor(const juce::String& id) const
+std::shared_ptr<const Sample> SampleEngine::waveformFor(const juce::String& id) const
 {
     const juce::ScopedLock guard(statusLock);
-    auto found=waveforms.find(id); return found==waveforms.end()?std::array<float,512>{}:found->second;
+    auto found=waveforms.find(id); return found==waveforms.end()?nullptr:found->second.lock();
 }
 void SampleEngine::setStatus(const juce::String& id, SampleStatus value)
 {
@@ -83,13 +83,11 @@ std::shared_ptr<const Sample> SampleEngine::decode(const juce::File& file, juce:
     for(int c=0;c<sample->audio.getNumChannels();++c)
         for(int n=0;n<sample->audio.getNumSamples();++n)
             if(!std::isfinite(sample->audio.getSample(c,n)) || std::abs(sample->audio.getSample(c,n))>64.0f) { error="Audio contains invalid sample values."; return {}; }
-    for(int n=0;n<sample->audio.getNumSamples();++n)
+    sample->waveform.build(sample->audio);
+    for(int c=0;c<sample->audio.getNumChannels();++c)
     {
-        float value=0;
-        for(int c=0;c<sample->audio.getNumChannels();++c) value=juce::jmax(value,std::abs(sample->audio.getSample(c,n)));
-        sample->peak=juce::jmax(sample->peak,value);
-        auto bin=juce::jmin(511,(int)((int64_t)n*512/sample->audio.getNumSamples()));
-        sample->waveform[(size_t)bin]=juce::jmax(sample->waveform[(size_t)bin],value);
+        const auto range=sample->waveform.range(sample->audio,c,0,sample->audio.getNumSamples());
+        sample->peak=juce::jmax(sample->peak,std::abs(range.minimum),std::abs(range.maximum));
     }
     cache[key]=sample; return sample;
 }
@@ -151,7 +149,7 @@ void SampleEngine::updateBank(const State& state)
         juce::String error; auto sample=decode(juce::File(instrument.samplePath),error);
         if(sample && !counted.contains(sample.get()))
         {
-            if(bytes + sample->bytes()>512u*1024u*1024u) { sample.reset(); error="Active kit exceeds 512 MB of decoded samples."; }
+            if(bytes + sample->bytes()>512u*1024u*1024u) { sample.reset(); error="Active kit exceeds 512 MB of sample and waveform data."; }
             else { bytes+=sample->bytes(); counted.insert(sample.get()); }
         }
         next->samples[(size_t)instrument.note]=sample;
@@ -177,7 +175,7 @@ void SampleEngine::updateBank(const State& state)
             render.sampleGain=std::pow(10.0,s.sampleGain/20)*(s.normalise!=0 && sample->peak>0 ? 1.0/(double)sample->peak : 1.0);
             std::array<double,6> sendDb{s.sendA,s.sendB,s.sendC,s.sendD,s.sendE,s.sendF};
             for(size_t n=0;n<6;++n) render.sends[n]=sendDb[n]<=-60 ? 0.0f : juce::Decibels::decibelsToGain((float)sendDb[n]);
-            { const juce::ScopedLock guard(statusLock); waveforms[instrument.id]=sample->waveform; }
+            { const juce::ScopedLock guard(statusLock); waveforms[instrument.id]=sample; }
             auto seconds=sample->audio.getNumSamples()/sample->rate; duration=juce::jmax(duration,seconds/render.pitch);
             if(s.mode==2 && s.loop!=0) duration=juce::jmax(duration,30.0+s.ampRelease/1000.0);
             setStatus(instrument.id,{false,true,"Ready",seconds});

@@ -1,10 +1,10 @@
-# Drum sound editor (0.5)
+# Drum sound editor (0.5.1)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has six pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Kit switching remains available above the editor. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
 ## Sample
 
-- **Start / End:** trim the playable region, as percentages of the original file. Drag either green waveform marker or enter a numeric percentage. Ctrl + wheel zooms the overview, Shift + wheel scrolls it. The overview uses 512 peak bins, so it is not a sample-by-sample waveform display.
+- **Start / End:** trim the playable region, as percentages of the original file. Drag either green waveform marker or enter a numeric percentage. The waveform preserves signed peaks at the current display resolution, with separate L/R lanes for stereo. Close zoom draws the individual samples as a continuous trace. **+ / -** zoom around the centre; **Ctrl + wheel** zooms at the pointer; **Shift + wheel** scrolls; **Fit** shows the entire file. The footer shows zoom and the visible duration in milliseconds. Zoom can reach a 32-sample window. Display scaling uses the source file's peak and does not change the audio gain.
 - **Sample gain:** -24 to +24 dB before the filter. **Normalise** compensates for the file's peak without rewriting it. Silent files remain silent.
 - **Direction:** forward or reverse within the selected region. **Zero-crossing snap** searches up to 256 source frames for a nearby crossing in the left channel; markers retain the requested percentages while playback uses the snapped boundaries.
 - **Trigger:** plays through note-off. **Gate:** fades out when the assigned MIDI note is released. Both use Fade in / Fade out. **Classic ADSR:** uses the amplitude envelope and can sustain a loop while the note is held. Unlike Simpler's strictly monophonic One-Shot mode, Drum retains configurable polyphony in Trigger mode for existing kits.

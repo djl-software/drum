@@ -1,5 +1,6 @@
 #pragma once
 #include "KitLibrary.h"
+#include "WaveformData.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
@@ -14,8 +15,8 @@ struct Sample
     juce::AudioBuffer<float> audio;
     double rate = 44100.0;
     float peak = 0.0f;
-    std::array<float,512> waveform {};
-    size_t bytes() const { return (size_t)audio.getNumChannels() * (size_t)audio.getNumSamples() * sizeof(float); }
+    WaveformData waveform;
+    size_t bytes() const { return (size_t)audio.getNumChannels() * (size_t)audio.getNumSamples() * sizeof(float) + waveform.bytes(); }
 };
 struct SampleStatus
 {
@@ -32,7 +33,8 @@ public:
     void requestLoad(juce::String kit, juce::String instrument, juce::File file);
     void requestImport(juce::String kit, juce::String group, juce::File file);
     SampleStatus statusFor(const juce::String& instrument) const;
-    std::array<float,512> waveformFor(const juce::String& instrument) const;
+    // UI-only: retain the immutable source while drawing; never called by the audio thread.
+    std::shared_ptr<const Sample> waveformFor(const juce::String& instrument) const;
     uint64_t statusRevision() const { return statusEpoch.load(); }
     // For deterministic offline tests. Never call from processBlock.
     bool waitForLoading(int timeoutMs);
@@ -110,11 +112,12 @@ private:
     mutable juce::CriticalSection queueLock, statusLock;
     std::deque<Request> requests;
     std::map<juce::String,SampleStatus> statuses;
-    std::map<juce::String,std::array<float,512>> waveforms;
+    std::map<juce::String,std::weak_ptr<const Sample>> waveforms;
     std::map<juce::String,std::weak_ptr<const Sample>> cache;
     std::vector<std::unique_ptr<Bank>> banks;
     // One audio reader. Hazard stays published between callbacks to protect active voices.
-    // Only the worker allocates/reclaims banks and sample buffers.
+    // Only the worker allocates/reclaims banks. Sample buffers are reclaimed off the
+    // audio thread; the UI may retain the selected sample across bank replacement.
     std::atomic<Bank*> published { nullptr }, hazard { nullptr };
     std::atomic<uint64_t> statusEpoch { 0 }, completedRevision { UINT64_MAX };
     std::atomic<int> outstanding { 0 }, previewNote { -1 };

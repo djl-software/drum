@@ -107,22 +107,68 @@ class SoundEditor::Waveform final : public juce::Component,public juce::Settable
 {
 public:
     explicit Waveform(SoundEditor& e):owner(e)
-    { setComponentID("sample-waveform"); setName("Sample waveform: drag start and end markers"); setTooltip("Drag the green Start and End markers to trim. Ctrl + mouse wheel zooms; Shift + wheel scrolls."); }
-    std::array<float,512> peaks {};
+    {
+        setComponentID("sample-waveform"); setName("Sample waveform: drag start and end markers");
+        setTooltip("Drag the green Start and End markers to trim. Ctrl + wheel zooms at the pointer; Shift + wheel scrolls. Fit shows the whole sample.");
+        auto button=[this](juce::TextButton& b,const char* label,const char* id,const char* tip)
+        { addAndMakeVisible(b); b.setButtonText(label); b.setComponentID(id); b.setTooltip(tip); };
+        button(zoomOut,"-","waveform-zoom-out","Zoom out around the centre");
+        button(zoomIn,"+","waveform-zoom-in","Zoom in around the centre, down to individual samples");
+        button(fit,"Fit","waveform-fit","Show the entire sample");
+        zoomOut.onClick=[this]{setZoom(zoom/2,0.5);};
+        zoomIn.onClick=[this]{setZoom(zoom*2,0.5);};
+        fit.onClick=[this]{zoom=1;offset=0;repaint();};
+    }
+    void setSample(std::shared_ptr<const drum::Sample> value,bool reset)
+    {
+        if(source!=value || reset) {zoom=1;offset=0;cachedWidth=0;}
+        source=std::move(value);
+        for(auto* button:{&zoomOut,&zoomIn,&fit}) button->setEnabled(source!=nullptr);
+        repaint();
+    }
     double zoom=1,offset=0;
     int marker=0;
+    juce::Rectangle<int> plot() const {return {10,26,juce::jmax(1,getWidth()-20),juce::jmax(1,getHeight()-58)};}
+    void resized() override
+    {
+        zoomOut.setBounds(getWidth()-128,getHeight()-26,30,22);
+        zoomIn.setBounds(getWidth()-92,getHeight()-26,30,22);
+        fit.setBounds(getWidth()-56,getHeight()-26,46,22);
+    }
     void paint(juce::Graphics& g) override
     {
-        g.fillAll(bg); auto area=getLocalBounds().reduced(10,24); const float mid=(float)area.getCentreY();
+        g.fillAll(bg); auto area=plot();
         auto x=[&](double position){return (float)(area.getX()+(position-offset)*zoom*area.getWidth());};
         g.saveState(); g.reduceClipRegion(area);
         g.setColour(mint.withAlpha(0.08f)); g.fillRect(juce::Rectangle<float>(x(owner.sound.start),(float)area.getY(),x(owner.sound.end)-x(owner.sound.start),(float)area.getHeight()));
-        float peak=0.01f; for(auto p:peaks) peak=juce::jmax(peak,p);
-        for(int n=0;n<512;++n)
+        if(source)
         {
-            const auto fraction=n/512.0; const float xx=x(fraction),height=peaks[(size_t)n]/peak*area.getHeight()*0.45f;
-            g.setColour(fraction>=owner.sound.start && fraction<owner.sound.end?mint:muted.darker());
-            g.fillRect(xx,mid-height,juce::jmax(1.0f,area.getWidth()*(float)zoom/512),juce::jmax(1.0f,2*height));
+            const auto scale=juce::jmax(1.0f,g.getInternalContext().getPhysicalPixelScaleFactor());
+            const int pixels=juce::jlimit(1,16384,(int)std::ceil(area.getWidth()*scale));
+            rebuildPaths(area,pixels);
+            const int channels=source->audio.getNumChannels();
+            for(int channel=0;channel<channels;++channel)
+            {
+                const float middle=area.getY()+area.getHeight()*(channel+0.5f)/channels;
+                g.setColour(muted.withAlpha(0.22f));g.drawHorizontalLine((int)middle,(float)area.getX(),(float)area.getRight());
+            }
+            auto draw=[&](juce::Colour colour)
+            {
+                for(auto& path:paths)
+                {
+                    if(!sampleTrace) {g.setColour(colour.withAlpha(0.75f));g.fillPath(path);}
+                    g.setColour(colour);g.strokePath(path,juce::PathStrokeType(sampleTrace?1.25f:0.7f/scale));
+                }
+            };
+            draw(muted.darker(0.35f));
+            g.saveState();
+            g.reduceClipRegion(juce::Rectangle<float>(x(owner.sound.start),(float)area.getY(),x(owner.sound.end)-x(owner.sound.start),(float)area.getHeight()).getSmallestIntegerContainer());
+            draw(mint);g.restoreState();
+            if(channels==2)
+            {
+                text(g,"L",{area.getX()+4,area.getY()+2,20,16},10,muted);
+                text(g,"R",{area.getX()+4,area.getCentreY()+2,20,16},10,muted);
+            }
         }
         if(owner.sound.loop!=0 && owner.sound.mode==2)
         {
@@ -136,16 +182,21 @@ public:
         g.restoreState();
         text(g,"START  "+juce::String(owner.sound.start*100,2)+"%",{10,2,180,20},11,mint);
         text(g,"END  "+juce::String(owner.sound.end*100,2)+"%",{getWidth()-190,2,180,20},11,mint);
-        text(g,owner.path.isEmpty()?"Drop an audio sample here":juce::File(owner.path).getFileName(),{10,getHeight()-22,getWidth()-130,20},11,muted);
-        text(g,juce::String(zoom,1)+"x zoom",{getWidth()-110,getHeight()-22,100,20},11,muted);
+        text(g,owner.path.isEmpty()?"Drop an audio sample here":juce::File(owner.path).getFileName(),{10,getHeight()-25,getWidth()-410,20},11,muted);
+        auto detail=juce::String(zoom,1)+"x";
+        if(source) detail+="  /  "+juce::String(source->audio.getNumSamples()/source->rate/zoom*1000,2)+" ms";
+        text(g,detail,{getWidth()-395,getHeight()-25,255,20},11,muted);
     }
-    double position(float x) const {return juce::jlimit(0.0,1.0,offset+(x-10)/juce::jmax(1.0,(getWidth()-20)*zoom));}
+    double position(float x) const {return juce::jlimit(0.0,1.0,offset+(x-plot().getX())/(plot().getWidth()*zoom));}
     void mouseDown(const juce::MouseEvent& e) override
     {
+        marker=-1;
+        if(!source || !plot().contains(e.position.toInt())) return;
         double p=position(e.position.x); marker=std::abs(p-owner.sound.start)<std::abs(p-owner.sound.end)?0:1; mouseDrag(e);
     }
     void mouseDrag(const juce::MouseEvent& e) override
     {
+        if(marker<0) return;
         double p=position(e.position.x);
         p=marker==0?juce::jmin(p,owner.sound.end-0.00001):juce::jmax(p,owner.sound.start+0.00001);
         owner.change(drum::soundParameters[(size_t)marker],p);
@@ -154,14 +205,72 @@ public:
     {
         if(e.mods.isCtrlDown())
         {
-            const double anchor=position(e.position.x); zoom=juce::jlimit(1.0,32.0,zoom*std::pow(1.4,wheel.deltaY*5));
-            offset=juce::jlimit(0.0,1-1/zoom,anchor-(e.position.x-10)/((getWidth()-20)*zoom));
+            setZoom(zoom*std::pow(1.4,wheel.deltaY*5),juce::jlimit(0.0,1.0,(e.position.x-plot().getX())/(double)plot().getWidth()));
         }
         else if(e.mods.isShiftDown()) offset=juce::jlimit(0.0,1-1/zoom,offset-wheel.deltaY/zoom);
         repaint();
     }
 private:
+    void setZoom(double value,double fraction)
+    {
+        const auto anchor=offset+fraction/zoom;
+        const double maximum=source?juce::jmax(1.0,source->audio.getNumSamples()/32.0):1.0;
+        zoom=juce::jlimit(1.0,maximum,value);
+        offset=juce::jlimit(0.0,1-1/zoom,anchor-fraction/zoom);
+        repaint();
+    }
+    void rebuildPaths(juce::Rectangle<int> area,int pixels)
+    {
+        if(cachedWidth==area.getWidth() && cachedHeight==area.getHeight() && cachedPixels==pixels && cachedZoom==zoom && cachedOffset==offset) return;
+        cachedWidth=area.getWidth();cachedHeight=area.getHeight();cachedPixels=pixels;cachedZoom=zoom;cachedOffset=offset;
+        const int frames=source->audio.getNumSamples(),channels=source->audio.getNumChannels();
+        const double begin=offset*frames,length=frames/zoom;
+        sampleTrace=length<=pixels;
+        paths.clear();paths.resize((size_t)channels);
+        for(int channel=0;channel<channels;++channel)
+        {
+            auto& path=paths[(size_t)channel];
+            const float middle=area.getY()+area.getHeight()*(channel+0.5f)/channels;
+            const float amplitude=area.getHeight()*0.44f/channels/juce::jmax(0.01f,source->peak);
+            if(sampleTrace)
+            {
+                const int first=juce::jlimit(0,frames-1,(int)std::floor(begin));
+                const int last=juce::jlimit(first,frames,(int)std::ceil(begin+length));
+                for(int n=first;n<=last;++n)
+                {
+                    const float xx=(float)(area.getX()+(n-begin)/length*area.getWidth());
+                    const float yy=middle-source->audio.getSample(channel,juce::jmin(n,frames-1))*amplitude;
+                    if(n==first)path.startNewSubPath(xx,yy);else path.lineTo(xx,yy);
+                }
+            }
+            else
+            {
+                std::vector<drum::WaveformData::Range> columns((size_t)pixels);
+                for(int n=0;n<pixels;++n)
+                {
+                    const int from=juce::jlimit(0,frames-1,(int)std::floor(begin+length*n/pixels));
+                    const int to=juce::jlimit(from+1,frames,(int)std::ceil(begin+length*(n+1)/pixels));
+                    columns[(size_t)n]=source->waveform.range(source->audio,channel,from,to);
+                    const float xx=(float)(area.getX()+(n+0.5)*area.getWidth()/pixels);
+                    const float yy=middle-columns[(size_t)n].maximum*amplitude;
+                    if(n==0)path.startNewSubPath((float)area.getX(),yy);
+                    path.lineTo(xx,yy);
+                }
+                path.lineTo((float)area.getRight(),middle-columns.back().maximum*amplitude);
+                path.lineTo((float)area.getRight(),middle-columns.back().minimum*amplitude);
+                for(int n=pixels-1;n>=0;--n)
+                    path.lineTo((float)(area.getX()+(n+0.5)*area.getWidth()/pixels),middle-columns[(size_t)n].minimum*amplitude);
+                path.lineTo((float)area.getX(),middle-columns.front().minimum*amplitude);path.closeSubPath();
+            }
+        }
+    }
     SoundEditor& owner;
+    std::shared_ptr<const drum::Sample> source;
+    juce::TextButton zoomOut,zoomIn,fit;
+    std::vector<juce::Path> paths;
+    int cachedWidth=0,cachedHeight=0,cachedPixels=0;
+    double cachedZoom=0,cachedOffset=0;
+    bool sampleTrace=false;
 };
 SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_unique<Waveform>(*this))
 {
@@ -206,7 +315,7 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
         auto& field=*macroFields[(size_t)n];field.update(i?i->controls.macros[(size_t)n]:drum::MacroMapping{},changed);field.setEnabled(i!=nullptr);
         if(!field.value.isMouseButtonDown() && !field.value.hasKeyboardFocus(true)) field.value.setValue(processor.macro(n).get()*100,juce::dontSendNotification);
     }
-    waveform->peaks=processor.getSampleEngine().waveformFor(instrumentId); waveform->repaint();
+    waveform->setSample(processor.getSampleEngine().waveformFor(instrumentId),changed);
     play.setEnabled(i && processor.getSampleEngine().statusFor(i->id).ready); reset.setEnabled(i!=nullptr);
     updating=false; repaint();
 }
@@ -241,7 +350,7 @@ void SoundEditor::paint(juce::Graphics& g)
     text(g,name,{18,12,getWidth()-410,30},22);
     text(g,"MIDI "+juce::String(note)+"  /  "+drum::noteName(note)+"  /  SOUND EDITOR",{18,46,getWidth()-36,22},11,mint);
     static const char* help[]{
-        "Drag waveform markers to trim. Loop positions are relative to the trimmed region. Loop works in Classic mode.",
+        "Drag Start/End to trim. Ctrl + wheel zooms; Shift + wheel scrolls. Loops use the trimmed region in Classic mode.",
         "Amplitude ADSR shapes Classic mode. Trigger and Gate use Fade in/out. Pitch envelope works in all modes.",
         "Clean resonant filters with optional drive. Positive envelope amounts raise cutoff; negative amounts lower it.",
         "Per-voice modulation. Host tempo follows your DAW; standalone uses 120 BPM. Depths of zero leave the sound unchanged.",
@@ -257,7 +366,7 @@ void SoundEditor::resized()
     for(int n=0;n<6;++n) tabs[(size_t)n].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
     viewport.setBounds(18,150,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-187));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=3,gap=24,cell=(width-gap*2)/columns;
-    const int top=page==0?160:6; waveform->setBounds(0,0,width,144);
+    const int top=page==0?224:6; waveform->setBounds(0,0,width,208);
     int n=0; for(auto& field:fields) if(field->parameter.page==page)
     {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*65,cell,56); ++n;}
     int bottom=top+((n+2)/3)*65+6;
