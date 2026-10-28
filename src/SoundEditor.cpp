@@ -404,8 +404,8 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
         if(result.ok) processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
         message=result.ok?"Page reset. The source file is unchanged.":result.message; refresh();
     };
-    const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros"};
-    for(int n=0;n<6;++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
+    const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer"};
+    for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
     addAndMakeVisible(*waveform);
     addAndMakeVisible(*waveformDivider);
@@ -471,7 +471,7 @@ void SoundEditor::change(const drum::SoundParameter& parameter,double value)
 void SoundEditor::setPage(int value)
 {
     page=value; viewport.setViewPosition(0,0);
-    for(int n=0;n<6;++n) tabs[(size_t)n].setToggleState(n==page,juce::dontSendNotification);
+    for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)n].setToggleState(n==page,juce::dontSendNotification);
     for(auto& field:fields) field->setVisible(field->parameter.page==page);
     for(auto& field:macroFields) field->setVisible(page==5);
     slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5);
@@ -484,19 +484,20 @@ void SoundEditor::paint(juce::Graphics& g)
     text(g,"MIDI "+juce::String(note)+"  /  "+drum::noteName(note)+"  /  SOUND EDITOR",{18,46,getWidth()-36,22},11,mint);
     static const char* help[]{
         "Choose Source to drag trim markers; Edited previews the sound. Ctrl + wheel zooms; Shift + wheel scrolls.",
-        "Amplitude ADSR shapes Classic mode. Trigger and Gate use Fade in/out. Pitch envelope works in all modes.",
+        "Amplitude ADSR needs Classic mode; Trigger/Gate use Fade in/out. Set a nonzero Pitch envelope amount to hear its ADSR.",
         "Clean resonant filters with optional drive. Positive envelope amounts raise cutoff; negative amounts lower it.",
-        "Per-voice modulation. Host tempo follows your DAW; standalone uses 120 BPM. Depths of zero leave the sound unchanged.",
+        "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
         "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
-        "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority."};
+        "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
+        "Add a short Click, Pulse or Noise at the start of each hit. Mixed after the sample filter, before amplitude and pan."};
     text(g,help[page],{18,116,getWidth()-36,24},12,muted);
     text(g,message.isEmpty()?"Non-destructive edits. The original audio file is preserved.":message,{18,getHeight()-29,getWidth()-36,23},11,muted);
 }
 void SoundEditor::resized()
 {
     back.setBounds(getWidth()-380,15,125,32); play.setBounds(getWidth()-245,15,65,32); stop.setBounds(getWidth()-170,15,65,32); reset.setBounds(getWidth()-95,15,80,32);
-    const int tabWidth=(getWidth()-36-40)/6;
-    for(int n=0;n<6;++n) tabs[(size_t)n].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
+    const int tabWidth=(getWidth()-36-8*((int)tabs.size()-1))/(int)tabs.size();
+    for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)n].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
     const int height=juce::jlimit(184,juce::jmax(184,getHeight()-359),waveformHeight);
     waveform->setBounds(18,150,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,150+height,juce::jmax(1,getWidth()-36),12);

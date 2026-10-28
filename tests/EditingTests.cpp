@@ -127,7 +127,7 @@ void runEditingTests()
     auto* reverse=dynamic_cast<juce::ComboBox*>(find(editor,"edit-reverse"));check(reverse!=nullptr,"Reverse UI missing");reverse->setSelectedId(2,juce::sendNotificationSync);
     auto* attack=dynamic_cast<juce::Slider*>(find(editor,"edit-ampAttack"));check(attack!=nullptr,"Envelope UI missing");attack->setValue(25,juce::sendNotificationSync);
     state=r.p.getLibrary().snapshot();auto sound=drum::findInstrument(*drum::activeKit(state),r.id)->controls.sound;check(sound.reverse==1 && sound.ampAttack==25,"Editing UI not saved");
-    for(int page=0;page<6;++page)
+    for(int page=0;page<7;++page)
     {
         click(editor,("edit-tab-"+juce::String(page)).toRawUTF8());capture(editor,"drum-editor-"+juce::String(page)+".png");
         for(auto& p:drum::soundParameters)check(find(editor,juce::String("edit-")+p.key)!=nullptr,"A registered control has no UI");

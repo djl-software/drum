@@ -52,6 +52,17 @@ Automated processor tests cover every editing field's persistence, Gate/Classic 
 
 ## Validation boundary
 
+### Mono and attack-layer review (0.7)
+
+Version 0.7.0 was installed with Live closed on 28 October 2026. Every installed bundle file matches the tested build; module SHA-256 is `a2211e5f0e593c3a4579e8d48285019eea23f07bf678a18ee72219044d3fa4f8`. The previous bundle is backed up under `.local/installed-pre-0.7-20261028-231930/`. CTest passed 2/2 and Steinberg validation passed 47/47. Normal/compact attack controls and the mono Sample view were inspected. The following native Live checks remain for review; Live was left closed.
+
+1. Open Edit sound > Sample on a stereo hit. Toggle Source channels between Stereo and Mono. Mono should centre the source while preserving subsequent instrument pan. Source view retains the original stereo file; Edited > Auto channels collapses identical processed L/R to one lane.
+2. Open Attack layer, select On and try Click at -18 dB, 1.8 kHz and 8 ms. Compare Off/On using Play or MIDI. Try Pulse for a tonal knock and Noise for a rougher attack; adjust tone, level and decay. Zoom into the first few milliseconds in Edited. The sample's tail should stay unchanged after the layer ends.
+3. Confirm the layer follows instrument volume, pan, mute/solo, choke and sends. A long Classic amplitude attack or sample Fade in also softens the layer. Loops should not repeat the click at each wrap.
+4. On Envelopes & pitch, use Classic ADSR for amplitude-envelope changes and a nonzero Pitch envelope amount for pitch-envelope changes. On LFO, choose On and a nonzero depth; Filter depth also needs Filter On. Edited should update; Source should remain unchanged.
+5. For native Ableton audio effects, route one instrument to Out 2 and receive that output on a Live audio track with Monitor In. Put EQ Eight, Compressor or other Live audio effects on the receiving track. Use Out 3 and a separate track for another independent chain. Instruments sharing an output share effects; there are 16 main/aux destinations and six sends, not 88 independent effect chains. External effects are not included in Drum's Edited waveform. Drum does not accept native Live devices or third-party VST3 effects dragged into its editor.
+6. Save/reopen the Set and verify each instrument's Source channels and Attack settings, plus external effect tracks. Open an older Set and verify Stereo/attack Off defaults with prior sample edits preserved.
+
 ### Vertical zoom update — 28 October 2026
 
 Version 0.6.1 was installed after Live closed. Every installed bundle file matched the tested build; x64 module SHA-256 is `ca567921697f64ba518757bc573bc63fe6bce35b35d8e43507276b295682c7b2`. The previous installation is backed up under `.local/installed-pre-0.6.1-20261028-224224/`. CTest passed 2/2 and Steinberg validation passed 47/47. Quiet stereo, mono and compact editor renders were checked.

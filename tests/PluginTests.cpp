@@ -14,6 +14,7 @@ void runControlTests();
 void runEditingTests();
 void runWaveformTests();
 void runPreviewTests();
+void runChannelAttackTests();
 void runVst3PlaybackTest(const juce::String&);
 
 int main(int argc, char** argv)
@@ -78,6 +79,7 @@ int main(int argc, char** argv)
         runEditingTests();
         runWaveformTests();
         runPreviewTests();
+        runChannelAttackTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
     }

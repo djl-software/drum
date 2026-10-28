@@ -12,15 +12,19 @@ Version 0.6 keeps the waveform above all six Edit Sound tabs while the controls 
 
 Version 0.6.1 adds **Y zoom** (0.25x–128x), **Fit Y**, a taller waveform and a draggable height divider. **Auto channels** draws mono or identical L/R output in one full-height lane; **Stereo L / R**, **Left only** and **Right only** offer other display layouts. These controls change the picture only. Use Alt + wheel for vertical zoom, Ctrl + wheel for time zoom, and Shift + wheel to scroll.
 
+Version 0.7 adds per-instrument **Source channels: Stereo / Mono** on the Sample page, plus an **Attack layer** page for a short Click, Pulse or Noise with level, tone and decay controls. Mono averages the source channels before filtering; pan and stereo modulation follow it. Edited and Send waveforms include both changes. Existing projects keep Stereo playback and the attack layer Off.
+
 Use **Add example kit** to review a populated layout. Its named instrument slots start empty. Select a slot and choose **Load sample**, or drop one audio file onto an instrument card to replace its sound. Drop one or more audio samples from Ableton's Samples browser or Explorer into empty workspace space to create named instruments in the selected group, with free MIDI notes. **Play** auditions the selected instrument; incoming MIDI triggers its assigned note with velocity-sensitive, overlapping one-shot playback. WAV, AIFF, FLAC, OGG and MP3 are supported, with mono/stereo files up to 30 seconds and 64 MB decoded. The active kit allows 512 MB of unique sample data including waveform caches, and 128 simultaneous voices.
 
 Volume ranges from silence to +12 dB, pan from left to right, and tuning from -48 to +48 semitones, plus fine tuning in the editor. Double-click a slider to reset it. Solo works across the active kit and allows multiple solos; mute takes priority. Choke Off allows overlap. Instruments sharing choke group 1–16 cut earlier hits in that choke group, independently of organisational groups and MIDI channels. Tuning changes sample speed and duration; pan is stereo balance.
 
-Select an instrument and click **Edit sound**. Six scrollable pages keep the controls accessible at smaller window sizes. See the [sound editor guide](docs/sound-editor.md) and [testing in Ableton](docs/ableton-testing.md). Samples remain external files: keep them at their saved locations, or use **Replace** to locate moved files. Main supports mono/stereo, with 15 additional stereo outputs and six post-fader send outputs for DAW effects. A separate standalone product is planned later.
+Select an instrument and click **Edit sound**. Seven scrollable pages keep the controls accessible at smaller window sizes. See the [sound editor guide](docs/sound-editor.md) and [testing in Ableton](docs/ableton-testing.md). Samples remain external files: keep them at their saved locations, or use **Replace** to locate moved files. Main supports mono/stereo, with 15 additional stereo outputs and six post-fader send outputs for DAW effects. Ableton's native effects can process these outputs on receiving Live tracks; native Live devices and third-party VST3 effects cannot currently be loaded inside Drum. A separate standalone product is planned later.
 
 This is a substantial editing preview, not complete Ableton device parity. Warp/time-stretch, transient/manual slicing, layered device chains, built-in return effects, glide/spread, envelope looping, macro variations and Live device/preset importing remain outside this build. Existing audio-sample drag-and-drop is supported.
 
 ![Drum sound editor](docs/images/drum-sound-editor.png)
+
+![Per-instrument attack layer](docs/images/drum-attack-layer.png)
 
 ![Detailed stereo waveform](docs/images/drum-waveform.png)
 

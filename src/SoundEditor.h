@@ -36,7 +36,7 @@ private:
     juce::TextButton back,play,stop,reset;
     juce::TextButton slice;
     juce::ComboBox sliceCount;
-    std::array<juce::TextButton,6> tabs;
+    std::array<juce::TextButton,7> tabs;
     juce::Viewport viewport;
     juce::Component content;
     std::unique_ptr<Waveform> waveform;

@@ -96,6 +96,7 @@ void runPreviewTests()
     controls.sound.mode=2;controls.sound.ampAttack=7;controls.sound.pitchAmount=3;controls.sound.pitchDecay=400;
     controls.sound.filterOn=1;controls.sound.cutoff=1300;controls.sound.filterAmount=2;controls.sound.filterAttack=10;controls.sound.drive=2;
     controls.sound.lfoOn=1;controls.sound.lfoSync=1;controls.sound.lfoVolume=0.3;controls.sound.lfoPitch=0.5;controls.sound.lfoPan=0.2;
+    controls.sound.mono=1;controls.sound.attackOn=1;controls.sound.attackType=2;controls.sound.attackLevel=-6;controls.sound.attackDecay=45;
     controls.sound.output=4;controls.sound.sendA=-9;controls.macros[0]={4,-3,3};macros[0]=0.25;
     check(library.setControls(kit,id,controls).ok,"Preview comparison controls invalid");check(engine.waitForLoading(10000),"Preview comparison bank timed out");
     for(double rate:{44100.0,48000.0,96000.0})
@@ -128,13 +129,31 @@ void runPreviewTests()
     DrumAudioProcessorEditor editor(processor);editor.setSize(1280,900);click(editor,"open-sound-editor");settle(editor);
     auto initial=pixels(editor);
     auto& wave=control<juce::Component>(editor,"sample-waveform");auto bounds=wave.getBoundsInParent();
-    for(int page=0;page<6;++page)
+    for(int page=0;page<7;++page)
     {
         click(editor,"edit-tab-"+juce::String(page));
         check(wave.isVisible() && wave.getBoundsInParent()==bounds,"Waveform moved or disappeared between tabs");
         check(pixels(editor)==initial,"Tab switch changed preview signal");
         capture(editor,"drum-preview-tab-"+juce::String(page)+".png");
     }
+    click(editor,"edit-tab-0");control<juce::ComboBox>(editor,"edit-mono").setSelectedId(2,juce::sendNotificationSync);settle(editor);
+    check(pixels(editor)!=initial,"Mono playback did not update waveform");capture(editor,"drum-source-channels.png");
+    control<juce::ComboBox>(editor,"edit-mono").setSelectedId(1,juce::sendNotificationSync);settle(editor);
+    click(editor,"edit-tab-6");control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(2,juce::sendNotificationSync);
+    control<juce::Slider>(editor,"edit-attackLevel").setValue(-3,juce::sendNotificationSync);
+    control<juce::Slider>(editor,"edit-attackDecay").setValue(40,juce::sendNotificationSync);settle(editor);
+    check(pixels(editor)!=initial,"Attack controls did not update waveform");capture(editor,"drum-attack-layer.png");
+    editor.setSize(800,600);capture(editor,"drum-attack-compact.png");editor.setSize(1280,900);
+    control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(1,juce::sendNotificationSync);settle(editor);
+    click(editor,"edit-tab-3");control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(2,juce::sendNotificationSync);
+    control<juce::Slider>(editor,"edit-lfoVolume").setValue(90,juce::sendNotificationSync);settle(editor);
+    check(pixels(editor)!=initial,"LFO controls did not update waveform");
+    control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(1,juce::sendNotificationSync);
+    click(editor,"edit-tab-1");control<juce::Slider>(editor,"edit-pitchAmount").setValue(12,juce::sendNotificationSync);settle(editor);
+    check(pixels(editor)!=initial,"Pitch envelope did not update waveform");
+    auto& view=control<juce::ComboBox>(editor,"waveform-view");view.setSelectedId(1,juce::sendNotificationSync);auto sourcePixels=pixels(editor);
+    control<juce::Slider>(editor,"edit-pitchAmount").setValue(0,juce::sendNotificationSync);
+    check(pixels(editor)==sourcePixels,"Pitch changed Source waveform");view.setSelectedId(2,juce::sendNotificationSync);settle(editor);
     click(editor,"edit-tab-1");control<juce::Slider>(editor,"edit-ampAttack").setValue(200,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Envelope UI did not update waveform");capture(editor,"drum-preview-envelope.png");
     click(editor,"edit-tab-2");auto before=pixels(editor);
@@ -162,7 +181,7 @@ void runPreviewTests()
     click(editor,"waveform-fit-vertical");const int fitted=vertical.getSelectedId();
     check(fitted>3,"Fit Y did not enlarge a quiet preview");
     capture(editor,"drum-waveform-quiet-fit.png");
-    for(int tab=0;tab<6;++tab) {click(editor,"edit-tab-"+juce::String(tab));check(vertical.getSelectedId()==fitted,"Tab change reset vertical zoom");}
+    for(int tab=0;tab<7;++tab) {click(editor,"edit-tab-"+juce::String(tab));check(vertical.getSelectedId()==fitted,"Tab change reset vertical zoom");}
     auto& channels=control<juce::ComboBox>(editor,"waveform-channels");
     channels.setSelectedId(3,juce::sendNotificationSync);auto leftView=pixels(editor);
     channels.setSelectedId(4,juce::sendNotificationSync);check(pixels(editor)!=leftView,"Right channel view matches the different left signal");

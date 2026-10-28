@@ -1,10 +1,10 @@
-# Drum sound editor (0.6.1)
+# Drum sound editor (0.7)
 
-Select an instrument in the kit workspace and click **Edit sound**. The editor has six pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Kit switching remains available above the editor. All editing is non-destructive and saved in the DAW project; sample files remain external.
+Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Kit switching remains available above the editor. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
 ## Waveform on every page
 
-The waveform stays above the scrolling controls on all six tabs. The view selector offers:
+The waveform stays above the scrolling controls on all seven tabs. The view selector offers:
 
 - **Edited** (default): one hit rendered through Drum's current trim/reverse, gain/normalise, tuning, envelopes, filter, LFO, instrument mixer and macro settings. It updates after control edits, host macro changes and host tempo changes, without playing audio. At Y 1x its amplitude scale is ±1 (0 dBFS). Vertical zoom magnifies the display without changing gain; values beyond the chosen scale meet the display edge. The header reports the actual signal peak in dBFS. This is display clipping only.
 - **Source:** the original file with Start/End and loop markers. Choose this to drag trim markers. This view scales to the source peak and does not show processing. Numeric Start/End controls also work while Edited is selected.
@@ -28,6 +28,7 @@ These are editor display preferences. They persist while the editor is open and 
 
 - **Start / End:** trim the playable region, as percentages of the original file. Choose Source to drag either green marker, or enter a numeric percentage in either view. The waveform preserves signed peaks at the current display resolution. Close zoom draws the individual samples as a continuous trace. **+ / -** zoom around the centre; **Ctrl + wheel** zooms at the pointer; **Shift + wheel** scrolls; **Fit X** shows the entire waveform in time. The footer shows horizontal zoom and the visible duration in milliseconds. Zoom can reach a 32-sample window.
 - **Sample gain:** -24 to +24 dB before the filter. **Normalise** compensates for the file's peak without rewriting it. Silent files remain silent.
+- **Source channels:** Stereo preserves the file's channels. Mono averages left and right before the filter; a mono file retains its level. Instrument pan and pan modulation still follow this stage. Opposite-polarity stereo material may cancel when summed. This is a playback setting saved per instrument, distinct from the waveform's display-only channel selector. Changing a sounding voice crossfades over 5 ms. Normalise continues to use the original file peak. Edited shows the result; Source still shows the original channels.
 - **Direction:** forward or reverse within the selected region. **Zero-crossing snap** searches up to 256 source frames for a nearby crossing in the left channel; markers retain the requested percentages while playback uses the snapped boundaries.
 - **Trigger:** plays through note-off. **Gate:** fades out when the assigned MIDI note is released. Both use Fade in / Fade out. **Classic ADSR:** uses the amplitude envelope and can sustain a loop while the note is held. Unlike Simpler's strictly monophonic One-Shot mode, Drum retains configurable polyphony in Trigger mode for existing kits.
 - **Voices:** 1–128 per instrument, within the global 128-voice pool. **Retrigger** cuts previous hits of the same instrument with a short fade. Choke groups remain independent of this setting.
@@ -41,6 +42,8 @@ Trim/loop markers, playback mode, direction and loop on/off are latched for each
 
 Classic mode exposes amplitude Attack, Decay, Sustain and Release. The pitch envelope has its own ADSR and a bipolar semitone amount. Fine tuning, velocity-to-volume, velocity-to-pitch, random pan and MIDI pitch-bend range are also available. Pitch bend is per MIDI channel and defaults to zero range so old projects are unchanged. Pitch controls alter playback speed and duration.
 
+The Edited waveform reflects these controls when active. Amplitude ADSR needs **Playback: Classic ADSR**; Trigger and Gate use Fade in/out instead. The pitch envelope needs a nonzero **Pitch envelope** amount. Editing its ADSR with amount zero leaves the sound unchanged. Source always shows the unprocessed file.
+
 ## Filter
 
 Clean low-pass, high-pass, band-pass and notch filters offer 12/24 dB slopes, cutoff, resonance (Q), drive, filter ADSR, bipolar envelope amount and velocity sensitivity. The sample-gain stage precedes the filter; the amplitude envelope and instrument mixer follow it. Filter/envelope amounts are in octaves. This is Drum's filter implementation, not an emulation of Ableton's licensed circuit models.
@@ -49,11 +52,34 @@ Clean low-pass, high-pass, band-pass and notch filters offer 12/24 dB slopes, cu
 
 Sine, triangle, square, rising/falling saw and random waveforms modulate volume, pitch, pan and filter cutoff. Choose a free rate (0.01–30 Hz) or host-tempo divisions from 1/64 to four bars. Fade-in time, note retrigger and phase are available. Each voice has its own LFO. Free-running mode starts from an elapsed-time phase; it is not locked to the DAW's bar position. Standalone falls back to 120 BPM.
 
+To hear modulation and see it in Edited, choose **LFO: On** and raise at least one depth. Filter depth also requires Filter On. A slow LFO or a long fade-in can make little visible difference to a short hit; time zoom helps inspect subtle changes.
+
+## Attack layer
+
+Turn **Attack layer** On to add a centred transient at the start of each sample hit:
+
+- **Click:** a short tonal click with an extra harmonic for a sharper front edge.
+- **Pulse:** a short sine burst; lower tone adds a knock, higher tone adds a tick.
+- **Noise:** a repeatable filtered noise burst for a rougher attack.
+- **Attack level:** -60 dB (silent) to 0 dB, default -18 dB.
+- **Attack tone:** 30 Hz–16 kHz, controlling oscillator pitch or noise brightness. High settings are limited for the current host sample rate.
+- **Attack decay:** 1–100 ms, default 8 ms, controlling the transient's maximum duration.
+
+Start with Click, -18 dB, 1.8 kHz and 8 ms, then audition and adjust. The layer is added after sample gain/filtering and before the amplitude envelope, velocity response, LFO volume, instrument volume/pan, mute/solo, choke and sends. A long amplitude attack or Fade in softens it too. It starts once per note, does not repeat at loop boundaries, and ends if the sample voice ends. It requires a loaded sample. It does not follow sample tuning or pitch modulation; Attack tone controls its pitch separately. The sample and layer can sum above full scale, so adjust their levels as needed.
+
+Edited and Send waveforms include the attack layer; Source does not. Zoom into the first few milliseconds to inspect its shape. These controls are saved per instrument and inherited by copies/slices. Reset page restores Off and the default settings.
+
 ## Outputs and sends
 
 Route each instrument to Main or Out 2–16. Send A–F provide six additional stereo outputs, with per-instrument post-fader send levels; -60 dB is off. They contain audio for effects on DAW tracks, not internal reverb/delay engines. A disabled instrument output falls back to Main. A disabled send stays silent. On hosts that enable every output, selecting an auxiliary output removes that instrument from Main even if no receiving track is connected.
 
 In Live, create a receiving audio track, select the Drum MIDI track as **Audio From**, and select the required plug-in output in the second chooser. Set monitoring to In and put the desired audio effects on that track. Route its audio to Main. Host output labels can include channel numbers as well as Drum's bus names. Validate routing before recording; organisational groups do not automatically create audio buses.
+
+### Ableton effects on individual instruments
+
+Live's native devices, such as EQ Eight and Compressor, run in Live's device chains and cannot be dragged into Drum's VST3. Assign the kick to Out 2, the snare to Out 3, and so on, then put the desired Live effects on their receiving audio tracks. All instruments sharing an output share that external effect chain. Main plus Out 2–16 provide 16 destinations; this is not 88 independent effect chains. Six sends can feed shared external effects. Live saves those devices and their routing in the Set; Drum saves its output/send choices. External effects are after Drum's waveform preview and are not drawn in it. See [Ableton's routing manual](https://www.ableton.com/en/manual/routing-and-i-o/).
+
+Third-party VST3 effects shown in Live's browser are a different format from native Live devices. Hosting them inside Drum would require a separate effects-hosting feature, which this build does not provide.
 
 ## Macros
 
@@ -63,6 +89,6 @@ Targets include the instrument mixer, sample gain, cutoff/resonance, envelope ti
 
 ## Compatibility and remaining scope
 
-Schema 5 saves every editing field, macro mapping and macro value. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
+Schema 6 saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
 
 The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered chains, hosting arbitrary devices, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.

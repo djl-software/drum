@@ -11,6 +11,7 @@ namespace drum
  X(start,"Start",0,0,1,0.00001," %",0,"",100) \
  X(end,"End",1,0,1,0.00001," %",0,"",100) \
  X(sampleGain,"Sample gain",0,-24,24,0.1," dB",0,"",1) \
+ X(mono,"Source channels",0,0,1,1,"",0,"Stereo|Mono",1) \
  X(reverse,"Direction",0,0,1,1,"",0,"Forward|Reverse",1) \
  X(normalise,"Normalise",0,0,1,1,"",0,"Off|On",1) \
  X(snap,"Zero-crossing snap",0,0,1,1,"",0,"Off|On",1) \
@@ -67,7 +68,12 @@ namespace drum
  X(sendC,"Send C",-60,-60,0,0.1," dB",4,"",1) \
  X(sendD,"Send D",-60,-60,0,0.1," dB",4,"",1) \
  X(sendE,"Send E",-60,-60,0,0.1," dB",4,"",1) \
- X(sendF,"Send F",-60,-60,0,0.1," dB",4,"",1)
+ X(sendF,"Send F",-60,-60,0,0.1," dB",4,"",1) \
+ X(attackOn,"Attack layer",0,0,1,1,"",6,"Off|On",1) \
+ X(attackType,"Attack sound",0,0,2,1,"",6,"Click|Pulse|Noise",1) \
+ X(attackLevel,"Attack level",-18,-60,0,0.1," dB",6,"",1) \
+ X(attackTone,"Attack tone",1800,30,16000,1," Hz",6,"",1) \
+ X(attackDecay,"Attack decay",8,1,100,0.1," ms",6,"",1)
 
 struct SoundParameters
 {
@@ -93,6 +99,12 @@ inline constexpr SoundParameter soundParameters[] {
 #undef DRUM_DESCRIBE
 };
 #undef DRUM_SOUND_PARAMETERS
+inline bool introducedInVersion6(const SoundParameter& p)
+{
+    return p.member==&SoundParameters::mono || p.member==&SoundParameters::attackOn
+        || p.member==&SoundParameters::attackType || p.member==&SoundParameters::attackLevel
+        || p.member==&SoundParameters::attackTone || p.member==&SoundParameters::attackDecay;
+}
 inline bool validSound(const SoundParameters& sound)
 {
     for (auto& p : soundParameters)

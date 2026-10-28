@@ -325,7 +325,7 @@ Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String&
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 5); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 6); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
@@ -360,7 +360,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); return true;
     }
-    if (version != 2 && version != 3 && version != 4 && version != 5) return false;
+    if (version != 2 && version != 3 && version != 4 && version != 5 && version != 6) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -381,7 +381,8 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                     if(mute<0 || mute>1 || solo<0 || solo>1) return false;
                     group.instruments.back().controls={numberAttribute(*i,"volumeDb"),numberAttribute(*i,"pan"),numberAttribute(*i,"tuning"),mute!=0,solo!=0,integerAttribute(*i,"choke")};
                     if(version>=5) for(auto& p:soundParameters)
-                        group.instruments.back().controls.sound.*(p.member)=numberAttribute(*i,(juce::String("edit_")+p.key).toRawUTF8());
+                        if(version>=6 || !introducedInVersion6(p))
+                            group.instruments.back().controls.sound.*(p.member)=numberAttribute(*i,(juce::String("edit_")+p.key).toRawUTF8());
                     if(version>=5) for(int n=0;n<numMacros;++n)
                     {
                         auto& m=group.instruments.back().controls.macros[(size_t)n]; const auto key="map"+juce::String(n);

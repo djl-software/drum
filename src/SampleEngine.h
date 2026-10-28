@@ -93,6 +93,8 @@ private:
         int note = 0, choke = 0, releaseRemaining = -1;
         int start=0,end=1,loopStart=0,loopEnd=1;
         double elapsed=0,phase=0;
+        double attackPhase=0,attackNoise=0;
+        uint32_t attackRandom=0x7f4a7c15;
         float randomPan=0,randomLfo=0;
         bool held=true,preview=false;
         SoundParameters sound;
@@ -101,7 +103,7 @@ private:
         std::array<std::array<double,2>,2> filter1 {},filter2 {};
         int filterCounter=0;
         double filterG=0,filterK=1;
-        juce::SmoothedValue<float> left, right;
+        juce::SmoothedValue<float> left, right, monoMix, attackGain;
         juce::SmoothedValue<double> step;
     };
     struct Request { juce::String kit, instrument, group; juce::File file; };

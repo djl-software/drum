@@ -301,6 +301,9 @@ void SampleEngine::startVoice(int note,int channel,float velocity) noexcept
     voice->amp.noteOn(); voice->filterEnvelope.noteOn(); voice->pitchEnvelope.noteOn();
     voice->left.reset(hostRate,0.005); voice->right.reset(hostRate,0.005); voice->step.reset(hostRate,0.005);
     voice->left.setCurrentAndTargetValue(c.left); voice->right.setCurrentAndTargetValue(c.right);
+    voice->monoMix.reset(hostRate,0.005);voice->monoMix.setCurrentAndTargetValue((float)c.sound.mono);
+    voice->attackGain.reset(hostRate,0.005);voice->attackGain.setCurrentAndTargetValue(c.sound.attackOn!=0 && c.sound.attackLevel>-60?juce::Decibels::decibelsToGain((float)c.sound.attackLevel):0.0f);
+    voice->attackPhase=0;voice->attackNoise=0;voice->attackRandom=0x7f4a7c15;
     voice->step.setCurrentAndTargetValue(voice->sample->rate/hostRate*c.pitch);
 }
 void SampleEngine::configureEnvelopes(Voice& v) noexcept
@@ -334,6 +337,8 @@ void SampleEngine::updateVoices() noexcept
         voice.sound.reverse=previous.reverse; voice.sound.loop=previous.loop; voice.sound.mode=previous.mode;
         configureEnvelopes(voice);
         voice.left.setTargetValue(c.left); voice.right.setTargetValue(c.right);
+        voice.monoMix.setTargetValue((float)c.sound.mono);
+        voice.attackGain.setTargetValue(c.sound.attackOn!=0 && c.sound.attackLevel>-60?juce::Decibels::decibelsToGain((float)c.sound.attackLevel):0.0f);
         voice.step.setTargetValue(voice.sample->rate/hostRate*c.pitch);
     }
 }
@@ -369,6 +374,8 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
         const auto& c=renderControls[(size_t)voice.note];
         const bool reverse=s.reverse!=0;
         const double driveGain=std::pow(10.0,s.drive/20);
+        const double attackHz=juce::jmin(s.attackTone,hostRate*(s.attackType==0?0.22:0.44));
+        const double attackNoiseCoefficient=1-std::exp(-juce::MathConstants<double>::twoPi*attackHz/hostRate);
         auto read=[&](int channel,double position) {
             position=juce::jlimit((double)voice.start,(double)(voice.end-1),position);
             const int index=(int)position,next=juce::jmin(index+1,voice.end-1);
@@ -426,6 +433,9 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
             };
             const auto release=voice.releaseRemaining<0 ? 1.0f : (float)voice.releaseRemaining--/releaseSamples;
             float left=value(0),right=value(sample.audio.getNumChannels()==2?1:0);
+            const float mono=(left+right)*0.5f,monoMix=voice.monoMix.getNextValue();
+            if(monoMix>=1)left=right=mono;
+            else if(monoMix>0) {left+=monoMix*(mono-left);right+=monoMix*(mono-right);}
             if(s.filterOn!=0)
             {
                 if(voice.filterCounter--<=0)
@@ -448,6 +458,30 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
                     return (float)v;
                 };
                 left=filter(left,0); right=filter(right,1);
+            }
+            // A centred transient after the sample filter, before the common
+            // envelope, velocity/LFO volume, instrument mixer and sends.
+            const float attackGain=voice.attackGain.getNextValue();
+            const double attackDuration=s.attackDecay*0.001;
+            if(attackGain>0 && voice.elapsed<attackDuration)
+            {
+                const double t=voice.elapsed/attackDuration;
+                const double window=std::sin(juce::MathConstants<double>::halfPi*juce::jmin(1.0,voice.elapsed/0.0002))
+                    *std::exp(-6*t)*(1-t)*(1-t);
+                const double angle=voice.attackPhase*juce::MathConstants<double>::twoPi;
+                double transient;
+                if(s.attackType==2)
+                {
+                    voice.attackRandom=1664525u*voice.attackRandom+1013904223u;
+                    const double noise=(double)(voice.attackRandom>>8)/8388607.5-1;
+                    voice.attackNoise+=attackNoiseCoefficient*(noise-voice.attackNoise);
+                    transient=voice.attackNoise;
+                }
+                else transient=s.attackType==0?(std::sin(angle)+0.4*std::sin(2*angle))/1.4:std::sin(angle);
+                const float hit=(float)(transient*window)*attackGain;
+                left+=hit;right+=hit;
+                voice.attackPhase+=attackHz/hostRate;
+                if(voice.attackPhase>=1)voice.attackPhase-=std::floor(voice.attackPhase);
             }
             const double pan=juce::jlimit(-1.0,1.0,voice.randomPan*s.randomPan+lfo*s.lfoPan);
             left*=voice.left.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1-pan);
