@@ -24,6 +24,12 @@ struct SampleStatus
     juce::String message;
     double seconds = 0.0;
 };
+struct PreviewResult
+{
+    std::shared_ptr<const Sample> sample;
+    bool truncated = false;
+    juce::String error;
+};
 class SampleEngine final : private juce::Thread
 {
 public:
@@ -35,19 +41,26 @@ public:
     SampleStatus statusFor(const juce::String& instrument) const;
     // UI-only: retain the immutable source while drawing; never called by the audio thread.
     std::shared_ptr<const Sample> waveformFor(const juce::String& instrument) const;
+    // Worker-only isolated render, using the same voice DSP as audible playback.
+    static PreviewResult renderPreview(std::shared_ptr<const Sample>, InstrumentControls,
+        const std::array<float,numMacros>&, double bpm, double rate, int send = -1,
+        const std::function<bool()>& cancelled = {});
+    double previewTempo() const { return displayedTempo.load(); }
+    double previewSampleRate() const { return displayedRate.load(); }
     uint64_t statusRevision() const { return statusEpoch.load(); }
     // For deterministic offline tests. Never call from processBlock.
     bool waitForLoading(int timeoutMs);
     void prepare(double sampleRate);
     void release();
     void process(juce::AudioBuffer<float>&, const juce::MidiBuffer&) noexcept;
-    void setTempo(double bpm) noexcept { tempo = juce::jlimit(20.0,999.0,bpm); }
+    void setTempo(double bpm) noexcept { tempo = juce::jlimit(20.0,999.0,bpm); displayedTempo.store(tempo); }
     void setMacros(const std::array<float,numMacros>& values) noexcept { macroValues=values; }
     void setOutputChannels(const std::array<int,22>& channels, int mainChannels) noexcept { busChannels=channels; mainWidth=mainChannels; }
     void audition(int note) { previewNote.store(note); }
     void stop() { previewNote.store(-1); panic.store(true); }
     double tailSeconds() const { return tail.load(); }
 private:
+    SampleEngine(KitLibrary&, std::function<void()>, bool startLoader);
     struct RenderControls
     {
         float left = 1, right = 1;
@@ -97,6 +110,7 @@ private:
     std::shared_ptr<const Sample> decode(const juce::File&, juce::String& error);
     void setStatus(const juce::String&, SampleStatus);
     void updateBank(const State&);
+    static RenderControls controlsFor(const Sample&, const InstrumentControls&, bool hasSolo);
     void reclaim();
     void startVoice(int note, int channel, float velocity) noexcept;
     void releaseNote(int note, int channel) noexcept;
@@ -133,6 +147,7 @@ private:
     int releaseSamples = 96;
     double hostRate = 44100.0;
     double tempo=120,freePhase=0;
+    std::atomic<double> displayedTempo {120}, displayedRate {44100};
     std::array<double,16> pitchBend {};
     std::array<int,22> busChannels {0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     int mainWidth=2;

@@ -34,7 +34,7 @@ The example kit supplies names and layout only. No commercial sample library is 
 
 ## Testing the 0.5 editor
 
-1. Select a loaded instrument and click **Edit sound**. Drag the waveform Start/End markers and audition it. Change Direction to Reverse. Scroll down to reach crossfade, fades and slicing.
+1. Select a loaded instrument and click **Edit sound**. In 0.6, Edited is the default waveform view and updates as controls change. Choose Source to drag Start/End markers, then switch back to Edited and audition it. Change Direction to Reverse. Scroll down to reach crossfade, fades and slicing; the waveform stays visible above the controls on every tab.
 2. Compare Trigger (ignores note-off), Gate (uses Fade out on release), and Classic (amplitude ADSR). Loop is active only in Classic. Try a sustained MIDI note and release it; manual Play uses a one-second gate.
 3. Use the envelope, filter and LFO pages to shape a sound. Filter drive follows sample gain. Velocity and pitch-bend range default to the old behavior. Tuning now spans -48 to +48 semitones.
 4. Use **Slice to new group** on a rhythmic sample. Equal-sized slices take free keys in a new group. The original remains unchanged. This is region slicing, without automatic transient detection or tempo warping.
@@ -51,6 +51,12 @@ Computer Use was stopped by the user during the final update. The tested native 
 Automated processor tests cover every editing field's persistence, Gate/Classic release, loops in both directions, ADSR, pitch, filters, LFO bypass, voice limits, macros, routing, slicing and UI wiring. The compiled VST3 test verifies gate timing, auxiliary/send audio and host macro automation as well as earlier playback/recall. Native MIDI performance, Live output-track routing and automation-lane recording still require their separate host checks; they are not implied by the audition test.
 
 ## Validation boundary
+
+### Persistent preview update — 28 October 2026
+
+Version 0.6.0 was installed after the user closed Live. Every bundle file matched the tested build; x64 module SHA-256 is `3624451784f6a0e3fef5973ccc3ac9be97e59ab5d12b458ba073a2b0cada3fe2`. The previous installation is backed up under `.local/installed-pre-0.6-20261028-220836/`. CTest passed 2/2 and Steinberg validation passed 47/47. The preview was compared sample-for-sample with audition DSP at 44.1/48/96 kHz, and editor renders were reviewed on all tabs and at compact size.
+
+Reopen the Set, enter Edit sound and change envelope/filter/LFO controls while switching tabs. Edited should update without pressing Play, with the waveform fixed above the scrolling controls. Source retains trim-marker dragging. Try a macro change and a Send view as well. This version has not yet been checked in a native Live session; Live was left closed after installation.
 
 ### Waveform update — 28 October 2026
 

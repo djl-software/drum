@@ -7,10 +7,11 @@ namespace drum
 {
 static_assert(std::atomic<Sample*>::is_always_lock_free);
 SampleEngine::SampleEngine(KitLibrary& model, std::function<void()> callback)
+    : SampleEngine(model,std::move(callback),true) {}
+SampleEngine::SampleEngine(KitLibrary& model, std::function<void()> callback, bool startLoader)
     : Thread("Drum sample loader"), library(model), onAssignment(std::move(callback))
 {
-    formats.registerBasicFormats();
-    startThread();
+    if(startLoader) { formats.registerBasicFormats(); startThread(); }
 }
 SampleEngine::~SampleEngine()
 {
@@ -126,6 +127,77 @@ void SampleEngine::run()
         wait(20);
     }
 }
+SampleEngine::RenderControls SampleEngine::controlsFor(const Sample& sample,const InstrumentControls& c,bool hasSolo)
+{
+    RenderControls render;
+    render.source=c;render.sound=c.sound;
+    const auto gain=c.volumeDb<=-60?0.0f:juce::Decibels::decibelsToGain((float)c.volumeDb);
+    render.left=gain*(float)juce::jmin(1.0,1-c.pan);render.right=gain*(float)juce::jmin(1.0,1+c.pan);
+    render.pitch=std::pow(2.0,(c.tuning+c.sound.detune/100)/12);render.choke=c.choke;
+    render.audible=!c.mute && (!hasSolo || c.solo);
+    const auto& s=c.sound;const int length=sample.audio.getNumSamples();
+    auto snap=[&](int position) {
+        if(s.snap==0) return position;
+        const auto* data=sample.audio.getReadPointer(0);
+        for(int d=0;d<=256;++d) for(int side:{-1,1})
+        {
+            const int n=position+d*side;
+            if(n>0 && n<length && ((data[n]>=0)!=(data[n-1]>=0))) return n;
+        }
+        return position;
+    };
+    render.start=juce::jlimit(0,length-1,snap((int)(s.start*length)));
+    render.end=juce::jlimit(render.start+1,length,snap((int)(s.end*length)));
+    const int region=render.end-render.start;
+    render.loopStart=juce::jlimit(render.start,render.end-1,snap(render.start+(int)(s.loopStart*region)));
+    render.loopEnd=juce::jlimit(render.loopStart+1,render.end,snap(render.start+(int)(s.loopEnd*region)));
+    render.sampleGain=std::pow(10.0,s.sampleGain/20)*(s.normalise!=0 && sample.peak>0?1.0/sample.peak:1.0);
+    std::array<double,6> db{s.sendA,s.sendB,s.sendC,s.sendD,s.sendE,s.sendF};
+    for(size_t n=0;n<6;++n)render.sends[n]=db[n]<=-60?0.0f:juce::Decibels::decibelsToGain((float)db[n]);
+    return render;
+}
+PreviewResult SampleEngine::renderPreview(std::shared_ptr<const Sample> source,InstrumentControls controls,
+    const std::array<float,numMacros>& macros,double bpm,double rate,int send,const std::function<bool()>& cancelled)
+{
+    if(!source || (cancelled && cancelled())) return {};
+    juce::ScopedNoDenormals noDenormals;
+    KitLibrary model;
+    SampleEngine engine(model,{},false);
+    engine.prepare(juce::jlimit(8000.0,384000.0,rate));engine.setTempo(bpm);engine.setMacros(macros);
+    auto bank=std::make_unique<Bank>();bank->samples[21]=source;
+    // Still render the duration of a muted sound, then show a flat waveform.
+    const bool muted=controls.mute;controls.mute=false;
+    bank->controls[21]=controlsFor(*source,controls,false);
+    engine.current=bank.get();engine.updateRenderControls();
+    engine.busChannels.fill(-1);
+    if(send>=0 && send<6)engine.busChannels[(size_t)send+16]=0;
+    else engine.busChannels[0]=0; // The instrument signal before its destination or external effects.
+    engine.startVoice(21,1,0.8f);auto& voice=engine.voices.front();voice.preview=true;
+    auto result=std::make_shared<Sample>();result->rate=engine.hostRate;
+    // At most 30 seconds / 2.88 million stereo frames (~23 MiB) per result.
+    const int limit=juce::jmin(2880000,(int)(30*engine.hostRate));
+    juce::AudioBuffer<float> block(2,512);
+    int rendered=0,capacity=juce::jmin(4096,limit);
+    result->audio.setSize(2,capacity);result->audio.clear();
+    while(voice.sample && rendered<limit)
+    {
+        if(cancelled && cancelled()) return {};
+        const int count=juce::jmin(512,limit-rendered);
+        if(rendered+count>capacity)
+        {capacity=juce::jmin(limit,capacity*2);result->audio.setSize(2,capacity,true,true);}
+        block.clear();engine.render(block,0,count);
+        for(int channel=0;channel<2;++channel)result->audio.copyFrom(channel,rendered,block,channel,0,count);
+        rendered+=count;
+    }
+    const bool truncated=voice.sample!=nullptr;
+    const int used=juce::jlimit(1,limit,(int)std::llround(voice.elapsed*engine.hostRate));
+    result->audio.setSize(2,used,true,true,true);
+    if(muted)result->audio.clear();
+    result->peak=result->audio.getMagnitude(0,used);
+    if(cancelled && cancelled()) return {};
+    result->waveform.build(result->audio);
+    return {std::move(result),truncated,{}};
+}
 void SampleEngine::updateBank(const State& state)
 {
     auto next=std::make_unique<Bank>(); const auto* kit=activeKit(state); next->kitId=kit->id; next->kitEpoch=state.kitEpoch;
@@ -155,26 +227,8 @@ void SampleEngine::updateBank(const State& state)
         next->samples[(size_t)instrument.note]=sample;
         if(sample)
         {
+            render=controlsFor(*sample,c,hasSolo);
             auto& s=c.sound;
-            int length=sample->audio.getNumSamples();
-            auto snap=[&](int position) {
-                if(s.snap==0) return position;
-                const auto* data=sample->audio.getReadPointer(0);
-                for(int d=0;d<=256;++d) for(int side:{-1,1})
-                {
-                    auto n=position+d*side;
-                    if(n>0 && n<length && ((data[n]>=0)!=(data[n-1]>=0))) return n;
-                }
-                return position;
-            };
-            render.start=juce::jlimit(0,length-1,snap((int)(s.start*length)));
-            render.end=juce::jlimit(render.start+1,length,snap((int)(s.end*length)));
-            const int region=render.end-render.start;
-            render.loopStart=juce::jlimit(render.start,render.end-1,snap(render.start+(int)(s.loopStart*region)));
-            render.loopEnd=juce::jlimit(render.loopStart+1,render.end,snap(render.start+(int)(s.loopEnd*region)));
-            render.sampleGain=std::pow(10.0,s.sampleGain/20)*(s.normalise!=0 && sample->peak>0 ? 1.0/(double)sample->peak : 1.0);
-            std::array<double,6> sendDb{s.sendA,s.sendB,s.sendC,s.sendD,s.sendE,s.sendF};
-            for(size_t n=0;n<6;++n) render.sends[n]=sendDb[n]<=-60 ? 0.0f : juce::Decibels::decibelsToGain((float)sendDb[n]);
             { const juce::ScopedLock guard(statusLock); waveforms[instrument.id]=sample; }
             auto seconds=sample->audio.getNumSamples()/sample->rate; duration=juce::jmax(duration,seconds/render.pitch);
             if(s.mode==2 && s.loop!=0) duration=juce::jmax(duration,30.0+s.ampRelease/1000.0);
@@ -200,6 +254,7 @@ void SampleEngine::reclaim()
 void SampleEngine::prepare(double rate)
 {
     hostRate=std::isfinite(rate) && rate>0 ? rate : 44100.0; releaseSamples=juce::jmax(1,(int)(hostRate*0.002)); release();
+    displayedRate.store(hostRate);
 }
 void SampleEngine::release()
 {

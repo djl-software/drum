@@ -1,10 +1,22 @@
-# Drum sound editor (0.5.1)
+# Drum sound editor (0.6)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has six pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Kit switching remains available above the editor. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
+## Waveform on every page
+
+The waveform stays above the scrolling controls on all six tabs. The view selector offers:
+
+- **Edited** (default): one hit rendered through Drum's current trim/reverse, gain/normalise, tuning, envelopes, filter, LFO, instrument mixer and macro settings. It updates after control edits, host macro changes and host tempo changes, without playing audio. Its amplitude scale stays at ±1 (0 dBFS), so quieter settings produce a smaller waveform. Values beyond that scale meet the display edge; the header reports the actual peak in dBFS. This is display clipping only.
+- **Source:** the original file with Start/End and loop markers. Choose this to drag trim markers. This view scales to the source peak and does not show processing. Numeric Start/End controls also work while Edited is selected.
+- **Send A–F:** the selected post-fader send signal, including its send level and macro mappings, before effects added in the DAW. An off send shows a flat line. These previews show the signal independently of whether its host output bus is enabled.
+
+The preview uses the same voice DSP as playback, at the host sample rate and tempo, with 80% velocity and a one-second gate, matching manual Play. Trigger ignores note-off; Gate and Classic release after one second. It shows the instrument before destination routing and external DAW effects. Mute/solo suppression is reflected; polyphony, retrigger and choke need overlapping notes to show a difference. Pitch bend is centred. Random modulation uses a repeatable example and a free-running LFO starts at phase zero, so a live performance can differ.
+
+Preview work runs in the background. **Updating preview...** marks a pending result; obsolete slider renders are cancelled. Zoom and scroll stay in place across tab/control changes, and Fit restores the whole current waveform. A new instrument/sample or view selection resets the view. Long sounds are limited to the first 30 seconds or 2.88 million stereo frames (whichever is shorter); the header explicitly labels a truncated preview. The source waveform and audible sample are not shortened.
+
 ## Sample
 
-- **Start / End:** trim the playable region, as percentages of the original file. Drag either green waveform marker or enter a numeric percentage. The waveform preserves signed peaks at the current display resolution, with separate L/R lanes for stereo. Close zoom draws the individual samples as a continuous trace. **+ / -** zoom around the centre; **Ctrl + wheel** zooms at the pointer; **Shift + wheel** scrolls; **Fit** shows the entire file. The footer shows zoom and the visible duration in milliseconds. Zoom can reach a 32-sample window. Display scaling uses the source file's peak and does not change the audio gain.
+- **Start / End:** trim the playable region, as percentages of the original file. Choose Source to drag either green marker, or enter a numeric percentage in either view. The waveform preserves signed peaks at the current display resolution, with separate L/R lanes for stereo. Close zoom draws the individual samples as a continuous trace. **+ / -** zoom around the centre; **Ctrl + wheel** zooms at the pointer; **Shift + wheel** scrolls; **Fit** shows the entire waveform. The footer shows zoom and the visible duration in milliseconds. Zoom can reach a 32-sample window.
 - **Sample gain:** -24 to +24 dB before the filter. **Normalise** compensates for the file's peak without rewriting it. Silent files remain silent.
 - **Direction:** forward or reverse within the selected region. **Zero-crossing snap** searches up to 256 source frames for a nearby crossing in the left channel; markers retain the requested percentages while playback uses the snapped boundaries.
 - **Trigger:** plays through note-off. **Gate:** fades out when the assigned MIDI note is released. Both use Fade in / Fade out. **Classic ADSR:** uses the amplitude envelope and can sustain a loop while the note is held. Unlike Simpler's strictly monophonic One-Shot mode, Drum retains configurable polyphony in Trigger mode for existing kits.

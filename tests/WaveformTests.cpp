@@ -95,6 +95,7 @@ void runWaveformTests()
     auto* soundEditor=dynamic_cast<SoundEditor*>(find(editor,"sound-editor"));check(soundEditor!=nullptr,"Sound editor missing");
     auto select=[&]{state=library.snapshot();soundEditor->select(kit,drum::findInstrument(*drum::activeKit(state),added.id));};
     select();auto* waveform=find(editor,"sample-waveform");check(waveform!=nullptr,"Waveform missing");
+    auto* view=dynamic_cast<juce::ComboBox*>(find(editor,"waveform-view"));check(view!=nullptr,"Waveform view selector missing");view->setSelectedId(1,juce::sendNotificationSync);
     auto start=[&]{state=library.snapshot();return drum::findInstrument(*drum::activeKit(state),added.id)->controls.sound.start;};
     auto reset=[&]{check(library.setControls(kit,added.id,{}).ok,"Waveform trim reset failed");select();};
     capture(editor,"drum-waveform-fit.png");
