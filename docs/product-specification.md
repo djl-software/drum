@@ -1,6 +1,6 @@
 # Drum product specification
 
-Initial design recorded 26 October 2026. This document distinguishes confirmed requirements, proposed interaction rules and outstanding scope decisions. The current 0.4 build includes management, sample loading, one-shot playback, volume, pan, tuning, mute, solo and choke groups. The full rack/sampler reference checklist remains broader than the current implementation.
+Initial design recorded 26 October 2026. This document distinguishes confirmed requirements, proposed interaction rules and outstanding scope decisions. The current 0.5 build adds the [sound editor](sound-editor.md), envelopes, looping, filters, modulation, equal-region slicing, output/send buses and 16 automatable macros to the management and sample-playback foundation. The full rack/sampler reference checklist remains broader than the current implementation; the sound editor guide lists the exact boundaries.
 
 ## Purpose and release order
 

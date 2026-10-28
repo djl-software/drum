@@ -7,7 +7,10 @@
 namespace
 {
 void check(bool ok,const char* message) { if(!ok) throw std::runtime_error(message); }
-void near(float value,float expected,const char* message) { check(std::abs(value-expected)<0.00005f,message); }
+void near(float value,float expected,const char* message)
+{
+    if(std::abs(value-expected)>=0.00005f) throw std::runtime_error(juce::String(message).toStdString()+": actual "+std::to_string(value)+", expected "+std::to_string(expected));
+}
 juce::File fixture(const char* name,int channels=1,double rate=44100,int frames=4410)
 {
     auto folder=juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data"); folder.createDirectory();
@@ -104,6 +107,7 @@ void runPlaybackTests()
     p.processBlock(output,midi); near(output.getMagnitude(0,128),0,"Missing sample played stale data");
     check(p.getSampleEngine().statusFor(setup.instrument).message.containsIgnoreCase("missing"),"Missing sample not reported");
     setup.load(stereo); check(p.getSampleEngine().statusFor(setup.instrument).ready,"Relink failed");
+    layout.outputBuses.set(0,juce::AudioChannelSet::stereo()); check(p.setBusesLayout(layout),"Stereo layout restore failed");
     p.prepareToPlay(48000,128); output.setSize(2,128);
     for(int n=0;n<256;++n) midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0);
     p.processBlock(output,midi); near(output.getSample(0,0),32.0f,"Voice pool not bounded at 128");
@@ -154,5 +158,34 @@ void runVst3PlaybackTest(const juce::String& path)
     if(!plugin) throw std::runtime_error(error.toStdString());
     plugin->setStateInformation(recalled.getData(),(int)recalled.getSize());
     plugin->prepareToPlay(48000,128); verifyPlayback(*plugin); plugin->releaseResources();
+    // Exercise new editing and routing through the actual compiled VST3 wrapper.
+    drum::InstrumentControls editing;
+    editing.sound.mode=1;editing.sound.fadeOut=1;editing.sound.start=0.25;editing.sound.end=0.75;
+    editing.sound.reverse=1;editing.sound.output=1;editing.sound.sendA=-6.020599913;
+    editing.macros[0]={1,-6.020599913,0};
+    check(setup.processor.getLibrary().setControls(setup.kit,setup.instrument,editing).ok,"Hosted editing setup failed");
+    setup.processor.macro(0).setValueNotifyingHost(0);setup.processor.getStateInformation(state);
+    envelope.getChildByName("IComponent")->deleteAllTextElements();envelope.getChildByName("IComponent")->addTextElement(state.toBase64Encoding());
+    juce::AudioProcessor::copyXmlToBinary(envelope,hostState);plugin->setStateInformation(hostState.getData(),(int)hostState.getSize());
+    auto routing=plugin->getBusesLayout();check(routing.outputBuses.size()==22,"Compiled VST3 missing output buses");
+    routing.outputBuses.set(1,juce::AudioChannelSet::stereo());routing.outputBuses.set(16,juce::AudioChannelSet::stereo());
+    check(plugin->setBusesLayout(routing),"Compiled VST3 rejected output routing");plugin->prepareToPlay(48000,256);output.setSize(6,256);
+    bool editedPlayed=false;
+    for(int attempt=0;attempt<500;++attempt)
+    {
+        midi.clear();midi.addEvent(juce::MidiMessage::allSoundOff(1),0);midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0);midi.addEvent(juce::MidiMessage::noteOff(1,36),64);
+        plugin->processBlock(output,midi);if(output.getSample(2,0)>0.1f){editedPlayed=true;break;}juce::Thread::sleep(10);
+    }
+    check(editedPlayed,"Compiled VST3 edited sound silent");near(output.getSample(0,0),0,"Compiled VST3 routing leaked to Main");
+    near(output.getSample(2,0),0.125f,"Compiled VST3 macro not applied");near(output.getSample(4,0),0.0625f,"Compiled VST3 send incorrect");near(output.getSample(2,200),0,"Compiled VST3 gate note-off ignored");
+    juce::AudioProcessorParameter* firstMacro=nullptr;
+    for(int n=1;n<=drum::numMacros;++n)
+    {
+        juce::AudioProcessorParameter* found=nullptr;
+        for(auto* parameter:plugin->getParameters()) if(parameter->getName(64)=="Macro "+juce::String(n)) found=parameter;
+        check(found!=nullptr,"Compiled VST3 missing macro automation parameter");if(n==1)firstMacro=found;
+    }
+    firstMacro->setValueNotifyingHost(1);midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0);plugin->processBlock(output,midi);
+    near(output.getSample(2,0),0.25f,"Compiled VST3 did not respond to host macro automation");plugin->releaseResources();
     std::cout << "Compiled VST3 sample/MIDI playback and session recall passed\n";
 }

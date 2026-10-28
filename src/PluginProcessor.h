@@ -10,6 +10,7 @@ public:
     ~DrumAudioProcessor() override;
     drum::KitLibrary& getLibrary() { return library; }
     drum::SampleEngine& getSampleEngine() { return sampleEngine; }
+    juce::AudioParameterFloat& macro(int n) { return *macros[(size_t)n]; }
     void prepareToPlay(double, int) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout&) const override;
@@ -30,6 +31,7 @@ public:
     void setStateInformation(const void*, int) override;
 private:
     drum::KitLibrary library;
+    std::array<juce::AudioParameterFloat*,drum::numMacros> macros {};
     drum::SampleEngine sampleEngine { library, [this] { triggerAsyncUpdate(); } };
     void handleAsyncUpdate() override;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrumAudioProcessor)

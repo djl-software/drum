@@ -1,6 +1,6 @@
-# Testing Drum 0.4 in Ableton Live
+# Testing Drum 0.5 in Ableton Live
 
-This is a Windows x64 development VST3, with sample loading and one-shot MIDI playback. It is ready for host testing, not a commercial release.
+This is a Windows x64 development VST3 with sample loading, a full-screen sound editor, playback modes, modulation, routing and macros. It is ready for host testing, not a commercial release. See the [sound editor guide](sound-editor.md) for the exact supported controls and remaining parity work.
 
 ## Install and load
 
@@ -23,14 +23,32 @@ Official setup reference: [Ableton: Using VST plug-ins on Windows](https://help.
 ## What to expect
 
 - Mono/stereo WAV, AIFF, FLAC, OGG and MP3; maximum 30 seconds and 64 MiB decoded per file, 512 MiB of unique decoded data in the active kit.
-- Velocity-sensitive one-shot playback on every MIDI channel. Note-off does not stop a hit. Up to 128 voices; Stop clears them all.
-- Volume: silence at the minimum (-60 dB), up to +12 dB. Pan: -100% left to +100% right, implemented as stereo balance. Tuning: -24 to +24 semitones in 0.01 increments. Double-click sliders to reset to zero.
-- Mute and Solo apply across the active kit, including manual Play. Choke groups 1–16 are independent of organisational groups and work across MIDI channels, using a short 2 ms release. There is one stereo output, with mono also supported.
+- Velocity-sensitive Trigger playback is the default; Gate and Classic respond to note-off. Up to 128 voices; Stop clears them all.
+- Volume: silence at the minimum (-60 dB), up to +12 dB. Pan: -100% left to +100% right, implemented as stereo balance. Tuning: -48 to +48 semitones in 0.01 increments, plus fine tuning. Double-click sliders to reset to their defaults.
+- Mute and Solo apply across the active kit, including manual Play. Choke groups 1–16 are independent of organisational groups and work across MIDI channels, using a short 2 ms release. Main supports mono/stereo; auxiliary and send buses are stereo.
 - Loading or replacing a sample changes the active bank and cuts existing voices. Renaming or moving an instrument within the kit preserves its MIDI assignment and does not cut audio.
 - Samples stay at their original absolute paths. Keep those files available. Use **Replace** to relink a missing file. Live's Collect All and Save is not a Drum sample-collection mechanism.
 - Wait for Ready after loading a Set or switching kits before recording/exporting. Offline-export loading synchronisation is not implemented yet.
 
-The example kit supplies names and layout only. No commercial sample library is bundled. This preview does not yet have envelopes, effects, multiple outputs or automation for sound controls. Controls are saved as project state; they are not exposed in Live's automation lanes yet.
+The example kit supplies names and layout only. No commercial sample library is bundled. Version 0.5 adds the editing and routing capabilities below; the historical 0.3/0.4 validation notes describe the earlier builds.
+
+## Testing the 0.5 editor
+
+1. Select a loaded instrument and click **Edit sound**. Drag the waveform Start/End markers and audition it. Change Direction to Reverse. Scroll down to reach crossfade, fades and slicing.
+2. Compare Trigger (ignores note-off), Gate (uses Fade out on release), and Classic (amplitude ADSR). Loop is active only in Classic. Try a sustained MIDI note and release it; manual Play uses a one-second gate.
+3. Use the envelope, filter and LFO pages to shape a sound. Filter drive follows sample gain. Velocity and pitch-bend range default to the old behavior. Tuning now spans -48 to +48 semitones.
+4. Use **Slice to new group** on a rhythmic sample. Equal-sized slices take free keys in a new group. The original remains unchanged. This is region slicing, without automatic transient detection or tempo warping.
+5. On **Outputs & sends**, route an instrument to Out 2. On a Live audio track, select the Drum track in Audio From and the corresponding plug-in output in the lower chooser; set Monitor to In. Check that the instrument reaches that track. Test Send A similarly, adding an effect on the receiving track. There are Main + 15 auxiliary stereo destinations and six stereo send buses. Sends do not contain built-in effects.
+6. On **Macros**, assign a target and range to Macro 1. Expose Macro 1 through Live's Configure controls and record/draw automation. The macro overrides the mapped base value. Repeat mappings on several instruments to control them together. There are 16 host parameters, with mappings stored per instrument.
+7. Save and reopen the Set, checking the edited boundaries, envelopes, routing and macro mappings. Old projects load neutral editing defaults. Main may be mono/stereo; enabled extra buses are stereo.
+
+### Native check — 28 October 2026
+
+The 0.5 editor loaded the existing 0.4 test Set in Live 12 Suite, preserving both samples and the -17.4 dB instrument level. The waveform End marker was dragged to approximately 69.09%; manual Play produced -19.4 dB peaks on the Drum track and Main. A separate `Drum Editing Test.als` was saved under `.local/Editing Test/Drum Editing Test Project/`, reopened, and the trim and playback verified again. The macro page displayed the 16 controls at their restored default values.
+
+Computer Use was stopped by the user during the final update. The tested native instance uses module SHA-256 `3fb1d7c4f46b8084ce3ed2edeb34380251bf8a0ec750556b7604035634b6c76a`. The final packaged build also fixes disabled-LFO volume, muted-preview isolation and state-restore notifications; that module must be copied after Live unloads the plug-in. The previous 0.4 installation is backed up under `.local/installed-pre-0.5-20261028/`.
+
+Automated processor tests cover every editing field's persistence, Gate/Classic release, loops in both directions, ADSR, pitch, filters, LFO bypass, voice limits, macros, routing, slicing and UI wiring. The compiled VST3 test verifies gate timing, auxiliary/send audio and host macro automation as well as earlier playback/recall. Native MIDI performance, Live output-track routing and automation-lane recording still require their separate host checks; they are not implied by the audition test.
 
 ## Validation boundary
 

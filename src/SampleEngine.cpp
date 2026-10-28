@@ -42,6 +42,11 @@ SampleStatus SampleEngine::statusFor(const juce::String& id) const
     const juce::ScopedLock guard(statusLock);
     auto found=statuses.find(id); return found==statuses.end() ? SampleStatus{} : found->second;
 }
+std::array<float,512> SampleEngine::waveformFor(const juce::String& id) const
+{
+    const juce::ScopedLock guard(statusLock);
+    auto found=waveforms.find(id); return found==waveforms.end()?std::array<float,512>{}:found->second;
+}
 void SampleEngine::setStatus(const juce::String& id, SampleStatus value)
 {
     const juce::ScopedLock guard(statusLock); statuses[id]=std::move(value); statusEpoch.fetch_add(1);
@@ -78,6 +83,14 @@ std::shared_ptr<const Sample> SampleEngine::decode(const juce::File& file, juce:
     for(int c=0;c<sample->audio.getNumChannels();++c)
         for(int n=0;n<sample->audio.getNumSamples();++n)
             if(!std::isfinite(sample->audio.getSample(c,n)) || std::abs(sample->audio.getSample(c,n))>64.0f) { error="Audio contains invalid sample values."; return {}; }
+    for(int n=0;n<sample->audio.getNumSamples();++n)
+    {
+        float value=0;
+        for(int c=0;c<sample->audio.getNumChannels();++c) value=juce::jmax(value,std::abs(sample->audio.getSample(c,n)));
+        sample->peak=juce::jmax(sample->peak,value);
+        auto bin=juce::jmin(511,(int)((int64_t)n*512/sample->audio.getNumSamples()));
+        sample->waveform[(size_t)bin]=juce::jmax(sample->waveform[(size_t)bin],value);
+    }
     cache[key]=sample; return sample;
 }
 void SampleEngine::run()
@@ -125,14 +138,16 @@ void SampleEngine::updateBank(const State& state)
     {
         const auto& c=instrument.controls;
         auto& render=next->controls[(size_t)instrument.note];
+        render.source=c;
         const auto gain=c.volumeDb<=-60 ? 0.0f : juce::Decibels::decibelsToGain((float)c.volumeDb);
         // Stereo balance: centre is unity; hard pan silences the opposite channel.
         render.left=gain*(float)juce::jmin(1.0,1.0-c.pan);
         render.right=gain*(float)juce::jmin(1.0,1.0+c.pan);
-        render.pitch=std::pow(2.0,c.tuning/12.0); render.choke=c.choke;
+        render.sound=c.sound;
+        render.pitch=std::pow(2.0,(c.tuning+c.sound.detune/100.0)/12.0); render.choke=c.choke;
         render.audible=!c.mute && (!hasSolo || c.solo);
         next->ids[(size_t)instrument.note]=instrument.id;
-        if(instrument.samplePath.isEmpty()) { setStatus(instrument.id,{}); continue; }
+        if(instrument.samplePath.isEmpty()) { setStatus(instrument.id,{}); const juce::ScopedLock guard(statusLock); waveforms.erase(instrument.id); continue; }
         juce::String error; auto sample=decode(juce::File(instrument.samplePath),error);
         if(sample && !counted.contains(sample.get()))
         {
@@ -142,11 +157,34 @@ void SampleEngine::updateBank(const State& state)
         next->samples[(size_t)instrument.note]=sample;
         if(sample)
         {
+            auto& s=c.sound;
+            int length=sample->audio.getNumSamples();
+            auto snap=[&](int position) {
+                if(s.snap==0) return position;
+                const auto* data=sample->audio.getReadPointer(0);
+                for(int d=0;d<=256;++d) for(int side:{-1,1})
+                {
+                    auto n=position+d*side;
+                    if(n>0 && n<length && ((data[n]>=0)!=(data[n-1]>=0))) return n;
+                }
+                return position;
+            };
+            render.start=juce::jlimit(0,length-1,snap((int)(s.start*length)));
+            render.end=juce::jlimit(render.start+1,length,snap((int)(s.end*length)));
+            const int region=render.end-render.start;
+            render.loopStart=juce::jlimit(render.start,render.end-1,snap(render.start+(int)(s.loopStart*region)));
+            render.loopEnd=juce::jlimit(render.loopStart+1,render.end,snap(render.start+(int)(s.loopEnd*region)));
+            render.sampleGain=std::pow(10.0,s.sampleGain/20)*(s.normalise!=0 && sample->peak>0 ? 1.0/(double)sample->peak : 1.0);
+            std::array<double,6> sendDb{s.sendA,s.sendB,s.sendC,s.sendD,s.sendE,s.sendF};
+            for(size_t n=0;n<6;++n) render.sends[n]=sendDb[n]<=-60 ? 0.0f : juce::Decibels::decibelsToGain((float)sendDb[n]);
+            { const juce::ScopedLock guard(statusLock); waveforms[instrument.id]=sample->waveform; }
             auto seconds=sample->audio.getNumSamples()/sample->rate; duration=juce::jmax(duration,seconds/render.pitch);
+            if(s.mode==2 && s.loop!=0) duration=juce::jmax(duration,30.0+s.ampRelease/1000.0);
             setStatus(instrument.id,{false,true,"Ready",seconds});
         }
-        else setStatus(instrument.id,{false,false,error,0});
+        else { setStatus(instrument.id,{false,false,error,0}); const juce::ScopedLock guard(statusLock); waveforms.erase(instrument.id); }
     }
+    { const juce::ScopedLock guard(statusLock); std::erase_if(waveforms,[&](const auto& entry){return findInstrument(*kit,entry.first)==nullptr;}); }
     const auto* old=published.load();
     bool same=old && old->kitId==next->kitId && old->kitEpoch==next->kitEpoch && old->ids==next->ids;
     if(same) for(int n=0;n<128;++n) if(old->samples[(size_t)n]!=next->samples[(size_t)n]) { same=false; break; }
@@ -168,6 +206,7 @@ void SampleEngine::prepare(double rate)
 void SampleEngine::release()
 {
     stopVoices(); current=nullptr; sampleGeneration=UINT64_MAX; hazard.store(nullptr); previewNote.store(-1);
+    pitchBend.fill(0); freePhase=0;
 }
 void SampleEngine::stopVoices(int channel) noexcept
 {
@@ -176,19 +215,53 @@ void SampleEngine::stopVoices(int channel) noexcept
 void SampleEngine::startVoice(int note,int channel,float velocity) noexcept
 {
     if(!current || note<0 || note>127 || !current->samples[(size_t)note]) return;
-    const auto& c=current->controls[(size_t)note]; if(!c.audible) return;
+    const auto& c=renderControls[(size_t)note]; if(!c.audible) return;
     if(c.choke!=0) for(auto& voice:voices) if(voice.sample && voice.choke==c.choke) fadeVoice(voice);
+    int playing=0;
+    for(auto& v:voices) if(v.sample && v.note==note && v.releaseRemaining<0)
+    {
+        ++playing;
+        if(c.sound.retrigger!=0) fadeVoice(v);
+    }
+    while(playing>=(int)c.sound.voices)
+    {
+        Voice* oldest=nullptr;
+        for(auto& v:voices) if(v.sample && v.note==note && v.releaseRemaining<0 && (!oldest || v.age<oldest->age)) oldest=&v;
+        if(!oldest) break;
+        fadeVoice(*oldest); --playing;
+    }
     auto* voice=&voices.front();
     for(auto& candidate:voices)
     {
         if(!candidate.sample) { voice=&candidate; break; }
         if(candidate.age<voice->age) voice=&candidate;
     }
-    voice->sample=current->samples[(size_t)note].get(); voice->position=0; voice->velocity=velocity;
+    voice->sample=current->samples[(size_t)note].get(); voice->velocity=velocity;
     voice->channel=channel; voice->age=++clock; voice->note=note; voice->choke=c.choke; voice->releaseRemaining=-1;
+    voice->sound=c.sound; voice->start=c.start; voice->end=c.end; voice->loopStart=c.loopStart; voice->loopEnd=c.loopEnd;
+    voice->position=c.sound.reverse!=0?c.end-1:c.start; voice->elapsed=0; voice->held=true; voice->preview=false;
+    const double lfoRate=c.sound.lfoSync!=0?tempo/60.0/std::pow(2.0,c.sound.lfoDivision-4):c.sound.lfoRate;
+    voice->phase=c.sound.lfoRetrigger!=0?std::fmod(c.sound.lfoPhase/360.0,1.0):std::fmod(freePhase*lfoRate,1.0);
+    voice->randomPan=random(); voice->randomLfo=random(); voice->filter1={}; voice->filter2={}; voice->filterCounter=0;
+    for(auto* env:{&voice->amp,&voice->filterEnvelope,&voice->pitchEnvelope}) { env->reset(); env->setSampleRate(hostRate); }
+    configureEnvelopes(*voice);
+    voice->amp.noteOn(); voice->filterEnvelope.noteOn(); voice->pitchEnvelope.noteOn();
     voice->left.reset(hostRate,0.005); voice->right.reset(hostRate,0.005); voice->step.reset(hostRate,0.005);
     voice->left.setCurrentAndTargetValue(c.left); voice->right.setCurrentAndTargetValue(c.right);
     voice->step.setCurrentAndTargetValue(voice->sample->rate/hostRate*c.pitch);
+}
+void SampleEngine::configureEnvelopes(Voice& v) noexcept
+{
+    const auto& s=v.sound;
+    auto parameters=[](double a,double d,double sustain,double r) { return juce::ADSR::Parameters{(float)(a/1000),(float)(d/1000),(float)sustain,(float)(r/1000)}; };
+    v.amp.setParameters(s.mode==2 ? parameters(s.ampAttack,s.ampDecay,s.ampSustain,s.ampRelease) : parameters(s.fadeIn,0,1,s.fadeOut));
+    v.filterEnvelope.setParameters(parameters(s.filterAttack,s.filterDecay,s.filterSustain,s.filterRelease));
+    v.pitchEnvelope.setParameters(parameters(s.pitchAttack,s.pitchDecay,s.pitchSustain,s.pitchRelease));
+}
+void SampleEngine::releaseNote(int note,int channel) noexcept
+{
+    for(auto& v:voices) if(v.sample && v.note==note && v.channel==channel && v.held && v.sound.mode!=0)
+    { v.held=false; v.amp.noteOff(); v.filterEnvelope.noteOff(); v.pitchEnvelope.noteOff(); }
 }
 void SampleEngine::fadeVoice(Voice& voice) noexcept
 {
@@ -198,12 +271,40 @@ void SampleEngine::updateVoices() noexcept
 {
     for(auto& voice:voices) if(voice.sample)
     {
-        const auto& c=current->controls[(size_t)voice.note];
+        const auto& c=renderControls[(size_t)voice.note];
         if(!c.audible) fadeVoice(voice);
         voice.choke=c.choke;
+        // Region, loop markers and direction are latched at note-on. Other edits
+        // affect sounding voices, without restarting their playback positions.
+        auto previous=voice.sound;
+        voice.sound=c.sound;
+        voice.sound.reverse=previous.reverse; voice.sound.loop=previous.loop; voice.sound.mode=previous.mode;
+        configureEnvelopes(voice);
         voice.left.setTargetValue(c.left); voice.right.setTargetValue(c.right);
         voice.step.setTargetValue(voice.sample->rate/hostRate*c.pitch);
     }
+}
+void SampleEngine::updateRenderControls() noexcept
+{
+    std::copy(current->controls.begin(),current->controls.end(),renderControls.begin());
+    for(auto& render:renderControls)
+    {
+        auto c=render.source;
+        for(int n=0;n<numMacros;++n)
+        {
+            const auto& m=c.macros[(size_t)n]; if(m.target==0) continue;
+            const double value=m.minimum+(m.maximum-m.minimum)*macroValues[(size_t)n];
+            switch(m.target) {case 1:c.volumeDb=value;break;case 2:c.pan=value;break;case 3:c.tuning=value;break;default:c.sound.*(macroTargets[(size_t)m.target].member)=value;break;}
+        }
+        const float gain=c.volumeDb<=-60?0.0f:juce::Decibels::decibelsToGain((float)c.volumeDb);
+        render.left=gain*(float)juce::jmin(1.0,1-c.pan); render.right=gain*(float)juce::jmin(1.0,1+c.pan);
+        render.pitch=std::pow(2.0,(c.tuning+c.sound.detune/100)/12);
+        render.sampleGain*=juce::Decibels::decibelsToGain((float)(c.sound.sampleGain-render.sound.sampleGain));
+        render.sound=c.sound;
+        std::array<double,6> db{c.sound.sendA,c.sound.sendB,c.sound.sendC,c.sound.sendD,c.sound.sendE,c.sound.sendF};
+        for(size_t n=0;n<6;++n) render.sends[n]=db[n]<=-60?0.0f:juce::Decibels::decibelsToGain((float)db[n]);
+    }
+    previousMacros=macroValues;
 }
 void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) noexcept
 {
@@ -211,24 +312,112 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
     {
         if(!voice.sample) continue;
         const auto& sample=*voice.sample;
-        const int length=sample.audio.getNumSamples();
+        const auto& s=voice.sound;
+        const auto& c=renderControls[(size_t)voice.note];
+        const bool reverse=s.reverse!=0;
+        const double driveGain=std::pow(10.0,s.drive/20);
+        auto read=[&](int channel,double position) {
+            position=juce::jlimit((double)voice.start,(double)(voice.end-1),position);
+            const int index=(int)position,next=juce::jmin(index+1,voice.end-1);
+            const float fraction=(float)(position-index); const auto* data=sample.audio.getReadPointer(channel);
+            return data[index]+fraction*(data[next]-data[index]);
+        };
         for(int frame=start;frame<end;++frame)
         {
-            const int index=(int)voice.position;
-            if(index>=length || voice.releaseRemaining==0) { voice.sample=nullptr; break; }
-            const int next=juce::jmin(index+1,length-1); const float fraction=(float)(voice.position-index);
-            // Short end ramp prevents a hard discontinuity on trimmed files.
-            const float fade=(float)juce::jmin(1.0,(length-voice.position)/juce::jmax(1.0,sample.rate*0.002));
+            if(voice.position>=voice.end || voice.position<voice.start || voice.releaseRemaining==0 || !voice.amp.isActive()) { voice.sample=nullptr; break; }
+            // Preview has a bounded gate even when Classic looping is selected.
+            if(voice.preview && voice.held && voice.elapsed>=1.0 && s.mode!=0)
+            { voice.held=false; voice.amp.noteOff(); voice.filterEnvelope.noteOff(); voice.pitchEnvelope.noteOff(); }
+            const bool looping=s.mode==2 && s.loop!=0 && voice.held;
+            double lfo=0;
+            if(s.lfoOn!=0)
+            {
+                const double phase=voice.phase;
+                switch((int)s.lfoShape)
+                {
+                    case 0:lfo=std::sin(phase*juce::MathConstants<double>::twoPi);break;
+                    case 1:lfo=1.0-4.0*std::abs(phase-0.5);break;
+                    case 2:lfo=phase<0.5?1:-1;break;
+                    case 3:lfo=2*phase-1;break;
+                    case 4:lfo=1-2*phase;break;
+                    default:lfo=voice.randomLfo;break;
+                }
+                lfo*=s.lfoAttack>0?juce::jmin(1.0,voice.elapsed*1000/s.lfoAttack):1;
+                const double rate=s.lfoSync!=0 ? tempo/60.0/std::pow(2.0,s.lfoDivision-4) : s.lfoRate;
+                voice.phase+=rate/hostRate;
+                if(voice.phase>=1) { voice.phase-=std::floor(voice.phase); voice.randomLfo=random(); }
+            }
+            const double pitchEnv=voice.pitchEnvelope.getNextSample();
+            const double filterEnv=voice.filterEnvelope.getNextSample();
+            const double semitones=pitchEnv*s.pitchAmount+lfo*s.lfoPitch+(voice.velocity-1)*s.velocityPitch+pitchBend[(size_t)(voice.channel-1)]*s.bendRange;
+            const double step=voice.step.getNextValue()*(semitones==0?1.0:std::pow(2.0,semitones/12));
+            const double remaining=reverse?voice.position-voice.start+1:voice.end-voice.position;
+            const double fadeFrames=juce::jmax(sample.rate*0.002,s.fadeOut*0.001*hostRate*step);
+            const float fade=looping?1.0f:(float)juce::jmin(1.0,remaining/fadeFrames);
+            const float amplitude=voice.amp.getNextSample()*(float)(1-s.velocityVolume+s.velocityVolume*voice.velocity)
+                *(float)(s.lfoOn!=0?1-s.lfoVolume*(1-lfo)*0.5:1)*fade;
             auto value=[&](int channel) {
-                const auto* data=sample.audio.getReadPointer(channel);
-                return (data[index]+fraction*(data[next]-data[index]))*voice.velocity*fade;
+                float v=read(channel,voice.position);
+                const double crossfade=juce::jmin(s.loopFade*sample.rate/1000.0,(voice.loopEnd-voice.loopStart)*0.5);
+                if(looping && crossfade>0)
+                {
+                    double distance=reverse?voice.position-voice.loopStart:voice.loopEnd-voice.position;
+                    if(distance>=0 && distance<crossfade)
+                    {
+                        double alternate=reverse?voice.loopEnd-1-distance:voice.loopStart+crossfade-distance;
+                        const float mix=(float)(1-distance/crossfade);
+                        v=v*(1-mix)+read(channel,alternate)*mix;
+                    }
+                }
+                return (float)(v*c.sampleGain);
             };
             const auto release=voice.releaseRemaining<0 ? 1.0f : (float)voice.releaseRemaining--/releaseSamples;
-            const float left=value(0)*voice.left.getNextValue()*release;
-            const float right=value(sample.audio.getNumChannels()==2?1:0)*voice.right.getNextValue()*release;
-            if(output.getNumChannels()==1) output.addSample(0,frame,(left+right)*0.5f);
-            else if(output.getNumChannels()>1) { output.addSample(0,frame,left); output.addSample(1,frame,right); }
-            voice.position+=voice.step.getNextValue();
+            float left=value(0),right=value(sample.audio.getNumChannels()==2?1:0);
+            if(s.filterOn!=0)
+            {
+                if(voice.filterCounter--<=0)
+                {
+                    const auto hz=juce::jlimit(10.0,hostRate*0.45,s.cutoff*std::pow(2.0,filterEnv*s.filterAmount+lfo*s.lfoFilter+(voice.velocity-1)*s.velocityFilter));
+                    voice.filterG=std::tan(juce::MathConstants<double>::pi*hz/hostRate); voice.filterK=1.0/s.resonance; voice.filterCounter=15;
+                }
+                auto filter=[&](float input,int channel) {
+                    double v=input;
+                    if(s.drive>0) v=std::tanh(v*driveGain);
+                    for(int stage=0;stage<=(int)s.filterSlope;++stage)
+                    {
+                        auto& z1=voice.filter1[(size_t)channel][(size_t)stage]; auto& z2=voice.filter2[(size_t)channel][(size_t)stage];
+                        const double g=voice.filterG,k=voice.filterK,a=1/(1+g*(g+k));
+                        const double v1=a*(z1+g*(v-z2)),v2=z2+g*v1;
+                        z1=2*v1-z1; z2=2*v2-z2;
+                        const double high=v-k*v1-v2;
+                        switch((int)s.filterType) { case 0:v=v2;break; case 1:v=high;break;case 2:v=v1;break;default:v=high+v2;break; }
+                    }
+                    return (float)v;
+                };
+                left=filter(left,0); right=filter(right,1);
+            }
+            const double pan=juce::jlimit(-1.0,1.0,voice.randomPan*s.randomPan+lfo*s.lfoPan);
+            left*=voice.left.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1-pan);
+            right*=voice.right.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1+pan);
+            auto write=[&](int bus,float gain) {
+                const int ch=busChannels[(size_t)bus]; if(ch<0 || ch>=output.getNumChannels()) return;
+                if(bus==0 && mainWidth==1) output.addSample(ch,frame,(left+right)*0.5f*gain);
+                else if(ch+1<output.getNumChannels()) {output.addSample(ch,frame,left*gain); output.addSample(ch+1,frame,right*gain);}
+            };
+            // Disabled auxiliary destinations fall back to Main; disabled sends
+            // stay silent so enabling them in a host cannot double the dry signal.
+            const int target=(int)s.output;
+            write(busChannels[(size_t)target]>=0?target:0,1);
+            for(int send=0;send<6;++send) if(c.sends[(size_t)send]>0) write(send+16,c.sends[(size_t)send]);
+            voice.position+=reverse?-step:step;
+            if(looping)
+            {
+                const double crossfade=juce::jmin(s.loopFade*sample.rate/1000.0,(voice.loopEnd-voice.loopStart)*0.5);
+                const double loopLength=juce::jmax(1.0,voice.loopEnd-voice.loopStart-crossfade);
+                if(!reverse && voice.position>=voice.loopEnd) voice.position=voice.loopStart+crossfade+std::fmod(voice.position-voice.loopEnd,loopLength);
+                if(reverse && voice.position<voice.loopStart) voice.position=voice.loopEnd-1-crossfade-std::fmod(voice.loopStart-voice.position,loopLength);
+            }
+            voice.elapsed+=1.0/hostRate;
         }
     }
 }
@@ -240,12 +429,18 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     {
         if(!next || next->sampleGeneration!=sampleGeneration) stopVoices();
         current=next; sampleGeneration=next?next->sampleGeneration:UINT64_MAX;
-        if(current) updateVoices();
+        if(current) { updateRenderControls(); updateVoices(); }
     }
+    else if(current && macroValues!=previousMacros) {updateRenderControls();updateVoices();}
     output.clear();
     if(!current || current->kitEpoch!=library.activeKitEpoch()) { stopVoices(); return; }
     if(panic.exchange(false)) stopVoices();
-    if(auto note=previewNote.exchange(-1);note>=0) startVoice(note,1,0.8f);
+    if(auto note=previewNote.exchange(-1);note>=0)
+    {
+        const auto previousClock=clock;
+        startVoice(note,1,0.8f);
+        if(clock!=previousClock) for(auto& v:voices) if(v.sample && v.age==clock) v.preview=true;
+    }
     int position=0;
     for(const auto metadata:midi)
     {
@@ -255,9 +450,11 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
         if(metadata.numBytes<1) continue;
         const auto* data=metadata.data; const int command=data[0]&0xf0,channel=(data[0]&0x0f)+1;
         if(command==0x90 && metadata.numBytes>=3 && data[2]>0) startVoice(data[1],channel,data[2]/127.0f);
+        else if((command==0x80 || command==0x90) && metadata.numBytes>=3) releaseNote(data[1],channel);
+        else if(command==0xe0 && metadata.numBytes>=3) pitchBend[(size_t)(channel-1)]=((data[2]*128+data[1])-8192)/8192.0;
         else if(command==0xb0 && metadata.numBytes>=3 && (data[1]==120 || data[1]==123)) stopVoices(channel);
-        // One-shot mode deliberately ignores note-off and velocity-zero note-on.
     }
     render(output,position,output.getNumSamples());
+    freePhase+=output.getNumSamples()/hostRate;
 }
 }

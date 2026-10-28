@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "DJLAssets.h"
+#include "SoundEditor.h"
 #include <array>
 #include <cmath>
 
@@ -168,7 +169,7 @@ public:
 class DrumAudioProcessorEditor::Workspace final : public juce::Component, private juce::ListBoxModel, private juce::Timer, public juce::FileDragAndDropTarget
 {
 public:
-    explicit Workspace(DrumAudioProcessor& p) : processor(p), library(p.getLibrary()), view(library.snapshot()), tooltip(this, 550)
+    explicit Workspace(DrumAudioProcessor& p) : processor(p), library(p.getLibrary()), view(library.snapshot()), tooltip(this, 550), soundEditor(p)
     {
         setLookAndFeel(&look);
         logo = juce::ImageCache::getFromMemory(DJLAssets::DJLLogoWhite_png, DJLAssets::DJLLogoWhite_pngSize);
@@ -221,7 +222,7 @@ public:
         setupSlider(pan,"instrument-pan",-100,100,1," %");
         pan.setTooltip("Stereo balance: -100 left, 0 centre, +100 right.");
         pan.onValueChange=[this] { editControls([this](auto& c){c.pan=pan.getValue()/100.0;}); };
-        setupSlider(tuning,"instrument-tuning",-24,24,0.01," st");
+        setupSlider(tuning,"instrument-tuning",-48,48,0.01," st");
         tuning.setTooltip("Semitones; tuning changes sample speed and duration.");
         tuning.onValueChange=[this] { editControls([this](auto& c){c.tuning=tuning.getValue();}); };
         setup(mute,"Mute","instrument-mute"); mute.setClickingTogglesState(true);
@@ -255,6 +256,10 @@ public:
                 complete(r); scrollToSelected();
             }
         };
+        setup(editSound,"Edit sound","open-sound-editor"); editSound.setColour(juce::TextButton::buttonColourId,accent.darker(0.62f));
+        addChildComponent(soundEditor);
+        editSound.onClick=[this] { soundEditor.select(view.activeKit,instrument()); soundEditor.setVisible(true); soundEditor.toFront(false); };
+        soundEditor.close=[this] { soundEditor.setVisible(false); refresh(); };
         status="Arrange your kit. Changes are saved with the DAW project.";
         refresh(); startTimerHz(10);
     }
@@ -284,7 +289,7 @@ public:
             g.setColour(background); g.fillRoundedRectangle(source.toFloat(),8);
             label(g,i->samplePath.isEmpty()?"Drop audio here":juce::File(i->samplePath).getFileName(),source.reduced(10,0).withTrimmedTop(8).withHeight(22),13);
             auto info=processor.getSampleEngine().statusFor(i->id);
-            auto detail=info.ready ? juce::String(info.seconds,2)+" s / one-shot / velocity" : info.message.isNotEmpty()?info.message:"WAV, AIFF, FLAC, OGG, MP3";
+            auto detail=info.ready ? juce::String(info.seconds,2)+" s / "+(i->controls.sound.mode==2?"Classic":i->controls.sound.mode==1?"Gate":"Trigger") : info.message.isNotEmpty()?info.message:"WAV, AIFF, FLAC, OGG, MP3";
             label(g,detail,source.reduced(10,0).withTrimmedTop(35).withHeight(22),11,info.ready?accent:muted);
             label(g,"Volume",{right.getX()+18,right.getY()+264,56,30},11,muted);
             label(g,"Pan",{right.getX()+18,right.getY()+300,56,30},11,muted);
@@ -337,6 +342,8 @@ public:
         copyInstrument.setBounds(right.getX()+18,right.getBottom()-37,120,27); deleteInstrument.setBounds(right.getX()+150,right.getBottom()-37,120,27);
         instrumentUp.setBounds(centre.getX()+18,centre.getBottom()-35,120,23); instrumentDown.setBounds(centre.getX()+150,centre.getBottom()-35,120,23);
         keyboard.setBounds(keyPanel.reduced(18,0).withTrimmedTop(43).withTrimmedBottom(14));
+        editSound.setBounds(right.getRight()-128,right.getY()+12,110,28);
+        soundEditor.setBounds(24,192,w-48,h-230);
     }
     bool isInterestedInFileDrag(const juce::StringArray& files) override { return !files.isEmpty(); }
     void filesDropped(const juce::StringArray& files,int x,int y) override
@@ -448,7 +455,8 @@ private:
         grid.instruments=group().instruments; grid.selected=instrumentId; grid.colour=group().colour; grid.repaint();
         keyboard.kit=kit(); keyboard.selected=instrumentId; keyboard.repaint();
         auto* i=instrument();
-        for(auto* c:std::initializer_list<juce::Component*>{&instrumentName,&note,&destination,&copyInstrument,&deleteInstrument,&instrumentUp,&instrumentDown,&loadSample,&playSample,&stopSample,&volume,&pan,&tuning,&mute,&solo,&choke}) c->setVisible(i!=nullptr);
+        for(auto* c:std::initializer_list<juce::Component*>{&instrumentName,&note,&destination,&copyInstrument,&deleteInstrument,&instrumentUp,&instrumentDown,&loadSample,&playSample,&stopSample,&volume,&pan,&tuning,&mute,&solo,&choke,&editSound}) c->setVisible(i!=nullptr);
+        soundEditor.select(view.activeKit,i);
         note.clear(juce::dontSendNotification); destination.clear(juce::dontSendNotification);
         if(i)
         {
@@ -546,6 +554,8 @@ private:
     juce::Viewport viewport;
     KeyMap keyboard;
     juce::Rectangle<int> left,centre,right,keyPanel;
+    juce::TextButton editSound;
+    SoundEditor soundEditor;
 };
 
 DrumAudioProcessorEditor::DrumAudioProcessorEditor(DrumAudioProcessor& p)

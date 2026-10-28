@@ -33,9 +33,11 @@ Group* containing(Kit& kit, const juce::String& id)
 bool validName(const juce::String& name) { return name.isNotEmpty() && name == name.trim() && name.length() <= 64; }
 bool validControls(const InstrumentControls& c)
 {
+    for(auto& m:c.macros) if(!validMapping(m)) return false;
     return std::isfinite(c.volumeDb) && c.volumeDb >= -60 && c.volumeDb <= 12
         && std::isfinite(c.pan) && c.pan >= -1 && c.pan <= 1
-        && std::isfinite(c.tuning) && c.tuning >= -24 && c.tuning <= 24 && c.choke >= 0 && c.choke <= 16;
+        && std::isfinite(c.tuning) && c.tuning >= -48 && c.tuning <= 48 && c.choke >= 0 && c.choke <= 16
+        && validSound(c.sound);
 }
 double numberAttribute(const juce::XmlElement& xml, const char* name)
 {
@@ -297,10 +299,33 @@ Result KitLibrary::addSampleInstrument(const juce::String& kitId, const juce::St
         g->instruments.push_back(i); return Result::success(i.id);
     });
 }
+Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String& instrumentId,int regions)
+{
+    return edit([&](State& s) {
+        auto* kit=find(s.kits,kitId); if(!kit) return Result::fail("Kit no longer exists.");
+        auto* source=findInstrument(*kit,instrumentId);
+        if(!source || source->samplePath.isEmpty()) return Result::fail("Load a sample before slicing.");
+        if(regions<2 || regions>64 || instrumentCount(*kit)+regions>maxInstruments || kit->groups.size()>=maxGroups)
+            return Result::fail("Slicing needs a free group and enough free instrument slots (up to 88 per kit).");
+        const auto original=*source; auto group=makeGroup((original.name.substring(0,52)+" slices"));
+        const double width=(original.controls.sound.end-original.controls.sound.start)/regions;
+        // Add the group before allocating notes so each slice reserves its own key.
+        kit->groups.push_back(std::move(group)); auto& target=kit->groups.back();
+        for(int n=0;n<regions;++n)
+        {
+            auto slice=original; slice.id=newId(); slice.name=original.name.substring(0,52)+" "+juce::String(n+1);
+            slice.note=freeNote(*kit); slice.controls.sound.start=original.controls.sound.start+n*width;
+            slice.controls.sound.end=original.controls.sound.start+(n+1)*width;
+            slice.controls.sound.loop=0; slice.controls.sound.mode=0;
+            target.instruments.push_back(std::move(slice));
+        }
+        return Result::success(target.id);
+    });
+}
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 4); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 5); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
@@ -315,6 +340,12 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
                 instrument->setAttribute("volumeDb",i.controls.volumeDb); instrument->setAttribute("pan",i.controls.pan);
                 instrument->setAttribute("tuning",i.controls.tuning); instrument->setAttribute("mute",i.controls.mute?1:0);
                 instrument->setAttribute("solo",i.controls.solo?1:0); instrument->setAttribute("choke",i.controls.choke);
+                for (auto& p : soundParameters) instrument->setAttribute(juce::String("edit_")+p.key,i.controls.sound.*(p.member));
+                for(int n=0;n<numMacros;++n)
+                {
+                    const auto key="map"+juce::String(n); const auto& m=i.controls.macros[(size_t)n];
+                    instrument->setAttribute(key+"target",m.target);instrument->setAttribute(key+"min",m.minimum);instrument->setAttribute(key+"max",m.maximum);
+                }
             }
         }
     }
@@ -329,7 +360,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); return true;
     }
-    if (version != 2 && version != 3 && version != 4) return false;
+    if (version != 2 && version != 3 && version != 4 && version != 5) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -349,6 +380,13 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                     auto mute=integerAttribute(*i,"mute"),solo=integerAttribute(*i,"solo");
                     if(mute<0 || mute>1 || solo<0 || solo>1) return false;
                     group.instruments.back().controls={numberAttribute(*i,"volumeDb"),numberAttribute(*i,"pan"),numberAttribute(*i,"tuning"),mute!=0,solo!=0,integerAttribute(*i,"choke")};
+                    if(version>=5) for(auto& p:soundParameters)
+                        group.instruments.back().controls.sound.*(p.member)=numberAttribute(*i,(juce::String("edit_")+p.key).toRawUTF8());
+                    if(version>=5) for(int n=0;n<numMacros;++n)
+                    {
+                        auto& m=group.instruments.back().controls.macros[(size_t)n]; const auto key="map"+juce::String(n);
+                        m={integerAttribute(*i,(key+"target").toRawUTF8()),numberAttribute(*i,(key+"min").toRawUTF8()),numberAttribute(*i,(key+"max").toRawUTF8())};
+                    }
                 }
             }
             kit.groups.push_back(std::move(group));

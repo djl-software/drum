@@ -4,13 +4,17 @@ Drum is a VST3 drum instrument for DJLeslieson, intended to replace drum-rack wo
 
 The design supports up to 8 named kits, each with 1–16 groups and up to 88 instruments, with one active kit at a time. See the [product specification](docs/product-specification.md).
 
-Version 0.4 adds per-instrument volume, pan, tuning, mute, solo and choke groups, plus bulk sample drag-and-drop. Create, rename, duplicate and remove items; move instruments between groups; reorder groups and instruments; and assign keys across MIDI notes 21–108. Project state recalls the whole library, active kit, sample paths and controls.
+Version 0.5 adds a tabbed sound editor: waveform trimming, reverse, normalise, sample gain, Trigger/Gate/Classic playback, looping, envelopes, filters, LFO modulation, slicing, output routing and 16 automatable macros. Volume, pan, tuning, mute, solo, choke groups and bulk sample drag-and-drop remain in the kit workspace. Project state recalls the whole library, active kit, sample paths, editing controls and macro mappings.
 
 Use **Add example kit** to review a populated layout. Its named instrument slots start empty. Select a slot and choose **Load sample**, or drop one audio file onto an instrument card to replace its sound. Drop one or more audio samples from Ableton's Samples browser or Explorer into empty workspace space to create named instruments in the selected group, with free MIDI notes. **Play** auditions the selected instrument; incoming MIDI triggers its assigned note with velocity-sensitive, overlapping one-shot playback. WAV, AIFF, FLAC, OGG and MP3 are supported, with mono/stereo files up to 30 seconds and 64 MB decoded. The active kit allows 512 MB of unique decoded sample data and 128 simultaneous voices.
 
-Volume ranges from silence to +12 dB, pan from left to right, and tuning from -24 to +24 semitones. Double-click a slider to reset it. Solo works across the active kit and allows multiple solos; mute takes priority. Choke Off allows overlap. Instruments sharing choke group 1–16 cut earlier hits in that choke group, independently of organisational groups and MIDI channels. Tuning changes sample speed and duration; pan is stereo balance.
+Volume ranges from silence to +12 dB, pan from left to right, and tuning from -48 to +48 semitones, plus fine tuning in the editor. Double-click a slider to reset it. Solo works across the active kit and allows multiple solos; mute takes priority. Choke Off allows overlap. Instruments sharing choke group 1–16 cut earlier hits in that choke group, independently of organisational groups and MIDI channels. Tuning changes sample speed and duration; pan is stereo balance.
 
-See [testing in Ableton](docs/ableton-testing.md). Samples remain external files: keep them at their saved locations, or use **Replace** to locate moved files. This preview has one stereo output (mono also supported) and fixed one-shot playback. Envelopes, effects, multi-output routing and host automation of sound controls remain pending. A separate standalone product is planned later.
+Select an instrument and click **Edit sound**. Six scrollable pages keep the controls accessible at smaller window sizes. See the [sound editor guide](docs/sound-editor.md) and [testing in Ableton](docs/ableton-testing.md). Samples remain external files: keep them at their saved locations, or use **Replace** to locate moved files. Main supports mono/stereo, with 15 additional stereo outputs and six post-fader send outputs for DAW effects. A separate standalone product is planned later.
+
+This is a substantial editing preview, not complete Ableton device parity. Warp/time-stretch, transient/manual slicing, layered device chains, built-in return effects, glide/spread, envelope looping, macro variations and Live device/preset importing remain outside this build. Existing audio-sample drag-and-drop is supported.
+
+![Drum sound editor](docs/images/drum-sound-editor.png)
 
 ## Windows build
 

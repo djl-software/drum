@@ -11,6 +11,7 @@ static void require(bool condition, const char* message)
 void runManagementTests();
 void runPlaybackTests();
 void runControlTests();
+void runEditingTests();
 void runVst3PlaybackTest(const juce::String&);
 
 int main(int argc, char** argv)
@@ -72,6 +73,7 @@ int main(int argc, char** argv)
         runManagementTests();
         runPlaybackTests();
         runControlTests();
+        runEditingTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
     }

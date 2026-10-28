@@ -2,6 +2,16 @@
 
 The build foundation follows Meter: CMake 3.22+, C++20, JUCE 8.0.12, a static MSVC runtime, a VST3 target with an optional standalone development harness, and CTest processor tests.
 
+## Sound editing (0.5, 28 October 2026)
+
+`SoundParameters.h` defines scalar editing fields and metadata shared by validation, schema-5 persistence and the tabbed `SoundEditor`. Legacy schemas 1–4 retain neutral settings. The worker computes waveform peaks, trim/loop boundaries, zero-crossing snapping and normalisation. Rendering uses preallocated voices with three ADSR envelopes, two cascaded stereo TPT filter sections, per-voice LFOs, bounded loops and MIDI-channel pitch bend. Markers/mode/direction/loop are latched at note-on; other edits update voices without changing their playback positions. Disabled LFOs bypass their volume depth, and muted previews cannot release unrelated held sounds.
+
+The processor declares Main plus 15 optional stereo output buses and six optional send buses. It derives buffer offsets from enabled buses, including a mono Main configuration. Sixteen stable `macro1`–`macro16` parameters provide host automation. The audio thread applies instrument-specific mappings to immutable bank settings at block boundaries; gain/balance/base-pitch ramps remain five milliseconds. Other modulation edits are not guaranteed click-free. All variable storage is allocated before processing, and no model locks or file operations occur in the callback. Normalise uses double-precision gain to avoid overflowing on very small floating-point samples.
+
+`EditingTests.cpp` checks trimming/reverse, Gate and Classic release, bidirectional loops, ADSR, voice limits/retrigger, normalise, velocity, pitch envelope/bend, filter response/stability, LFO bypass, muted-preview isolation, macro updates, mono/aux/send offsets, schema migration/rejection, slicing and editor callbacks. The hosted VST3 test also exercises gate note-off, real bus routing and host macro automation. All six page snapshots and the 800×600 layout were inspected. Windows Release VST3/standalone builds and both CTest suites passed; Steinberg validation passed 47/47. Native Live trim/recall/audition evidence and the pending final installed-module update are recorded in `ableton-testing.md`. Native macOS and broader host performance testing remain outstanding.
+
+See `sound-editor.md` for usage, routing semantics, automation scope and the remaining features needed for complete Ableton parity. The sections below preserve validation history for earlier previews.
+
 ## Layout
 
 - `src/`: audio processor and editor. Add DSP and parameter/state handling here.

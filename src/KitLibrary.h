@@ -3,6 +3,7 @@
 #include <functional>
 #include <atomic>
 #include <vector>
+#include "SoundParameters.h"
 
 namespace drum
 {
@@ -12,6 +13,8 @@ struct InstrumentControls
     double volumeDb = 0.0, pan = 0.0, tuning = 0.0;
     bool mute = false, solo = false;
     int choke = 0;
+    SoundParameters sound;
+    std::array<MacroMapping,numMacros> macros {};
     bool operator==(const InstrumentControls&) const = default;
 };
 struct Instrument { juce::String id, name; int note = firstNote; juce::String samplePath; InstrumentControls controls; };
@@ -56,6 +59,7 @@ public:
     Result assignSample(const juce::String& kitId, const juce::String& instrumentId, const juce::String& path);
     Result setControls(const juce::String& kitId, const juce::String& instrumentId, InstrumentControls);
     Result addSampleInstrument(const juce::String& kitId, const juce::String& groupId, const juce::String& path);
+    Result sliceInstrument(const juce::String& kitId,const juce::String& instrumentId,int regions);
     std::unique_ptr<juce::XmlElement> toXml() const;
     bool restore(const juce::XmlElement&);
 private:
