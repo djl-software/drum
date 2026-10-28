@@ -53,6 +53,18 @@ juce::File fixture(int frames=48000,int channels=2)
 }
 void runWaveformTests()
 {
+    {
+        juce::AudioBuffer<float> audio(2,128);audio.clear();
+        audio.setSample(0,40,0.5f);audio.setSample(1,40,0.5f);
+        drum::WaveformData waveform;waveform.build(audio);
+        check(waveform.channelsAreIdentical(),"Identical stereo channels not recognised as mono for display");
+        audio.setSample(1,40,-0.5f);waveform.build(audio);
+        check(!waveform.channelsAreIdentical(),"Opposite-polarity channels incorrectly collapsed");
+        audio.copyFrom(1,0,audio,0,0,128);audio.setSample(1,127,0.000001f);waveform.build(audio);
+        check(!waveform.channelsAreIdentical(),"Small stereo difference incorrectly collapsed");
+        audio.setSize(1,128,true);waveform.build(audio);
+        check(waveform.channelsAreIdentical(),"Mono source did not use a single display lane");
+    }
     // Query against raw audio, including non-aligned ranges, odd block counts,
     // DC, signed impulses and the final partial block. No extrema may disappear.
     juce::Random random(19302);

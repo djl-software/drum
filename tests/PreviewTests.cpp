@@ -149,6 +149,47 @@ void runPreviewTests()
     check(pixels(editor)!=before,"Host macro change did not update waveform");
     editor.setSize(800,600);capture(editor,"drum-preview-compact.png");
     check(wave.isVisible() && viewport->getHeight()>150,"Compact preview leaves no usable control area");
+    // Viewing changes must magnify quiet signals without changing audio/state.
+    editor.setSize(1280,900);controls={};controls.volumeDb=-24;
+    check(library.setControls(kit,id,controls).ok,"Quiet preview controls failed");check(engine.waitForLoading(10000),"Quiet preview bank timed out");
+    state=library.snapshot();control<SoundEditor>(editor,"sound-editor").select(kit,drum::findInstrument(*drum::activeKit(state),id));
+    click(editor,"edit-tab-1");settle(editor);
+    const auto savedState=library.toXml()->toString();
+    before=pixels(editor);capture(editor,"drum-waveform-quiet-before.png");
+    auto& vertical=control<juce::ComboBox>(editor,"waveform-vertical-zoom");
+    vertical.setSelectedId(6,juce::sendNotificationSync);
+    check(pixels(editor)!=before,"Vertical zoom did not magnify quiet waveform");
+    click(editor,"waveform-fit-vertical");const int fitted=vertical.getSelectedId();
+    check(fitted>3,"Fit Y did not enlarge a quiet preview");
+    capture(editor,"drum-waveform-quiet-fit.png");
+    for(int tab=0;tab<6;++tab) {click(editor,"edit-tab-"+juce::String(tab));check(vertical.getSelectedId()==fitted,"Tab change reset vertical zoom");}
+    auto& channels=control<juce::ComboBox>(editor,"waveform-channels");
+    channels.setSelectedId(3,juce::sendNotificationSync);auto leftView=pixels(editor);
+    channels.setSelectedId(4,juce::sendNotificationSync);check(pixels(editor)!=leftView,"Right channel view matches the different left signal");
+    click(editor,"edit-tab-2");capture(editor,"drum-waveform-right.png");
+    channels.setSelectedId(1,juce::sendNotificationSync);
+    auto& divider=control<juce::Component>(editor,"waveform-divider");
+    auto dragEvent=[&](int distance) {
+        auto now=juce::Time::getCurrentTime();juce::Point<float> down(50,6),position(50,(float)(6+distance));
+        return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),position,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,&divider,&divider,now,down,now,1,distance!=0);
+    };
+    editor.setSize(1920,1200);const int previousHeight=wave.getHeight();
+    divider.mouseDown(dragEvent(0));divider.mouseDrag(dragEvent(140));
+    check(wave.getHeight()>previousHeight && viewport->getHeight()>=160,"Waveform height divider failed");
+    editor.setSize(800,600);check(viewport->getHeight()>=160,"Tall waveform obscures compact controls");capture(editor,"drum-waveform-zoom-compact.png");
+    divider.mouseDoubleClick(dragEvent(0));editor.setSize(1280,900);check(wave.getHeight()==280,"Waveform default height not restored");
+    check(library.toXml()->toString()==savedState,"Waveform display controls changed instrument state");
+    control<juce::Slider>(editor,"edit-sampleGain").setValue(-6,juce::sendNotificationSync);settle(editor);
+    check(vertical.getSelectedId()==fitted,"A sound edit automatically rescaled the waveform");
+    // Identical stereo output should fill one lane in Auto, without summing audio.
+    auto monoFile=juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview mono.wav");monoFile.deleteFile();
+    auto monoStream=monoFile.createOutputStream();
+    std::unique_ptr<juce::AudioFormatWriter> monoWriter(format.createWriterFor(monoStream.release(),48000,1,24,{},0));
+    check(monoWriter!=nullptr,"Mono preview writer failed");monoWriter->writeFromAudioSampleBuffer(audio,0,48000);monoWriter.reset();
+    engine.requestLoad(kit,id,monoFile);check(engine.waitForLoading(10000),"Mono preview load failed");
+    state=library.snapshot();control<SoundEditor>(editor,"sound-editor").select(kit,drum::findInstrument(*drum::activeKit(state),id));settle(editor);
+    click(editor,"waveform-fit-vertical");auto monoView=pixels(editor);capture(editor,"drum-waveform-mono.png");
+    channels.setSelectedId(2,juce::sendNotificationSync);check(pixels(editor)!=monoView,"Auto mono display still draws duplicate stereo lanes");
     click(editor,"close-sound-editor");
     std::cout<<"Processed waveform DSP equivalence, bounds, cancellation, all tabs, scrolling and live control updates passed\n";
 }

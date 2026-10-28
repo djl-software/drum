@@ -52,6 +52,12 @@ Automated processor tests cover every editing field's persistence, Gate/Classic 
 
 ## Validation boundary
 
+### Vertical zoom update — 28 October 2026
+
+Version 0.6.1 was installed after Live closed. Every installed bundle file matched the tested build; x64 module SHA-256 is `ca567921697f64ba518757bc573bc63fe6bce35b35d8e43507276b295682c7b2`. The previous installation is backed up under `.local/installed-pre-0.6.1-20261028-224224/`. CTest passed 2/2 and Steinberg validation passed 47/47. Quiet stereo, mono and compact editor renders were checked.
+
+In Edited view, use **Fit Y** or the **Y zoom** selector to inspect a quiet hit. Adjust controls and check that the scale stays fixed while the shape/level changes. Drag the divider below the waveform to resize it. Auto channels should use a single lane for identical L/R audio; use Left only or Right only to inspect a stereo channel at full height. These operations change the display only. The new version has not yet been reviewed in a native Live session; Live was left closed after installation.
+
 ### Persistent preview update — 28 October 2026
 
 Version 0.6.0 was installed after the user closed Live. Every bundle file matched the tested build; x64 module SHA-256 is `3624451784f6a0e3fef5973ccc3ac9be97e59ab5d12b458ba073a2b0cada3fe2`. The previous installation is backed up under `.local/installed-pre-0.6-20261028-220836/`. CTest passed 2/2 and Steinberg validation passed 47/47. The preview was compared sample-for-sample with audition DSP at 44.1/48/96 kHz, and editor renders were reviewed on all tabs and at compact size.

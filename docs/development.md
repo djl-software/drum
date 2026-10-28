@@ -98,3 +98,13 @@ The waveform is a sibling of the controls viewport, so tab changes and scrolling
 `PreviewTests.cpp` compares preview output sample-for-sample with real audition across trim, reverse, snapping, normalise, tuning, envelopes, filtering, LFOs and macros at 44.1/48/96 kHz. It also checks gain/level visibility, send levels, mute, cancellation, duration bounds, latest-result publication, all six tabs, pinned scrolling, compact layout and pixel changes after envelope/filter/host-macro edits.
 
 Windows x64 Release VST3 and standalone builds passed on 28 October 2026. CTest passed 2/2 suites and Steinberg validation passed 47/47. Actual editor renders were inspected across every tab, including changed envelopes/filters and the compact macro layout. Version 0.6.0 was installed after Live closed and verified against the tested bundle. Native Live review of this version remains pending.
+
+## Waveform vertical zoom and height (0.6.1)
+
+Waveform display magnification ranges from 0.25x to 128x, independent of audio gain, cached preview data and horizontal zoom. Fit Y queries exact extrema in the current visible range for the displayed channels and selects a suitable power-of-two scale once; it does not track subsequent control edits. Each lane clamps its visual bounds independently, and the peak readout continues to report actual signal level.
+
+The waveform defaults to 280 logical pixels, with a draggable divider and a minimum 160-pixel control viewport at supported editor sizes. Auto channel layout collapses mono or identical L/R signals into one lane. Equality is computed when the immutable waveform cache is built on a worker, never by scanning source audio in paint. Any difference, including opposite polarity or a very small sample difference, preserves stereo. Left/right inspection selects a display channel without averaging or modifying the audio.
+
+Regression tests cover channel identity, opposite polarity, tiny stereo differences, quiet-signal magnification, Fit Y, vertical-scale retention across tabs and edits, left/right selection, divider resizing, compact controls, mono output display, and unchanged instrument state after display operations. Synthetic editor renders cover quiet before/after zoom, one-channel inspection, mono preview and compact sizing.
+
+Windows x64 Release VST3 and standalone builds passed on 28 October 2026. CTest passed 2/2 suites and Steinberg validation passed 47/47. Quiet stereo at Y 16x, mono at Y 32x and compact display renders were inspected. The tested 0.6.1 bundle was installed with Live closed and verified file-by-file. Native Live review remains pending.

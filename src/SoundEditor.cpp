@@ -108,13 +108,13 @@ class SoundEditor::Waveform final : public juce::Component,public juce::Settable
 public:
     explicit Waveform(SoundEditor& e):owner(e)
     {
-        setComponentID("sample-waveform"); setName("Sample waveform: drag start and end markers");
-        setTooltip("Drag the green Start and End markers to trim. Ctrl + wheel zooms at the pointer; Shift + wheel scrolls. Fit shows the whole sample.");
+        setComponentID("sample-waveform"); setName("Sample waveform display");
+        setTooltip("Ctrl + wheel zooms in time; Alt + wheel zooms vertically; Shift + wheel scrolls. Fit X shows the whole sample, Fit Y fits its visible height. Source allows marker dragging.");
         auto button=[this](juce::TextButton& b,const char* label,const char* id,const char* tip)
         { addAndMakeVisible(b); b.setButtonText(label); b.setComponentID(id); b.setTooltip(tip); };
         button(zoomOut,"-","waveform-zoom-out","Zoom out around the centre");
         button(zoomIn,"+","waveform-zoom-in","Zoom in around the centre, down to individual samples");
-        button(fit,"Fit","waveform-fit","Show the entire sample");
+        button(fit,"Fit X","waveform-fit","Show the entire sample in time; vertical zoom stays unchanged");
         zoomOut.onClick=[this]{setZoom(zoom/2,0.5);};
         zoomIn.onClick=[this]{setZoom(zoom*2,0.5);};
         fit.onClick=[this]{zoom=1;offset=0;repaint();};
@@ -125,6 +125,18 @@ public:
         view.setTooltip("Edited shows one hit after Drum's controls. Source shows the original file with draggable trim markers. Sends show the signal before DAW effects.");
         view.onChange=[this]{zoom=1;offset=0;rendered={};setDisplay(sourceMode()?original:nullptr);owner.refreshPreview();};
         addAndMakeVisible(status);status.setComponentID("waveform-status");status.setFont(juce::FontOptions(11));status.setColour(juce::Label::textColourId,muted);
+        addAndMakeVisible(verticalZoom);verticalZoom.setComponentID("waveform-vertical-zoom");verticalZoom.setName("Waveform vertical display zoom");
+        for(int n=0;n<10;++n)verticalZoom.addItem("Y "+juce::String(std::pow(2.0,n-2),n<2?2:0)+"x",n+1);
+        verticalZoom.setSelectedId(3,juce::dontSendNotification);
+        verticalZoom.setTooltip("Vertical display magnification, 0.25x to 128x. This changes the picture only, not audio gain. Kept across edits so level changes remain visible.");
+        verticalZoom.onChange=[this]{verticalScale=std::pow(2.0,verticalZoom.getSelectedId()-3);cachedWidth=0;repaint();};
+        button(fitVertical,"Fit Y","waveform-fit-vertical","Fit the height of the visible signal once. Later control changes keep this scale.");
+        fitVertical.onClick=[this]{fitHeight();};
+        addAndMakeVisible(channelView);channelView.setComponentID("waveform-channels");channelView.setName("Waveform channel display");
+        channelView.addItem("Auto channels",1);channelView.addItem("Stereo L / R",2);channelView.addItem("Left only",3);channelView.addItem("Right only",4);
+        channelView.setSelectedId(1,juce::dontSendNotification);
+        channelView.setTooltip("Display only. Auto shows mono or identical L/R signals in one lane. Stereo keeps both lanes; Left or Right uses the full height for that channel. Audio is unchanged.");
+        channelView.onChange=[this]{cachedWidth=0;repaint();};
     }
     bool sourceMode() const {return view.getSelectedId()==1;}
     int send() const {return view.getSelectedId()-3;}
@@ -147,6 +159,7 @@ public:
             if(rendered.truncated)caption+=" / first "+juce::String(source->audio.getNumSamples()/source->rate,1)+" s only";
         }
         status.setText(caption,juce::dontSendNotification);
+        status.setTooltip(caption);
         repaint();
     }
     double zoom=1,offset=0;
@@ -157,7 +170,10 @@ public:
         zoomOut.setBounds(getWidth()-128,getHeight()-26,30,22);
         zoomIn.setBounds(getWidth()-92,getHeight()-26,30,22);
         fit.setBounds(getWidth()-56,getHeight()-26,46,22);
-        view.setBounds(10,2,112,22);status.setBounds(132,1,getWidth()-142,23);
+        view.setBounds(10,2,112,22);status.setBounds(132,1,juce::jmax(1,getWidth()-308),23);
+        channelView.setBounds(getWidth()-166,2,156,22);
+        verticalZoom.setBounds(getWidth()-600,getHeight()-26,104,22);
+        fitVertical.setBounds(getWidth()-490,getHeight()-26,54,22);
     }
     void paint(juce::Graphics& g) override
     {
@@ -172,7 +188,7 @@ public:
             const auto scale=juce::jmax(1.0f,g.getInternalContext().getPhysicalPixelScaleFactor());
             const int pixels=juce::jlimit(1,16384,(int)std::ceil(area.getWidth()*scale));
             rebuildPaths(area,pixels);
-            const int channels=source->audio.getNumChannels();
+            const int channels=displayChannels();
             for(int channel=0;channel<channels;++channel)
             {
                 const float middle=area.getY()+area.getHeight()*(channel+0.5f)/channels;
@@ -195,6 +211,8 @@ public:
                 text(g,"L",{area.getX()+4,area.getY()+2,20,16},10,muted);
                 text(g,"R",{area.getX()+4,area.getCentreY()+2,20,16},10,muted);
             }
+            else text(g,source->audio.getNumChannels()==1 || (channelView.getSelectedId()==1 && source->waveform.channelsAreIdentical())?"MONO":channelView.getSelectedId()==4?"R":"L",
+                      {area.getX()+4,area.getY()+2,42,16},10,muted);
         }
         if(sourceMode() && owner.sound.loop!=0 && owner.sound.mode==2)
         {
@@ -209,10 +227,10 @@ public:
             g.drawVerticalLine((int)x(owner.sound.end)-1,(float)area.getY(),(float)area.getBottom());
         }
         g.restoreState();
-        text(g,owner.path.isEmpty()?"Drop an audio sample here":juce::File(owner.path).getFileName(),{10,getHeight()-25,getWidth()-410,20},11,muted);
+        text(g,owner.path.isEmpty()?"Drop an audio sample here":juce::File(owner.path).getFileName(),{10,getHeight()-25,getWidth()-620,20},11,muted);
         auto detail=juce::String(zoom,1)+"x";
         if(source) detail+="  /  "+juce::String(source->audio.getNumSamples()/source->rate/zoom*1000,2)+" ms";
-        text(g,detail,{getWidth()-395,getHeight()-25,255,20},11,muted);
+        text(g,detail,{getWidth()-420,getHeight()-25,280,20},11,muted);
     }
     double position(float x) const {return juce::jlimit(0.0,1.0,offset+(x-plot().getX())/(plot().getWidth()*zoom));}
     void mouseDown(const juce::MouseEvent& e) override
@@ -230,7 +248,12 @@ public:
     }
     void mouseWheelMove(const juce::MouseEvent& e,const juce::MouseWheelDetails& wheel) override
     {
-        if(e.mods.isCtrlDown())
+        if(e.mods.isAltDown())
+        {
+            const int direction=wheel.deltaY>0?1:wheel.deltaY<0?-1:0;
+            verticalZoom.setSelectedId(juce::jlimit(1,10,verticalZoom.getSelectedId()+direction),juce::sendNotificationSync);
+        }
+        else if(e.mods.isCtrlDown())
         {
             setZoom(zoom*std::pow(1.4,wheel.deltaY*5),juce::jlimit(0.0,1.0,(e.position.x-plot().getX())/(double)plot().getWidth()));
         }
@@ -238,6 +261,32 @@ public:
         repaint();
     }
 private:
+    int displayChannels() const
+    {
+        if(!source)return 0;
+        return source->audio.getNumChannels()==1 || channelView.getSelectedId()>=3
+            || (channelView.getSelectedId()==1 && source->waveform.channelsAreIdentical())?1:2;
+    }
+    int audioChannel(int lane) const
+    {
+        return source->audio.getNumChannels()==1?0:channelView.getSelectedId()==4?1:channelView.getSelectedId()==3?0:lane;
+    }
+    void fitHeight()
+    {
+        if(!source)return;
+        const int frames=source->audio.getNumSamples();
+        const int begin=juce::jlimit(0,frames-1,(int)std::floor(offset*frames));
+        const int end=juce::jlimit(begin+1,frames,(int)std::ceil((offset+1/zoom)*frames));
+        float peak=0;
+        for(int lane=0;lane<displayChannels();++lane)
+        {
+            auto range=source->waveform.range(source->audio,audioChannel(lane),begin,end);
+            peak=juce::jmax(peak,std::abs(range.minimum),std::abs(range.maximum));
+        }
+        const double reference=sourceMode()?juce::jmax(0.01f,source->peak):1.0f;
+        const int power=peak>0?(int)std::floor(std::log2(reference/peak)):0;
+        verticalZoom.setSelectedId(juce::jlimit(1,10,power+3),juce::sendNotificationSync);
+    }
     void setDisplay(std::shared_ptr<const drum::Sample> value)
     {
         if(source!=value)cachedWidth=0;
@@ -245,6 +294,7 @@ private:
         if(source)zoom=juce::jlimit(1.0,juce::jmax(1.0,source->audio.getNumSamples()/32.0),zoom);
         offset=juce::jlimit(0.0,1-1/zoom,offset);
         for(auto* button:{&zoomOut,&zoomIn,&fit})button->setEnabled(source!=nullptr);
+        fitVertical.setEnabled(source!=nullptr);
     }
     void setZoom(double value,double fraction)
     {
@@ -258,7 +308,7 @@ private:
     {
         if(cachedWidth==area.getWidth() && cachedHeight==area.getHeight() && cachedPixels==pixels && cachedZoom==zoom && cachedOffset==offset) return;
         cachedWidth=area.getWidth();cachedHeight=area.getHeight();cachedPixels=pixels;cachedZoom=zoom;cachedOffset=offset;
-        const int frames=source->audio.getNumSamples(),channels=source->audio.getNumChannels();
+        const int frames=source->audio.getNumSamples(),channels=displayChannels();
         const double begin=offset*frames,length=frames/zoom;
         sampleTrace=length<=pixels;
         paths.clear();paths.resize((size_t)channels);
@@ -266,8 +316,10 @@ private:
         {
             auto& path=paths[(size_t)channel];
             const float middle=area.getY()+area.getHeight()*(channel+0.5f)/channels;
-            const float amplitude=area.getHeight()*0.44f/channels/(sourceMode()?juce::jmax(0.01f,source->peak):1.0f);
-            auto y=[&](float value){return middle-(sourceMode()?value:juce::jlimit(-1.0f,1.0f,value))*amplitude;};
+            const int sourceChannel=audioChannel(channel);
+            const float amplitude=area.getHeight()*0.44f/channels;
+            const float multiplier=(float)verticalScale/(sourceMode()?juce::jmax(0.01f,source->peak):1.0f);
+            auto y=[&](float value){return middle-juce::jlimit(-1.0f,1.0f,value*multiplier)*amplitude;};
             if(sampleTrace)
             {
                 const int first=juce::jlimit(0,frames-1,(int)std::floor(begin));
@@ -275,7 +327,7 @@ private:
                 for(int n=first;n<=last;++n)
                 {
                     const float xx=(float)(area.getX()+(n-begin)/length*area.getWidth());
-                    const float yy=y(source->audio.getSample(channel,juce::jmin(n,frames-1)));
+                    const float yy=y(source->audio.getSample(sourceChannel,juce::jmin(n,frames-1)));
                     if(n==first)path.startNewSubPath(xx,yy);else path.lineTo(xx,yy);
                 }
             }
@@ -286,7 +338,7 @@ private:
                 {
                     const int from=juce::jlimit(0,frames-1,(int)std::floor(begin+length*n/pixels));
                     const int to=juce::jlimit(from+1,frames,(int)std::ceil(begin+length*(n+1)/pixels));
-                    columns[(size_t)n]=source->waveform.range(source->audio,channel,from,to);
+                    columns[(size_t)n]=source->waveform.range(source->audio,sourceChannel,from,to);
                     const float xx=(float)(area.getX()+(n+0.5)*area.getWidth()/pixels);
                     const float yy=y(columns[(size_t)n].maximum);
                     if(n==0)path.startNewSubPath((float)area.getX(),yy);
@@ -303,15 +355,41 @@ private:
     SoundEditor& owner;
     std::shared_ptr<const drum::Sample> source,original;
     drum::PreviewResult rendered;
-    juce::ComboBox view;
+    juce::ComboBox view,verticalZoom,channelView;
     juce::Label status;
-    juce::TextButton zoomOut,zoomIn,fit;
+    juce::TextButton zoomOut,zoomIn,fit,fitVertical;
     std::vector<juce::Path> paths;
     int cachedWidth=0,cachedHeight=0,cachedPixels=0;
     double cachedZoom=0,cachedOffset=0;
+    double verticalScale=1;
     bool sampleTrace=false;
 };
-SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_unique<Waveform>(*this))
+class SoundEditor::WaveformDivider final : public juce::Component,public juce::SettableTooltipClient
+{
+public:
+    explicit WaveformDivider(SoundEditor& e):owner(e)
+    {
+        setComponentID("waveform-divider");setName("Waveform height divider");
+        setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
+        setTooltip("Drag to resize the waveform. Double-click to restore its default height.");
+    }
+    void paint(juce::Graphics& g) override
+    {
+        g.setColour(muted.withAlpha(isMouseOverOrDragging()?0.8f:0.4f));
+        g.fillRoundedRectangle(getWidth()*0.5f-32,getHeight()*0.5f-1,64,2,1);
+    }
+    void mouseDown(const juce::MouseEvent&) override {initialHeight=owner.waveform->getHeight();}
+    void mouseDrag(const juce::MouseEvent& e) override
+    {
+        owner.waveformHeight=juce::jlimit(184,juce::jmax(184,owner.getHeight()-359),initialHeight+e.getDistanceFromDragStartY());
+        owner.resized();
+    }
+    void mouseDoubleClick(const juce::MouseEvent&) override {owner.waveformHeight=280;owner.resized();}
+private:
+    SoundEditor& owner;
+    int initialHeight=280;
+};
+SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_unique<Waveform>(*this)),waveformDivider(std::make_unique<WaveformDivider>(*this))
 {
     setComponentID("sound-editor"); setOpaque(true);
     auto button=[this](juce::TextButton& b,const char* title,const char* id) {addAndMakeVisible(b); b.setButtonText(title); b.setComponentID(id);};
@@ -330,6 +408,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
     for(int n=0;n<6;++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
     addAndMakeVisible(*waveform);
+    addAndMakeVisible(*waveformDivider);
     for(auto& parameter:drum::soundParameters) {auto field=std::make_unique<Field>(parameter,*this); content.addAndMakeVisible(*field); fields.push_back(std::move(field));}
     for(int n=0;n<drum::numMacros;++n) {auto field=std::make_unique<MacroField>(*this,n);content.addAndMakeVisible(*field);macroFields.push_back(std::move(field));}
     content.addAndMakeVisible(sliceCount);sliceCount.setComponentID("slice-count");sliceCount.setName("Number of equal slices");
@@ -418,8 +497,11 @@ void SoundEditor::resized()
     back.setBounds(getWidth()-380,15,125,32); play.setBounds(getWidth()-245,15,65,32); stop.setBounds(getWidth()-170,15,65,32); reset.setBounds(getWidth()-95,15,80,32);
     const int tabWidth=(getWidth()-36-40)/6;
     for(int n=0;n<6;++n) tabs[(size_t)n].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
-    waveform->setBounds(18,150,juce::jmax(1,getWidth()-36),184);
-    viewport.setBounds(18,346,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-383));
+    const int height=juce::jlimit(184,juce::jmax(184,getHeight()-359),waveformHeight);
+    waveform->setBounds(18,150,juce::jmax(1,getWidth()-36),height);
+    waveformDivider->setBounds(18,150+height,juce::jmax(1,getWidth()-36),12);
+    const int controlsTop=162+height;
+    viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=3,gap=24,cell=(width-gap*2)/columns;
     const int top=6;
     int n=0; for(auto& field:fields) if(field->parameter.page==page)

@@ -18,6 +18,8 @@ void merge(WaveformData::Range& into, WaveformData::Range value)
 }
 void WaveformData::build(const juce::AudioBuffer<float>& audio)
 {
+    identicalChannels = audio.getNumChannels() < 2 || audio.getNumSamples() == 0
+        || std::equal(audio.getReadPointer(0), audio.getReadPointer(0) + audio.getNumSamples(), audio.getReadPointer(1));
     channels.clear();
     channels.resize((size_t)audio.getNumChannels());
     for (int channel = 0; channel < audio.getNumChannels(); ++channel)

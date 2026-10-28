@@ -19,6 +19,7 @@ private:
     struct Field;
     struct MacroField;
     class Waveform;
+    class WaveformDivider;
     void change(const drum::SoundParameter&,double);
     void refresh();
     void refreshPreview();
@@ -39,6 +40,8 @@ private:
     juce::Viewport viewport;
     juce::Component content;
     std::unique_ptr<Waveform> waveform;
+    std::unique_ptr<WaveformDivider> waveformDivider;
+    int waveformHeight=280;
     std::vector<std::unique_ptr<Field>> fields;
     std::vector<std::unique_ptr<MacroField>> macroFields;
 };

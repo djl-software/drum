@@ -13,9 +13,11 @@ public:
     void build(const juce::AudioBuffer<float>&);
     Range range(const juce::AudioBuffer<float>&, int channel, int begin, int end) const;
     size_t bytes() const;
+    bool channelsAreIdentical() const { return identicalChannels; }
 private:
     static constexpr int blockSize = 64;
     using Level = std::vector<Range>;
     std::vector<std::vector<Level>> channels;
+    bool identicalChannels = true;
 };
 }
