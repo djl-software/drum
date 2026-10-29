@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DJLDrum VERSION 0.11.1 LANGUAGES C CXX)
+project(DJLDrum VERSION 0.12.0 LANGUAGES C CXX)
 if(APPLE)
   enable_language(OBJC OBJCXX)
 endif()
@@ -30,18 +30,18 @@ juce_add_plugin(DJLDrum
   HARDENED_RUNTIME_ENABLED TRUE)
 juce_add_binary_data(DJLDrumAssets NAMESPACE DJLAssets HEADER_NAME DJLAssets.h
   SOURCES assets/DJLLogoWhite.png)
-target_sources(DJLDrum PRIVATE src/PluginProcessor.cpp src/PluginEditor.cpp src/KitLibrary.cpp src/SampleEngine.cpp src/SoundEditor.cpp src/WaveformData.cpp src/EnvelopeEditor.cpp src/TonalAnalysis.cpp src/EqualizerEditor.cpp)
+target_sources(DJLDrum PRIVATE src/PluginProcessor.cpp src/PluginEditor.cpp src/KitLibrary.cpp src/SampleEngine.cpp src/SoundEditor.cpp src/WaveformData.cpp src/EnvelopeEditor.cpp src/TonalAnalysis.cpp src/EqualizerEditor.cpp src/EffectRack.cpp src/ChainEditor.cpp)
 target_compile_definitions(DJLDrum PUBLIC
   DRUM_VERSION_STRING="${PROJECT_VERSION}"
-  JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+  JUCE_PLUGINHOST_VST3=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(DJLDrum PRIVATE DJLDrumAssets juce::juce_audio_utils juce::juce_dsp
   PUBLIC juce::juce_recommended_config_flags)
 if(BUILD_TESTING)
   juce_add_console_app(drum_tests PRODUCT_NAME "Drum Processor Tests")
-  target_sources(drum_tests PRIVATE tests/PluginTests.cpp tests/ManagementTests.cpp tests/PlaybackTests.cpp tests/ControlTests.cpp tests/EditingTests.cpp tests/WaveformTests.cpp tests/PreviewTests.cpp tests/ChannelAttackTests.cpp tests/EnvelopeTests.cpp tests/EqualizerTests.cpp tests/PadTests.cpp)
+  target_sources(drum_tests PRIVATE tests/PluginTests.cpp tests/ManagementTests.cpp tests/PlaybackTests.cpp tests/ControlTests.cpp tests/EditingTests.cpp tests/WaveformTests.cpp tests/PreviewTests.cpp tests/ChannelAttackTests.cpp tests/EnvelopeTests.cpp tests/EqualizerTests.cpp tests/PadTests.cpp tests/ChainTests.cpp)
   target_include_directories(drum_tests PRIVATE src)
   target_link_libraries(drum_tests PRIVATE DJLDrum juce::juce_audio_utils juce::juce_dsp)
-  target_compile_definitions(drum_tests PRIVATE JUCE_PLUGINHOST_VST3=1)
+  target_compile_definitions(drum_tests PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1)
   add_test(NAME drum_processor COMMAND drum_tests)
   add_dependencies(drum_tests DJLDrum_VST3)
   if(APPLE)
@@ -50,6 +50,20 @@ if(BUILD_TESTING)
     set(drum_vst3_path "$<TARGET_FILE_DIR:DJLDrum_VST3>/../..")
   endif()
   add_test(NAME vst3_sample_playback COMMAND drum_tests --vst3 "${drum_vst3_path}")
+  juce_add_plugin(DrumChainTestEffect COMPANY_NAME "DJL Tests" PLUGIN_MANUFACTURER_CODE DjlS
+    PLUGIN_CODE DjTf FORMATS VST3 PRODUCT_NAME "Drum Chain Test Effect"
+    IS_SYNTH FALSE NEEDS_MIDI_INPUT FALSE NEEDS_MIDI_OUTPUT FALSE COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(DrumChainTestEffect PRIVATE tests/ChainTestEffect.cpp)
+  target_link_libraries(DrumChainTestEffect PRIVATE juce::juce_audio_processors juce::juce_recommended_config_flags)
+  target_compile_definitions(DrumChainTestEffect PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+  add_dependencies(drum_tests DrumChainTestEffect_VST3)
+  if(APPLE)
+    set(drum_test_fx "$<TARGET_BUNDLE_DIR:DrumChainTestEffect_VST3>")
+  else()
+    set(drum_test_fx "$<TARGET_FILE_DIR:DrumChainTestEffect_VST3>/../..")
+  endif()
+  add_test(NAME vst3_instrument_chains COMMAND drum_tests --chains "${drum_test_fx}" "${drum_vst3_path}")
+
 endif()
 # Keep Windows resource versions current after a project version change.
 if(WIN32)

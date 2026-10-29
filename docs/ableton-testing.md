@@ -111,3 +111,14 @@ Version 0.4.0 was subsequently built, installed and checked in Live 12 Suite. CT
 Known compatibility limit: the separate browser entry `Tom-909-Mid.aif` returned an unsupported-audio error and created no instrument. Its underlying encoding/source has not been identified; the `.aif` extension alone does not guarantee compatibility. Standard Core Library AIFF loading succeeded. For an unreadable source, try exporting the sound from Live as a standard PCM WAV and importing that file. Do not assume every Pack/browser entry is directly decodable by Drum.
 
 The native test Set was saved and reopened on 27 October 2026. Both instruments, their sample references and the -17.4 dB volume setting recalled successfully with Ready status. Manual Play produced output on Live's track and Main meters before and after recall. This checks audition through Live's audio engine; it does not substitute for a controller or MIDI-clip performance test. The local test Set is retained under `.local/Controls Test/` and is excluded from Git and packages.
+
+
+## Review the instrument Chain (0.12.0)
+
+1. Keep clips/controller input on the single Drum MIDI track. Open a loaded instrument's Edit sound > Chain.
+2. Add an installed VST3 audio effect from Drum's browser or Explorer. Open its controls and audition the instrument. Confirm another instrument stays unaffected.
+3. Add a second effect, drag its header to swap order, bypass each, then remove both and compare the unchanged dry sound.
+4. Save/reopen a test Set and confirm effect order, settings and bypass. Try switching kits and copying an instrument; copies must edit independently.
+5. Test high-latency modes and reverb/delay tails, plus any chosen outputs/sends. The waveform and pitch/key readout show built-in processing before Chain.
+
+No extra Live tracks are needed for internal VST3 chains. Native Live effects still require Live routing. Direct drag of entries from Live's browser has not been verified; use Drum's browser or a .vst3 file drop.

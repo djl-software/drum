@@ -10,6 +10,9 @@ DrumAudioProcessor::DrumAudioProcessor()
         return buses;
     }())
 {
+    sampleEngine.setEffects(&effects);
+    library.beforeClone=[this]{effects.capture();};
+    library.afterRestore=[this]{effects.stateRestored();};
     for(int n=0;n<drum::numMacros;++n)
     {
         auto* parameter=new juce::AudioParameterFloat(juce::ParameterID("macro"+juce::String(n+1),1),"Macro "+juce::String(n+1),0.0f,1.0f,0.5f);
@@ -23,9 +26,11 @@ void DrumAudioProcessor::handleAsyncUpdate()
     updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
 }
 
-void DrumAudioProcessor::prepareToPlay(double rate, int)
+void DrumAudioProcessor::prepareToPlay(double rate, int blockSize)
 {
-    sampleEngine.prepare(rate);
+    if(juce::MessageManager::getInstance()->isThisTheMessageThread())effects.sync();
+    effects.prepare(rate,blockSize);
+    sampleEngine.prepare(rate,blockSize);
     std::array<int,22> channels; channels.fill(-1); int offset=0;
     for(int n=0;n<getBusCount(false);++n)
     {
@@ -34,7 +39,7 @@ void DrumAudioProcessor::prepareToPlay(double rate, int)
     }
     sampleEngine.setOutputChannels(channels,getMainBusNumOutputChannels());
 }
-void DrumAudioProcessor::releaseResources() { sampleEngine.release(); }
+void DrumAudioProcessor::releaseResources() { sampleEngine.release();effects.release(); }
 
 bool DrumAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout) const
 {
@@ -55,6 +60,7 @@ void DrumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
     sampleEngine.setMacros(values);
     if(auto* playhead=getPlayHead()) if(auto position=playhead->getPosition())
         if(auto bpm=position->getBpm(); bpm && std::isfinite(*bpm)) sampleEngine.setTempo(*bpm);
+    sampleEngine.setProcessingContext(getPlayHead(),isNonRealtime());
     sampleEngine.process(buffer, midi);
     midi.clear();
 }
@@ -66,6 +72,7 @@ juce::AudioProcessorEditor* DrumAudioProcessor::createEditor()
 
 void DrumAudioProcessor::getStateInformation(juce::MemoryBlock& data)
 {
+    effects.capture();
     const auto state = library.toXml();
     for(int n=0;n<drum::numMacros;++n) state->setAttribute("macro"+juce::String(n+1),(double)macros[(size_t)n]->get());
     copyXmlToBinary(*state, data);
@@ -73,7 +80,7 @@ void DrumAudioProcessor::getStateInformation(juce::MemoryBlock& data)
 
 void DrumAudioProcessor::setStateInformation(const void* data, int size)
 {
-    if (data == nullptr || size <= 0 || size > 32 * 1024 * 1024) return;
+    if (data == nullptr || size <= 0 || size > 256 * 1024 * 1024) return;
     if (const auto state = getXmlFromBinary(data, size))
     {
         std::array<float,drum::numMacros> values;
@@ -84,12 +91,18 @@ void DrumAudioProcessor::setStateInformation(const void* data, int size)
             if(end==raw.toRawUTF8() || *end!='\0' || !std::isfinite(v) || v<0 || v>1) return;
             values[(size_t)n]=(float)v;
         }
-        if(library.restore(*state)) for(int n=0;n<drum::numMacros;++n)
+        if(library.restore(*state))
         {
+          for(int n=0;n<drum::numMacros;++n)
+          {
             // Restoring state is not a user gesture. The wrapper synchronises
             // its controller afterwards; do not mark the host project edited.
             juce::AudioProcessorParameter* parameter=macros[(size_t)n];
             parameter->setValue(values[(size_t)n]);
+          }
+          // Hosts may recall on either thread. Load devices immediately on the
+          // message thread; the rack timer handles worker-thread recalls.
+          if(juce::MessageManager::getInstance()->isThisTheMessageThread())effects.sync();
         }
     }
 }

@@ -28,7 +28,9 @@ Version 0.11.0 makes the instrument pads square and four across. Press a pad or 
 
 Version 0.11.1 calibrates **Attack level 0 dB** to a full-scale generated peak before velocity, EQ and mixer controls. Kit tabs fit their names with compact widths, and piano keys visibly depress and rise. **Envelope** replaces the Classic ADSR mode label. **Source** follows Forward/Reverse and its Start/End controls follow playback order, so reverse hits can be trimmed visually. The guide now explicitly includes Drum's own filter and eight-band EQ in the waveform preview.
 
-The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.11.1-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
+Version 0.12.0 adds **Chain**, with up to 16 VST3 audio effects per instrument. Drag effects from Drum's browser or drop `.vst3` modules, open their own editors, reorder, bypass or remove them. Audio passes through in card order, then reaches the instrument output and sends; empty chains are transparent. Effect settings recall with the project and copied instruments have independent instances. Plugin latency is compensated across the kit. The waveform remains a clearly labelled preview before Chain.
+
+The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.12.0-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
 
 ![Playable instrument pads, four across](docs/images/drum-pads.png)
 
@@ -36,9 +38,9 @@ Use **Add example kit** to review a populated layout. Its named instrument slots
 
 Volume ranges from silence to +12 dB, pan from left to right, and tuning from -48 to +48 semitones, plus fine tuning in the editor. Double-click a slider to reset it. Solo works across the active kit and allows multiple solos; mute takes priority. Choke Off allows overlap. Instruments sharing choke group 1–16 cut earlier hits in that choke group, independently of organisational groups and MIDI channels. Tuning changes sample speed and duration; pan is stereo balance.
 
-Select an instrument and click **Edit sound**. Seven scrollable pages keep the controls accessible at smaller window sizes. See the [sound editor guide](docs/sound-editor.md) and [testing in Ableton](docs/ableton-testing.md). Samples remain external files: keep them at their saved locations, or use **Replace** to locate moved files. Main supports mono/stereo, with 15 additional stereo outputs and six post-fader send outputs for DAW effects. Ableton's native effects can process these outputs on receiving Live tracks; native Live devices and third-party VST3 effects cannot currently be loaded inside Drum. A separate standalone product is planned later.
+Select an instrument and click **Edit sound**. Eight pages keep the controls accessible at smaller window sizes. See the [sound editor guide](docs/sound-editor.md) and [testing in Ableton](docs/ableton-testing.md). Samples remain external files: keep them at their saved locations, or use **Replace** to locate moved files. Main supports mono/stereo, with 15 additional stereo outputs and six post-fader send outputs for DAW effects. Ableton's native effects can process these outputs on receiving Live tracks; the Chain tab hosts third-party VST3 audio effects internally. Native Live devices still need Live routing. MIDI remains on the Drum track. A separate standalone product is planned later.
 
-This is a substantial editing preview, not complete Ableton device parity. Warp/time-stretch, transient/manual slicing, layered device chains, built-in return effects, glide/spread, envelope looping, macro variations and Live device/preset importing remain outside this build. Existing audio-sample drag-and-drop is supported.
+This is a substantial editing preview, not complete Ableton device parity. Warp/time-stretch, transient/manual slicing, layered instrument chains, built-in shared return effects, glide/spread, envelope looping, macro variations and Live device/preset importing remain outside this build. Existing audio-sample drag-and-drop is supported.
 
 ![Drum sound editor](docs/images/drum-sound-editor.png)
 

@@ -1,3 +1,4 @@
+#include "EffectRack.h"
 #include "SampleEngine.h"
 #include <algorithm>
 #include <cmath>
@@ -247,6 +248,7 @@ void SampleEngine::updateBank(const State& state,double rate)
     next->rate=rate;
     size_t bytes=0; std::set<const Sample*> counted; double duration=0.0;
     bool hasSolo=false;
+    for(const auto& group:kit->groups)for(const auto& instrument:group.instruments)next->hasEffects|=!instrument.effects.empty();
     for(auto& group:kit->groups) for(auto& instrument:group.instruments) hasSolo|=instrument.controls.solo;
     for(auto& group:kit->groups) for(auto& instrument:group.instruments)
     {
@@ -291,7 +293,7 @@ void SampleEngine::updateBank(const State& state,double rate)
     bool same=old && old->kitId==next->kitId && old->kitEpoch==next->kitEpoch && old->ids==next->ids;
     if(same) for(int n=0;n<128;++n) if(old->samples[(size_t)n]!=next->samples[(size_t)n]) { same=false; break; }
     next->sampleGeneration=old ? old->sampleGeneration+(same?0:1) : 0;
-    if(same && old->controls==next->controls && old->rate==rate) return;
+    if(same && old->controls==next->controls && old->rate==rate && old->hasEffects==next->hasEffects) return;
     tail.store(duration);
     auto* pointer=next.get(); banks.push_back(std::move(next)); published.store(pointer);
 }
@@ -301,9 +303,11 @@ void SampleEngine::reclaim()
     std::erase_if(banks,[&](const auto& bank){ return bank.get()!=active && bank.get()!=reading; });
     std::erase_if(cache,[](const auto& entry){return entry.second.expired();});
 }
-void SampleEngine::prepare(double rate)
+void SampleEngine::prepare(double rate,int blockSize)
 {
     hostRate=std::isfinite(rate) && rate>0 ? rate : 44100.0; releaseSamples=juce::jmax(1,(int)(hostRate*0.002)); release();
+    effectBlockSize=juce::jmax(1,blockSize);
+    if(effects)instrumentAudio.setSize(EffectRack::channels,effectBlockSize);
     displayedRate.store(hostRate);
     // prepareToPlay is the non-realtime setup phase. Let the worker calibrate
     // at the new device rate; slow source loads can still finish asynchronously.
@@ -562,6 +566,13 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
             const double pan=juce::jlimit(-1.0,1.0,voice.randomPan*s.randomPan+lfo*s.lfoPan);
             left*=voice.left.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1-pan);
             right*=voice.right.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1+pan);
+            if(renderingInstruments)
+            {
+                const int channel=(voice.note-firstNote)*2;
+                output.addSample(channel,frame,left);output.addSample(channel+1,frame,right);
+            }
+            else
+            {
             auto write=[&](int bus,float gain) {
                 const int ch=busChannels[(size_t)bus]; if(ch<0 || ch>=output.getNumChannels()) return;
                 if(bus==0 && mainWidth==1) output.addSample(ch,frame,(left+right)*0.5f*gain);
@@ -572,6 +583,7 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
             const int target=(int)s.output;
             write(busChannels[(size_t)target]>=0?target:0,1);
             for(int send=0;send<6;++send) if(c.sends[(size_t)send]>0) write(send+16,c.sends[(size_t)send]);
+            }
             voice.position+=reverse?-step:step;
             if(looping)
             {
@@ -582,6 +594,26 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
             }
             voice.elapsed=++voice.elapsedFrames/hostRate;
         }
+    }
+}
+void SampleEngine::mixEffects(juce::AudioBuffer<float>& output,int offset,int frames) noexcept
+{
+    for(int note=firstNote;note<firstNote+maxInstruments;++note)
+    {
+        const auto& c=renderControls[(size_t)note];if(!current->samples[(size_t)note] || !c.audible)continue;
+        const int input=(note-firstNote)*2;
+        auto write=[&](int bus,float gain){
+            const int channel=busChannels[(size_t)bus];if(channel<0 || channel>=output.getNumChannels())return;
+            if(bus==0 && mainWidth==1)
+            {
+                output.addFrom(channel,offset,instrumentAudio,input,0,frames,gain*0.5f);
+                output.addFrom(channel,offset,instrumentAudio,input+1,0,frames,gain*0.5f);
+            }
+            else if(channel+1<output.getNumChannels())
+                for(int lane=0;lane<2;++lane)output.addFrom(channel+lane,offset,instrumentAudio,input+lane,0,frames,gain);
+        };
+        const int destination=(int)c.sound.output;write(busChannels[(size_t)destination]>=0?destination:0,1);
+        for(int send=0;send<6;++send)if(c.sends[(size_t)send]>0)write(send+16,c.sends[(size_t)send]);
     }
 }
 void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuffer& midi) noexcept
@@ -616,20 +648,31 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
         startVoice(note,1,0.8f);
         if(clock!=previousClock) for(auto& v:voices) if(v.sample && v.age==clock) v.preview=true;
     }
-    int position=0;
-    for(const auto metadata:midi)
+    renderingInstruments=effects && (effects->active() || current->hasEffects);
+    if(stopped && effects)effects->reset();
+    const int frames=output.getNumSamples();
+    for(int base=0;base<frames || base==0;base+=juce::jmax(1,renderingInstruments?effectBlockSize:frames))
     {
-        const int offset=juce::jlimit(position,output.getNumSamples(),metadata.samplePosition);
-        render(output,position,offset); position=offset;
-        // Inspect raw MIDI without allocating a MidiMessage for variable-length SysEx.
-        if(metadata.numBytes<1) continue;
-        const auto* data=metadata.data; const int command=data[0]&0xf0,channel=(data[0]&0x0f)+1;
-        if(command==0x90 && metadata.numBytes>=3 && data[2]>0) {indicateNote(data[1],channel,true);startVoice(data[1],channel,data[2]/127.0f);}
-        else if((command==0x80 || command==0x90) && metadata.numBytes>=3) {indicateNote(data[1],channel,false);releaseNote(data[1],channel);}
-        else if(command==0xe0 && metadata.numBytes>=3) pitchBend[(size_t)(channel-1)]=((data[2]*128+data[1])-8192)/8192.0;
-        else if(command==0xb0 && metadata.numBytes>=3 && (data[1]==120 || data[1]==123)) stopVoices(channel);
+        const int count=renderingInstruments?juce::jmin(effectBlockSize,frames-base):frames;
+        if(renderingInstruments){instrumentAudio.setSize(EffectRack::channels,count,false,false,true);instrumentAudio.clear();}
+        auto& target=renderingInstruments?instrumentAudio:output;
+        int position=0;
+        for(const auto metadata:midi)
+        {
+            if(metadata.samplePosition<base || (metadata.samplePosition>=base+count && base+count<frames))continue;
+            const int offset=juce::jlimit(position,count,metadata.samplePosition-base);
+            render(target,position,offset);position=offset;
+            // Inspect MIDI without allocating a MidiMessage for variable-length SysEx.
+            if(metadata.numBytes<1)continue;
+            const auto* data=metadata.data;const int command=data[0]&0xf0,channel=(data[0]&0x0f)+1;
+            if(command==0x90 && metadata.numBytes>=3 && data[2]>0){indicateNote(data[1],channel,true);startVoice(data[1],channel,data[2]/127.0f);}
+            else if((command==0x80 || command==0x90) && metadata.numBytes>=3){indicateNote(data[1],channel,false);releaseNote(data[1],channel);}
+            else if(command==0xe0 && metadata.numBytes>=3)pitchBend[(size_t)(channel-1)]=((data[2]*128+data[1])-8192)/8192.0;
+            else if(command==0xb0 && metadata.numBytes>=3 && (data[1]==120 || data[1]==123))stopVoices(channel);
+        }
+        render(target,position,count);
+        if(renderingInstruments && count>0){effects->process(instrumentAudio,current->kitEpoch,playHead,nonRealtime);mixEffects(output,base,count);}
     }
-    render(output,position,output.getNumSamples());
     freePhase+=output.getNumSamples()/hostRate;
 }
 }

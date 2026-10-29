@@ -1,10 +1,10 @@
-# Drum sound editor (0.11.1)
+# Drum sound editor (0.12.0)
 
-Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
+Select an instrument in the kit workspace and click **Edit sound**. The editor has eight pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
 ## Waveform on every page
 
-The waveform stays above the scrolling controls on all seven tabs. The view selector offers:
+The waveform stays above the scrolling controls on all eight tabs. The view selector offers:
 
 - **Edited** (default): one hit rendered through Drum's current trim/reverse, gain/normalise, tuning, envelopes, tone filter, eight-band EQ, LFO, instrument mixer and macro settings. It updates after control edits, host macro changes and host tempo changes, without playing audio. At Y 1x its amplitude scale is ±1 (0 dBFS). Vertical zoom magnifies the display without changing gain; values beyond the chosen scale meet the display edge. The header reports the actual signal peak in dBFS. This is display clipping only.
 - **Source:** unprocessed audio displayed in the selected playback direction, with Start/End and loop markers. Reverse flips the display; START is the audible beginning of reverse playback. Choose this to drag trim markers. This view scales to the source peak and does not show processing. Numeric Start/End controls also work while Edited is selected.
@@ -104,6 +104,18 @@ The layer fires once per note, even if the sample or amplitude envelope has alre
 
 Edited and Send waveforms include the attack layer; Source does not. Zoom into the first few milliseconds to inspect its shape. These controls are saved per instrument and inherited by copies/slices. Reset page restores Off and the default settings.
 
+## Chain: per-instrument VST3 effects
+
+Open **Chain** and drag a VST3 audio effect from its browser into the row. **Add folder** includes a custom plugin location; **Refresh** updates the file list. You can also double-click a browser entry, choose **Add selected**, or drop a `.vst3` file/bundle from Explorer. Direct drag from Live's browser is unverified; native Live devices and instrument plugins are unsupported.
+
+Audio runs left to right through up to 16 effects, after the built-in sample/attack processing and instrument volume/pan, before output and send routing. Empty, fully bypassed or unavailable chains pass through. **Open** displays the effect's own editor, **Bypass** skips it, **Remove** deletes it, and dragging its header or pressing **< / >** changes order. EQ before compression changes what drives the compressor; EQ after compression shapes its result. Compare both at matched levels.
+
+The DAW project stores order, bypass and effect state. Copies get independent instances. Only the active kit's plugins are loaded; kit switches capture the departing settings and replace live effects. Missing plugins retain their saved slots/state and pass audio through; restore the module at its saved path and choose **Retry loading**. Plugin binaries, licences and samples are external.
+
+Stereo and mono audio effects are supported; required sidechains, MIDI-effect input, multichannel-only effects and direct effect-parameter automation/macro mappings are not. Stereo is downmixed/duplicated when an effect only supports mono. All active-kit paths are aligned to the longest effect-chain delay and that latency is reported to the host. Effect tails continue after a source voice ends. Effects run in-process without crash isolation. Saved state is limited to 16 MiB per effect and 192 MiB of encoded effect data across all kits; exceeding either reports a save error and retains the previous saved settings.
+
+**Waveforms and tonal analysis stop before Chain**, including Send previews and sample-gain warnings. Play/MIDI and actual sends include the effects. Use the effect's meters and listen to its output. All MIDI remains on the single Drum track; no receiving audio tracks are needed for these internal chains.
+
 ## Outputs and sends
 
 Route each instrument to Main or Out 2–16. Send A–F provide six additional stereo outputs, with per-instrument post-fader send levels; -60 dB is off. They contain audio for effects on DAW tracks, not internal reverb/delay engines. A disabled instrument output falls back to Main. A disabled send stays silent. On hosts that enable every output, selecting an auxiliary output removes that instrument from Main even if no receiving track is connected.
@@ -114,7 +126,7 @@ In Live, create a receiving audio track, select the Drum MIDI track as **Audio F
 
 Live's native devices, such as EQ Eight and Compressor, run in Live's device chains and cannot be dragged into Drum's VST3. Assign the kick to Out 2, the snare to Out 3, and so on, then put the desired Live effects on their receiving audio tracks. All instruments sharing an output share that external effect chain. Main plus Out 2–16 provide 16 destinations; this is not 88 independent effect chains. Six sends can feed shared external effects. Live saves those devices and their routing in the Set; Drum saves its output/send choices. External effects are after Drum's waveform preview and are not drawn in it. See [Ableton's routing manual](https://www.ableton.com/en/manual/routing-and-i-o/).
 
-Third-party VST3 effects shown in Live's browser are a different format from native Live devices. Hosting them inside Drum would require a separate effects-hosting feature, which this build does not provide.
+Third-party VST3 audio effects can run in the per-instrument Chain tab. They use no extra Live tracks; MIDI stays on the Drum track. Native Live devices still require Live routing.
 
 ## Macros
 
@@ -124,12 +136,12 @@ Targets include the instrument mixer, sample gain, cutoff/resonance, envelope ti
 
 ## Compatibility and remaining scope
 
-Schema 10 adds attack Position, defaulting to 0 ms for older projects. The attack now bypasses the sample envelopes for all projects, including existing Attack On presets. Schema 9 adds weighted curves; earlier envelope states retain their previous curvature. Schema 8 adds eight EQ bands, bypass and output gain, with EQ off for older states. Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
+Schema 11 adds ordered VST3 effect slots, bypass and opaque plugin state; older projects receive empty chains. Schema 10 adds attack Position, defaulting to 0 ms for older projects. The attack now bypasses the sample envelopes for all projects, including existing Attack On presets. Schema 9 adds weighted curves; earlier envelope states retain their previous curvature. Schema 8 adds eight EQ bands, bypass and output gain, with EQ off for older states. Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
 
-The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered chains, hosting arbitrary devices, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.
+The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered instrument chains, native Live device hosting, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.
 
-## Compact editing and level warnings (0.11.1)
+## Compact editing and level warnings (0.12.0)
 
 Every waveform includes adaptive time graticules. The Edit Sound panel uses more of the window, single-line fields and graphs below the waveform. Envelope time and waveform time are separate: MIDI defines the duration of the S hold.
 
-Sample gain turns red only when the completed processed preview exceeds 0 dBFS. Exactly full scale, a high gain setting alone and display zoom do not cause a red warning. The preview includes the amplitude envelope, EQ, attack layer and mixer level, at 80% velocity and a one-second gate; Send views use the selected send. Pending/stale previews clear the warning until a current result arrives. Edited/Send captions use the same strict limit. This is one rendered hit, not a live meter of overlapping notes or external effects. Floating-point audio is retained rather than hard-clipped. Fade in is disabled in Envelope, whose amplitude graph shapes the sample; Trigger/Gate use fades. Neither affects the independent attack layer.
+Sample gain turns red only when the completed processed preview exceeds 0 dBFS. Exactly full scale, a high gain setting alone and display zoom do not cause a red warning. The preview includes the amplitude envelope, EQ, attack layer and mixer level, at 80% velocity and a one-second gate; Send views use the selected send. Pending/stale previews clear the warning until a current result arrives. Edited/Send captions use the same strict limit. This is one rendered hit, not a live meter of overlapping notes, Chain effects or external effects. Floating-point audio is retained rather than hard-clipped. Fade in is disabled in Envelope, whose amplitude graph shapes the sample; Trigger/Gate use fades. Neither affects the independent attack layer.

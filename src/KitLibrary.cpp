@@ -49,6 +49,7 @@ bool validate(const State& state)
 {
     if (state.kits.empty() || state.kits.size() > maxKits || !activeKit(state)) return false;
     std::set<juce::String> ids;
+    size_t effectStorage=0;
     const auto validId = [&ids](const juce::String& id) { return id.isNotEmpty() && id.length() <= 64 && ids.insert(id).second; };
     for (const auto& kit : state.kits)
     {
@@ -58,10 +59,20 @@ bool validate(const State& state)
         {
             if (!validId(group.id) || !validName(group.name) || group.colour < 0 || group.colour >= 8) return false;
             for (const auto& instrument : group.instruments)
+            {
                 if (!validId(instrument.id) || !validName(instrument.name) || instrument.note < firstNote
                     || instrument.note >= firstNote + maxInstruments || !notes.insert(instrument.note).second
                     || !validControls(instrument.controls) || instrument.samplePath.length() > 32767
                     || (instrument.samplePath.isNotEmpty() && !juce::File::isAbsolutePath(instrument.samplePath))) return false;
+                if(instrument.effects.size()>maxEffects)return false;
+                for(const auto& effect:instrument.effects)
+                {
+                    if(!validId(effect.id) || effect.description.length()>65536 || effect.description.isEmpty()
+                        || effect.state.length()>24*1024*1024 || !juce::parseXML(effect.description))return false;
+                    effectStorage+=effect.description.getNumBytesAsUTF8()+effect.state.getNumBytesAsUTF8();
+                    if(effectStorage>maxEffectStorage)return false;
+                }
+            }
         }
     }
     return true;
@@ -123,12 +134,13 @@ Result KitLibrary::addKit(bool example)
 }
 Result KitLibrary::duplicateKit(const juce::String& id)
 {
+    if(beforeClone)beforeClone();
     return edit([&](State& s) {
         auto* source = find(s.kits, id);
         if (!source) return Result::fail("Kit no longer exists.");
         if (s.kits.size() == maxKits) return Result::fail("All 8 kit slots are in use.");
         auto copy = *source; copy.id = newId(); copy.name = copy.name.substring(0, 59) + " copy";
-        for (auto& group : copy.groups) { group.id = newId(); for (auto& i : group.instruments) i.id = newId(); }
+        for (auto& group : copy.groups) { group.id = newId(); for (auto& i : group.instruments) { i.id = newId(); for(auto& effect:i.effects)effect.id=newId(); } }
         s.activeKit = copy.id; s.kits.push_back(copy); return Result::success(copy.id);
     });
 }
@@ -173,6 +185,7 @@ Result KitLibrary::addGroup(const juce::String& kitId)
 }
 Result KitLibrary::duplicateGroup(const juce::String& kitId, const juce::String& groupId)
 {
+    if(beforeClone)beforeClone();
     return edit([&](State& s) {
         auto* k = find(s.kits, kitId); if (!k) return Result::fail("Kit no longer exists.");
         auto* g = find(k->groups, groupId); if (!g) return Result::fail("Group no longer exists.");
@@ -180,7 +193,7 @@ Result KitLibrary::duplicateGroup(const juce::String& kitId, const juce::String&
         auto copy = *g; copy.id = newId(); copy.name = copy.name.substring(0,59) + " copy"; copy.instruments.clear();
         auto sourceInstruments = g->instruments;
         k->groups.push_back(copy);
-        for (auto i : sourceInstruments) { i.id = newId(); i.note = freeNote(*k); k->groups.back().instruments.push_back(i); }
+        for (auto i : sourceInstruments) { i.id = newId(); for(auto& effect:i.effects)effect.id=newId(); i.note = freeNote(*k); k->groups.back().instruments.push_back(i); }
         return Result::success(copy.id);
     });
 }
@@ -218,11 +231,12 @@ Result KitLibrary::addInstrument(const juce::String& kitId, const juce::String& 
 }
 Result KitLibrary::duplicateInstrument(const juce::String& kitId, const juce::String& instrumentId)
 {
+    if(beforeClone)beforeClone();
     return edit([&](State& s) {
         auto* k = find(s.kits, kitId); if (!k) return Result::fail("Kit no longer exists.");
         auto* g = containing(*k, instrumentId); if (!g) return Result::fail("Instrument no longer exists.");
         auto note = freeNote(*k); if (note < 0) return Result::fail("This kit already has 88 instruments.");
-        auto copy = *find(g->instruments, instrumentId); copy.id = newId(); copy.name = copy.name.substring(0,59) + " copy"; copy.note = note;
+        auto copy = *find(g->instruments, instrumentId); copy.id = newId(); copy.name = copy.name.substring(0,59) + " copy"; copy.note = note; for(auto& effect:copy.effects)effect.id=newId();
         g->instruments.push_back(copy); return Result::success(copy.id);
     });
 }
@@ -301,6 +315,7 @@ Result KitLibrary::addSampleInstrument(const juce::String& kitId, const juce::St
 }
 Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String& instrumentId,int regions)
 {
+    if(beforeClone)beforeClone();
     return edit([&](State& s) {
         auto* kit=find(s.kits,kitId); if(!kit) return Result::fail("Kit no longer exists.");
         auto* source=findInstrument(*kit,instrumentId);
@@ -313,7 +328,7 @@ Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String&
         kit->groups.push_back(std::move(group)); auto& target=kit->groups.back();
         for(int n=0;n<regions;++n)
         {
-            auto slice=original; slice.id=newId(); slice.name=original.name.substring(0,52)+" "+juce::String(n+1);
+            auto slice=original; slice.id=newId(); for(auto& effect:slice.effects)effect.id=newId(); slice.name=original.name.substring(0,52)+" "+juce::String(n+1);
             slice.note=freeNote(*kit); slice.controls.sound.start=original.controls.sound.start+n*width;
             slice.controls.sound.end=original.controls.sound.start+(n+1)*width;
             slice.controls.sound.loop=0; slice.controls.sound.mode=0;
@@ -322,10 +337,18 @@ Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String&
         return Result::success(target.id);
     });
 }
+Result KitLibrary::setEffects(const juce::String& kitId,const juce::String& instrumentId,const std::vector<EffectSlot>& effects)
+{
+    return edit([&](State& state) {
+        auto* kit=find(state.kits,kitId);if(!kit)return Result::fail("Kit no longer exists.");
+        auto* group=containing(*kit,instrumentId);if(!group)return Result::fail("Instrument no longer exists.");
+        find(group->instruments,instrumentId)->effects=effects;return Result::success(instrumentId);
+    });
+}
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 10); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 11); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
@@ -358,6 +381,13 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
                         node->setAttribute("ms",juce::String(p.ms,17,true));node->setAttribute("level",juce::String(p.level,17,true));node->setAttribute("bend",juce::String(p.bend,17,true));node->setAttribute("pivot",juce::String(p.pivot,17,true));node->setAttribute("weight",juce::String(p.weight,17,true));
                     }
                 }
+                for(const auto& effect:i.effects)
+                {
+                    auto* node=instrument->createNewChildElement("Effect");node->setAttribute("id",effect.id);
+                    node->setAttribute("bypassed",effect.bypassed?1:0);
+                    node->addChildElement(juce::parseXML(effect.description).release());
+                    node->createNewChildElement("State")->addTextElement(effect.state);
+                }
                 for(int n=0;n<numMacros;++n)
                 {
                     const auto key="map"+juce::String(n); const auto& m=i.controls.macros[(size_t)n];
@@ -375,9 +405,9 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
     if (version == 1 && xml.getNumChildElements() == 0)
     {
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
-        fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); return true;
+        fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
     }
-    if (version < 2 || version > 10) return false;
+    if (version < 2 || version > 11) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -423,6 +453,16 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                         std::array<bool,3> seen {};
                         for(auto* e:i->getChildIterator())
                         {
+                            if(version>=11 && e->hasTagName("Effect"))
+                            {
+                                auto* description=e->getChildByName("PLUGIN");auto* saved=e->getChildByName("State");
+                                const int bypassed=integerAttribute(*e,"bypassed");
+                                if(!description || !saved || e->getNumChildElements()!=2 || bypassed<0 || bypassed>1)return false;
+                                auto encoded=saved->getAllSubText();juce::MemoryBlock decoded;
+                                if(encoded.length()>24*1024*1024 || (encoded.isNotEmpty() && !decoded.fromBase64Encoding(encoded)))return false;
+                                group.instruments.back().effects.push_back({e->getStringAttribute("id"),description->toString(),encoded,bypassed!=0});
+                                continue;
+                            }
                             const int index=integerAttribute(*e,"index");
                             if(!e->hasTagName("Envelope") || index<0 || index>2 || seen[(size_t)index] || e->getNumChildElements()<2 || e->getNumChildElements()>maxEnvelopePoints)return false;
                             seen[(size_t)index]=true;auto& shape=group.instruments.back().controls.sound.envelopes[(size_t)index];shape.hold=integerAttribute(*e,"hold");
@@ -440,6 +480,6 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         candidate.kits.push_back(std::move(kit));
     }
     if (!validate(candidate)) return false;
-    const juce::ScopedLock guard(lock); candidate.revision = state.revision + 1; candidate.kitEpoch = state.kitEpoch + 1; state = std::move(candidate); activeEpoch.store(state.kitEpoch); return true;
+    const juce::ScopedLock guard(lock); candidate.revision = state.revision + 1; candidate.kitEpoch = state.kitEpoch + 1; state = std::move(candidate); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
 }
 }

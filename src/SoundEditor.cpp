@@ -188,6 +188,7 @@ public:
         if(!sourceMode() && original && !busy && caption.isEmpty())
         {
             caption="One hit / velocity 80% / 1 s gate";
+            if(owner.chainPresent)caption+=" / before Chain";
             if(source)caption+=" / peak "+juce::String(juce::Decibels::gainToDecibels(source->peak,-100.0f),1)+" dBFS";
             if(rendered.truncated)caption+=" / first "+juce::String(source->audio.getNumSamples()/source->rate,1)+" s only";
         }
@@ -435,9 +436,9 @@ private:
     SoundEditor& owner;
     int initialHeight=340;
 };
-SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_unique<Waveform>(*this)),waveformDivider(std::make_unique<WaveformDivider>(*this))
+SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(),p.getEffects()),waveform(std::make_unique<Waveform>(*this)),waveformDivider(std::make_unique<WaveformDivider>(*this))
 {
-    setComponentID("sound-editor"); setOpaque(true);
+    setComponentID("sound-editor"); setOpaque(true);addAndMakeVisible(chain);
     addAndMakeVisible(noteIndicator);noteIndicator.setComponentID("note-indicator");noteIndicator.setFont(juce::FontOptions(11));noteIndicator.setColour(juce::Label::textColourId,mint);
     noteIndicator.setTooltip("MIDI trigger is the pad assignment. Preview pitch/key is estimated from processed audio, before external effects. A single drum note cannot establish major/minor key. Manual key labels are saved per instrument.");
     auto button=[this](juce::TextButton& b,const char* title,const char* id) {addAndMakeVisible(b); b.setButtonText(title); b.setComponentID(id);};
@@ -453,7 +454,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
         if(result.ok){for(int n=0;n<3;++n)if(page==(n==2?2:1))recordEnvelope(n,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
         message=result.ok?"Page reset. The source file is unchanged.":result.message; refresh();
     };
-    const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer"};
+    const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer","Chain"};
     for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
     addAndMakeVisible(*waveform);
@@ -503,6 +504,7 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     const bool changed=kitId!=kit || instrumentId!=(i?i->id:juce::String());
     if(changed || path!=(i?i->samplePath:juce::String()))envelopeHistory={};
     updating=true; kitId=kit; instrumentId=i?i->id:juce::String(); name=i?i->name:"No instrument selected"; path=i?i->samplePath:juce::String(); note=i?i->note:21; sound=i?i->controls.sound:drum::SoundParameters{};
+    chainPresent=i && !i->effects.empty();chain.select(kitId,instrumentId);
     if(changed) {waveform->zoom=1;waveform->offset=0;message.clear();}
     for(auto& field:fields)
     {
@@ -748,7 +750,7 @@ void SoundEditor::setPage(int value)
     adsrValues.setVisible(page==1 || (page==2 && filterEnvelopePage));
     equalizer.setVisible(page==2 && !filterEnvelopePage);eqTab.setVisible(page==2);filterTab.setVisible(page==2);
     eqTab.setToggleState(!filterEnvelopePage,juce::dontSendNotification);filterTab.setToggleState(filterEnvelopePage,juce::dontSendNotification);
-    slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5);
+    slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5 && page!=7);chain.setVisible(page==7);viewport.setVisible(page!=7);
     resized(); repaint();
 }
 void SoundEditor::paint(juce::Graphics& g)
@@ -762,7 +764,8 @@ void SoundEditor::paint(juce::Graphics& g)
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
         "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
-        "Add Click, Pulse or Noise independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note."};
+        "Add Click, Pulse or Noise independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note.",
+        "Drag VST3 effects into this instrument\'s chain. Audio flows left to right. The waveform shows the sound before this chain."};
     text(g,help[page],{18,116,getWidth()-(page==2?470:page==1?170:36),24},12,muted);
     text(g,message.isEmpty()?"Non-destructive edits. The original audio file is preserved.":message,{18,getHeight()-29,getWidth()-36,23},11,muted);
 }
@@ -777,7 +780,7 @@ void SoundEditor::resized()
     const int graphHeight=page==1 || page==2?180:0;
     const int graphWidth=getWidth()-36;
     const int waveTop=150;
-    const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:160;
+    const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:page==7?280:160;
     const int height=juce::jlimit(184,juce::jmax(184,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),waveformHeight);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
@@ -788,6 +791,7 @@ void SoundEditor::resized()
     }
     if(page==2){envelopes[2]->setBounds(18,graphTop,graphWidth,graphHeight);equalizer.setBounds(18,graphTop,graphWidth,graphHeight);}
     const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
+    chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=width>=1000?3:2,gap=16,cell=(width-gap*(columns-1))/columns;
     int top=6;
@@ -814,8 +818,9 @@ void SoundEditor::timerCallback()
         if(!slider.isMouseButtonDown() && !slider.hasKeyboardFocus(true)) slider.setValue(processor.macro(n).get()*100,juce::dontSendNotification);
     }
 }
-void SoundEditor::filesDropped(const juce::StringArray& files,int,int)
+void SoundEditor::filesDropped(const juce::StringArray& files,int x,int y)
 {
+    if(chain.isInterestedInFileDrag(files)){setPage(7);auto point=chain.getLocalPoint(this,juce::Point<int>{x,y});chain.filesDropped(files,point.x,point.y);return;}
     if(files.size()!=1 || instrumentId.isEmpty() || !juce::File::isAbsolutePath(files[0])) return;
     processor.getSampleEngine().requestLoad(kitId,instrumentId,juce::File(files[0]));
     message="Loading replacement audio..."; repaint();

@@ -5,6 +5,7 @@
 #include "TonalAnalysis.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
 #include <atomic>
 #include <deque>
@@ -13,6 +14,7 @@
 
 namespace drum
 {
+class EffectRack;
 struct Sample
 {
     juce::AudioBuffer<float> audio;
@@ -54,7 +56,9 @@ public:
     uint64_t statusRevision() const { return statusEpoch.load(); }
     // For deterministic offline tests. Never call from processBlock.
     bool waitForLoading(int timeoutMs);
-    void prepare(double sampleRate);
+    void prepare(double sampleRate, int blockSize = 512);
+    void setEffects(EffectRack* value) { effects=value; }
+    void setProcessingContext(juce::AudioPlayHead* value, bool offline) noexcept { playHead=value;nonRealtime=offline; }
     void release();
     void process(juce::AudioBuffer<float>&, const juce::MidiBuffer&) noexcept;
     void setTempo(double bpm) noexcept { tempo = juce::jlimit(20.0,999.0,bpm); displayedTempo.store(tempo); }
@@ -89,6 +93,7 @@ private:
         juce::String kitId;
         uint64_t kitEpoch = 0;
         double rate=44100;
+        bool hasEffects=false;
         uint64_t sampleGeneration = 0;
         std::array<juce::String,128> ids;
         std::array<std::shared_ptr<const Sample>,128> samples;
@@ -137,6 +142,12 @@ private:
     void updateVoices() noexcept;
     void updateRenderControls() noexcept;
     void render(juce::AudioBuffer<float>&, int start, int end) noexcept;
+    void mixEffects(juce::AudioBuffer<float>& output,int offset,int frames) noexcept;
+    EffectRack* effects=nullptr;
+    juce::AudioPlayHead* playHead=nullptr;
+    bool nonRealtime=false,renderingInstruments=false;
+    int effectBlockSize=512;
+    juce::AudioBuffer<float> instrumentAudio;
     KitLibrary& library;
     std::function<void()> onAssignment;
     juce::AudioFormatManager formats;

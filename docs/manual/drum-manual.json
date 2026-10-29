@@ -1,11 +1,11 @@
 {
   "product": "Drum",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "date": "29 October 2026",
   "platform": "Windows VST3",
   "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
-  "cover_caption": "Version 0.11.1 editing preview  |  Instructions, examples and why",
-  "footer": "Version 0.11.1  |  Windows VST3 editing preview",
+  "cover_caption": "Version 0.12.0 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.12.0  |  Windows VST3 editing preview",
   "logo": "../../assets/DJLLogoWhite.png",
   "cover_image": "assets/curves.png",
   "publisher": "DJL Software",
@@ -15,7 +15,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.11.1 editing preview."
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.12.0 editing preview."
         },
         {
           "type": "p",
@@ -35,7 +35,7 @@
         },
         {
           "type": "p",
-          "text": "Screenshots show the real 0.11.1 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
+          "text": "Screenshots show the real 0.12.0 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
         },
         {
           "type": "p",
@@ -77,7 +77,7 @@
         },
         {
           "type": "p",
-          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.11.1. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.12.0. Instrument effect chains need version 0.12.0 or later; an older build is not expected to understand their state. Reopen the Set and confirm sample status, output routing and playback before continuing."
         },
         {
           "type": "p",
@@ -155,7 +155,7 @@
             ],
             [
               "Edit sound",
-              "Opens seven tabs with a shared waveform. Scroll the controls area while the waveform stays visible."
+              "Opens eight tabs with a shared waveform. Scroll the controls area while the waveform stays visible."
             ]
           ],
           "widths": [
@@ -290,7 +290,7 @@
         {
           "type": "steps",
           "items": [
-            "Save the DAW project to store Drum's kits, names, note assignments, sample paths, edits, custom envelopes, key labels, outputs and macro mappings.",
+            "Save the DAW project to store Drum's kits, names, note assignments, sample paths, edits, custom envelopes, key labels, outputs, macro mappings and VST3 effect chains with their settings.",
             "Keep the referenced sample files at their saved paths. Before moving a project to another computer, copy the needed audio into a known project sample folder.",
             "On the destination computer, load the Set, inspect missing-file messages and use Replace on each affected instrument to choose its copied source. Save the Set again after relinking.",
             "Reopen a saved test project once to verify that both Drum and the DAW's receiving/effect tracks recall as expected."
@@ -322,6 +322,10 @@
             [
               "Sound and mixer controls",
               "Waveform/envelope zoom is an editor view, not a sound parameter."
+            ],
+            [
+              "Effect order, bypass and plugin settings",
+              "Install the same VST3 effects at their saved paths. Plugin binaries and licences are not embedded."
             ]
           ],
           "widths": [
@@ -480,7 +484,7 @@
             ],
             [
               "Send A-F",
-              "The chosen send signal before effects on external DAW tracks. An off or silent send can show a flat waveform."
+              "The send level applied to Drum's built-in preview, before Chain effects and external DAW effects. An off or silent send can show a flat waveform."
             ],
             [
               "- / + / Fit X",
@@ -511,6 +515,10 @@
         {
           "type": "p",
           "text": "Vertical time graticules appear in every waveform view. Labels adapt between milliseconds and seconds as you zoom. Edited timing follows the rendered hit, so pitch and trim can change its duration. The envelope graphs sit below the waveform; each graph has its own envelope-time axis because MIDI determines the held duration."
+        },
+        {
+          "type": "p",
+          "text": "Chain effects are heard in Play/MIDI but excluded from waveform views, peak warnings and pitch/key analysis. Captions show before Chain."
         }
       ]
     },
@@ -602,7 +610,7 @@
         },
         {
           "type": "p",
-          "text": "The Sample gain box turns red only when the completed processed preview exceeds 0 dBFS. A peak exactly at full scale, a high gain setting by itself, or display magnification does not trigger it. The preview includes envelopes, mixer level and the attack layer, at 80% velocity and a one-second gate. Edited/Send captions use the same limit; Source remains unprocessed. This is one preview hit, not a live meter of the summed kit or external effects. Floating-point values are retained; the warning does not mean Drum hard-clips them."
+          "text": "The Sample gain box turns red only when the completed processed preview exceeds 0 dBFS. A peak exactly at full scale, a high gain setting by itself, or display magnification does not trigger it. The preview includes envelopes, mixer level and the attack layer, at 80% velocity and a one-second gate. Edited/Send captions use the same limit; Source remains unprocessed. This is one preview hit before Chain effects, not a live meter of the summed kit or hosted/external effects. Floating-point values are retained; the warning does not mean Drum hard-clips them."
         }
       ]
     },
@@ -880,7 +888,7 @@
         },
         {
           "type": "p",
-          "text": "Key mapping reference: <link href=\"https://mixedinkey.com/camelot-wheel/\" color=\"#15745f\">Mixed In Key: Camelot wheel</link>. Analysis uses a bounded portion of the preview and excludes external DAW effects. In a Send view it analyses that send, which may be silent."
+          "text": "Key mapping reference: <link href=\"https://mixedinkey.com/camelot-wheel/\" color=\"#15745f\">Mixed In Key: Camelot wheel</link>. Analysis uses a bounded portion of the preview and excludes Chain effects and external DAW effects. In a Send view it analyses that send, which may be silent."
         }
       ]
     },
@@ -1091,6 +1099,106 @@
       ]
     },
     {
+      "title": "Build an instrument effect chain",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Each instrument has its own Chain tab with up to sixteen third-party VST3 audio effects. Audio runs from left to right through the cards. No cards means unchanged pass-through. All MIDI stays on the one Drum track."
+        },
+        {
+          "type": "image",
+          "path": "assets/chain.png",
+          "crop": [
+            42,
+            558,
+            1238,
+            835
+          ],
+          "max_height": 150,
+          "caption": "Actual Chain interface. Two diagnostic test effects illustrate the order and controls; they are not supplied as musical effects."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Select an instrument, open Edit sound, then Chain. The browser lists modules in standard VST3 folders. Use Add folder for a custom plugin location, then Refresh after installing more effects.",
+            "Find an effect and drag it from Drum's browser into the chain. Alternatively double-click it, choose Add selected, or drop its .vst3 file/bundle from Explorer. Modules containing several effects offer a chooser.",
+            "Press Open on a card to show the effect's own controls. Play the instrument while adjusting it. Close that window when finished; its settings remain.",
+            "Drag a card header to change order, or use its < and > buttons. Bypass temporarily skips that effect; Remove deletes the slot and its settings. Save the DAW project to retain the chain."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Order changes the result. An EQ before a compressor changes which frequencies drive compression; an EQ after it shapes the already compressed sound. Try a gentle low cut before compression, compare the reverse order, and match levels when judging the difference."
+        },
+        {
+          "type": "p",
+          "text": "The sample and attack layer share the chain, after Drum's instrument volume/pan and before output/send routing. A reverb here belongs to this instrument; use an external shared send for one room affecting several instruments. Plugin delay is aligned across the active kit and reported to the DAW."
+        },
+        {
+          "type": "p",
+          "text": "Use Drum's browser or a .vst3 file drop. Dragging an entry directly from Live's browser is not verified. Native Live devices such as EQ Eight and Compressor are not VST3 modules and cannot load here."
+        }
+      ]
+    },
+    {
+      "title": "Recall and troubleshoot effect chains",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Save the DAW project after editing a chain. Reopen a test copy and check order, bypass and plugin settings, then trigger the instrument.",
+            "When moving computers, install the same compatible VST3 effects and retain their saved paths, as well as the sample files. Drum stores effect settings, not the plugin installers or licences.",
+            "If a card reports Missing VST3, restore the module to that path and press Retry loading. Its saved state remains attached to the slot. An unavailable effect is skipped so audio continues through the remaining chain."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Every copied instrument gets independent effect instances with copied settings. Editing one copy does not alter the other. Switching kits stores the departing kit's settings and loads the next kit's chains; allow loading to finish before playing."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "What you see or hear",
+            "What to do / why"
+          ],
+          "widths": [
+            0.32,
+            0.68
+          ],
+          "rows": [
+            [
+              "Effect not in the browser",
+              "Add its containing folder and Refresh. Only .vst3 modules are listed; instrument-only modules are rejected when loaded."
+            ],
+            [
+              "Unsupported audio layout",
+              "Use a stereo or mono audio effect. Required sidechains and multichannel-only effects are not supported."
+            ],
+            [
+              "No waveform change",
+              "The waveform, peak warning and pitch/key readout stop before Chain. Listen using Play or MIDI and check the effect's meters."
+            ],
+            [
+              "Playback or monitoring feels late",
+              "Lookahead and some processing modes add delay. Drum aligns instruments to the longest chain; choose lower-latency modes for live playing."
+            ],
+            [
+              "Effect tail after the sample ends",
+              "Delay and reverb continue to process after source voices end. Mute/solo suppress the instrument output. Switching kits replaces its live effects."
+            ],
+            [
+              "Cannot automate an effect from Live",
+              "This preview saves effect settings but does not expose their parameters as Drum automation lanes or macro targets. Use the plugin's own controls."
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Effects run inside Drum's process, without a separate crash-isolation service. Compatibility depends on the installed plugin. Saved effect states are limited to 16 MiB each and 192 MiB of encoded effect data across all kits. Exceeding a limit displays a save error and retains the previous saved settings. The test effect exercises ordering, recall and delay compensation; it is not a guarantee for every third-party plugin."
+        }
+      ]
+    },
+    {
       "title": "Outputs, sends and native Live effects",
       "blocks": [
         {
@@ -1137,7 +1245,7 @@
         },
         {
           "type": "p",
-          "text": "Live owns native devices, so they cannot be dropped into Drum. Third-party effects can also run on the receiving Live tracks; this build does not host VST3 effects internally. There are sixteen instrument-output destinations, not 88 private chains. Organisational groups do not create buses."
+          "text": "Live owns its native devices, so they cannot be dropped into Drum. Use the Chain tab for independent third-party VST3 effect chains on all instruments, without extra receiving tracks. For native Live processing, sounds can share one of sixteen instrument-output destinations or six sends. Organisational groups do not create buses. MIDI clips and keyboard input stay on the Drum MIDI track; receiving audio tracks need no MIDI clips."
         },
         {
           "type": "p",
@@ -1306,7 +1414,7 @@
             ],
             [
               "Waveform seems unchanged",
-              "Use Edited. Zoom in in time for pitch or filter detail. External Live effects are not part of the preview."
+              "Use Edited. Zoom in in time for pitch or filter detail. Chain effects and external Live effects are not part of the preview."
             ],
             [
               "Waveform is too small",
@@ -1497,17 +1605,17 @@
       "blocks": [
         {
           "type": "p",
-          "text": "The sample region passes through pitch/loop playback, source gain/normalisation, Mono/Stereo, tone filter/drive and eight-band EQ, then its amplitude envelope/fades. The attack layer uses a separate clock, its own EQ state with the same band settings and its own decay window. The two signals then combine before shared velocity response, LFO volume and the instrument mixer. Post-fader sends feed their separate buses."
+          "text": "The sample region passes through pitch/loop playback, source gain/normalisation, Mono/Stereo, tone filter/drive and eight-band EQ, then its amplitude envelope/fades. The attack layer uses a separate clock, its own EQ state with the same band settings and its own decay window. The two signals then combine before shared velocity response, LFO volume and the instrument mixer. Each instrument then passes through its ordered VST3 Chain before its chosen output and post-chain sends. Empty chains pass audio through unchanged. The waveform preview stops before the Chain."
         },
         {
           "type": "why",
-          "text": "Raising Sample gain can push Drive harder; decreasing final Volume turns the processed result down. The attack layer keeps its click even when the sample has a long fade or a quiet envelope. The eight-band EQ affects both paths. To soften the layer itself, adjust its Level, Tone or Decay."
+          "text": "Raising Sample gain can push Drive harder; instrument Volume also changes the level feeding Chain effects. The attack layer keeps its click even when the sample has a long fade or a quiet envelope. The eight-band EQ affects both paths. To soften the layer itself, adjust its Level, Tone or Decay."
         },
         {
           "type": "table",
           "headers": [
             "Facility",
-            "Scope of version 0.11.1"
+            "Scope of version 0.12.0"
           ],
           "rows": [
             [
@@ -1528,11 +1636,11 @@
             ],
             [
               "Effects",
-              "Tone filter/drive, eight-band stereo EQ and attack generation inside Drum; native DAW effects via separate outputs. No internal return reverb/delay or plug-in hosting."
+              "Built-in filter/drive, eight-band EQ and attack generation; up to 16 VST3 audio effects per instrument. Native Live devices still use host routing. No internal shared return effects."
             ],
             [
               "Automation",
-              "Sixteen macros; no full per-field automation matrix or macro variations."
+              "Sixteen macros; no hosted-effect parameter automation/macro mapping or full per-field automation matrix."
             ],
             [
               "Platform",
@@ -1540,7 +1648,7 @@
             ],
             [
               "State and samples",
-              "Settings saved by the host; external audio files must be retained/relinked."
+              "Settings and effect states saved by the host; samples and installed VST3 modules remain external."
             ]
           ],
           "widths": [
@@ -1619,6 +1727,14 @@
             [
               "Non-destructive",
               "Processing preserves the original audio file."
+            ],
+            [
+              "Chain",
+              "An ordered row of audio effects. Each effect processes the previous effect's output."
+            ],
+            [
+              "Latency compensation",
+              "Delaying faster paths to keep them aligned with an effect that takes longer to process."
             ]
           ],
           "widths": [

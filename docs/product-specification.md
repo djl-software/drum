@@ -102,3 +102,8 @@ Per-instrument volume (-60 to +12 dB, with the minimum silent), pan (-100% left 
 Controls copy with instruments/groups/kits and persist in schema 4. Earlier states migrate to neutral controls. DAW automation lanes are not implemented for these controls yet.
 
 The user clarified that Ableton browser drag-and-drop means audio samples only. A single sample dropped onto a card replaces that sample while preserving name, MIDI note and controls. One or more samples dropped into empty space create named instruments in the selected group, assigning unused notes. Invalid audio does not create an empty slot. A drop that exceeds the kit's remaining capacity is rejected. Native Live instrument/kit presets are not imported.
+
+
+## Implemented VST3 effect chains (0.12.0)
+
+Every instrument has an ordered Chain with up to 16 independent VST3 audio effects. Empty chains pass audio unchanged. Drag from Drum's plugin browser or drop a VST3 module, edit its native controls, reorder, bypass or remove it. Audio reaches the chain after built-in processing and the instrument mixer, then reaches output/send routing. MIDI remains on Drum's track. Settings are stored with the project, copies are independent, and delay compensation aligns active-kit paths. Native Live devices, layered instruments, required external sidechains and hosted-effect automation remain outside this milestone. The waveform shows processing before the Chain.

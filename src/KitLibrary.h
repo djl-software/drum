@@ -17,7 +17,15 @@ struct InstrumentControls
     std::array<MacroMapping,numMacros> macros {};
     bool operator==(const InstrumentControls&) const = default;
 };
-struct Instrument { juce::String id, name; int note = firstNote; juce::String samplePath; InstrumentControls controls; };
+constexpr int maxEffects = 16;
+constexpr size_t maxEffectStorage = 192u * 1024u * 1024u; // Encoded state, across all kits.
+struct EffectSlot
+{
+    juce::String id, description, state;
+    bool bypassed = false;
+    bool operator==(const EffectSlot&) const = default;
+};
+struct Instrument { juce::String id, name; int note = firstNote; juce::String samplePath; InstrumentControls controls; std::vector<EffectSlot> effects; };
 struct Group { juce::String id, name; int colour = 0; std::vector<Instrument> instruments; };
 struct Kit { juce::String id, name; std::vector<Group> groups; };
 struct State { std::vector<Kit> kits; juce::String activeKit; uint64_t revision = 0, kitEpoch = 0; };
@@ -58,6 +66,10 @@ public:
     Result assignNote(const juce::String& kitId, const juce::String& instrumentId, int note);
     Result assignSample(const juce::String& kitId, const juce::String& instrumentId, const juce::String& path);
     Result setControls(const juce::String& kitId, const juce::String& instrumentId, InstrumentControls);
+    Result setEffects(const juce::String& kitId, const juce::String& instrumentId, const std::vector<EffectSlot>&);
+    // Capture live effect settings before copying a kit/group/instrument.
+    std::function<void()> beforeClone;
+    std::function<void()> afterRestore;
     Result addSampleInstrument(const juce::String& kitId, const juce::String& groupId, const juce::String& path);
     Result sliceInstrument(const juce::String& kitId,const juce::String& instrumentId,int regions);
     std::unique_ptr<juce::XmlElement> toXml() const;

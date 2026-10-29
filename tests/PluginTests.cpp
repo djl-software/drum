@@ -18,6 +18,8 @@ void runChannelAttackTests();
 void runEnvelopeTests();
 void runEqualizerTests();
 void runPadTests();
+void runChainTests(const juce::String&,const juce::String&);
+void runChainSmoke(const juce::String&);
 void runVst3PlaybackTest(const juce::String&);
 
 int main(int argc, char** argv)
@@ -26,6 +28,8 @@ int main(int argc, char** argv)
     try
     {
         if(argc==3 && juce::String(argv[1])=="--vst3") { runVst3PlaybackTest(argv[2]); return 0; }
+        if(argc==4 && juce::String(argv[1])=="--chains") { runChainTests(argv[2],argv[3]);return 0; }
+        if(argc==3 && juce::String(argv[1])=="--chain-smoke") { runChainSmoke(argv[2]);return 0; }
         DrumAudioProcessor processor;
         require(processor.acceptsMidi(), "Instrument must accept MIDI");
         require(!processor.producesMidi(), "Instrument must not expose MIDI output");

@@ -3,6 +3,7 @@
 #include "SoundPreview.h"
 #include "EnvelopeEditor.h"
 #include "EqualizerEditor.h"
+#include "ChainEditor.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 class SoundEditor final : public juce::Component, public juce::FileDragAndDropTarget,private juce::Timer
@@ -15,7 +16,7 @@ public:
     void resized() override;
     void visibilityChanged() override;
     std::function<void()> close;
-    bool isInterestedInFileDrag(const juce::StringArray& files) override { return files.size()==1; }
+    bool isInterestedInFileDrag(const juce::StringArray& files) override { return chain.isInterestedInFileDrag(files) || (files.size()==1 && !files[0].endsWithIgnoreCase(".vst3")); }
     void filesDropped(const juce::StringArray&,int,int) override;
 private:
     struct Field;
@@ -59,8 +60,9 @@ private:
     drum::InstrumentControls selectedControls;
     std::shared_ptr<const drum::Sample> selectedSample;
     drum::SoundPreview preview;
-    bool updating=false;
+    bool updating=false,chainPresent=false;
     int page=0,note=21;
+    ChainEditor chain;
     juce::TextButton back,play,stop,reset;
     juce::Label noteIndicator;
     juce::TextButton slice;
@@ -69,7 +71,7 @@ private:
     EqualizerEditor equalizer;
     bool filterEnvelopePage=false;
     juce::ComboBox sliceCount;
-    std::array<juce::TextButton,7> tabs;
+    std::array<juce::TextButton,8> tabs;
     juce::Viewport viewport;
     juce::Component content;
     std::unique_ptr<Waveform> waveform;
