@@ -343,7 +343,7 @@ public:
         instrumentUp.setBounds(centre.getX()+18,centre.getBottom()-35,120,23); instrumentDown.setBounds(centre.getX()+150,centre.getBottom()-35,120,23);
         keyboard.setBounds(keyPanel.reduced(18,0).withTrimmedTop(43).withTrimmedBottom(14));
         editSound.setBounds(right.getRight()-128,right.getY()+12,110,28);
-        soundEditor.setBounds(24,192,w-48,h-230);
+        soundEditor.setBounds(24,100,w-48,h-124);
     }
     bool isInterestedInFileDrag(const juce::StringArray& files) override { return !files.isEmpty(); }
     void filesDropped(const juce::StringArray& files,int x,int y) override

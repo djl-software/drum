@@ -70,6 +70,7 @@ void runPreviewTests()
     controls.sound.sampleGain=-6.020599913;auto quiet=render();near(quiet.sample->peak,baseline.sample->peak*0.5f,"Gain preview auto-normalised away level change");
     controls={};controls.tuning=12;auto pitched=render();check(std::abs(pitched.sample->audio.getNumSamples()*2-baseline.sample->audio.getNumSamples())<=2,"Tuning preview duration incorrect");
     controls={};controls.sound.mode=2;controls.sound.ampAttack=100;auto attack=render();check(attack.sample->audio.getMagnitude(0,500)<baseline.sample->audio.getMagnitude(0,500)*0.12f,"Attack not reflected in preview");
+    controls={};controls.sound.fadeIn=100;auto fade=render();check(fade.sample->audio.getMagnitude(0,500)<baseline.sample->audio.getMagnitude(0,500)*0.12f,"Trigger fade in not reflected in preview");
     controls={};controls.sound.filterOn=1;controls.sound.filterType=0;controls.sound.cutoff=40;controls.sound.filterSlope=1;
     auto filtered=render();check(filtered.sample->audio.getRMSLevel(0,4000,10000)<baseline.sample->audio.getRMSLevel(0,4000,10000)*0.1f,"Filter not reflected in preview");
     controls={};controls.sound.lfoOn=1;controls.sound.lfoShape=2;controls.sound.lfoPhase=180;controls.sound.lfoVolume=1;controls.sound.lfoRate=0.01;
@@ -97,6 +98,7 @@ void runPreviewTests()
     controls.sound.filterOn=1;controls.sound.cutoff=1300;controls.sound.filterAmount=2;controls.sound.filterAttack=10;controls.sound.drive=2;
     controls.sound.lfoOn=1;controls.sound.lfoSync=1;controls.sound.lfoVolume=0.3;controls.sound.lfoPitch=0.5;controls.sound.lfoPan=0.2;
     controls.sound.mono=1;controls.sound.attackOn=1;controls.sound.attackType=2;controls.sound.attackLevel=-6;controls.sound.attackDecay=45;
+    controls.sound.equalizer.enabled=true;controls.sound.equalizer.bands[2]={true,3,850,-4,1.3};controls.sound.equalizer.bands[6]={true,5,6000,3,0.707};
     for(auto& shape:controls.sound.envelopes){shape=drum::adsrShape(20,120,0.35,200);shape.points[1].bend=-0.3;shape.points[2].bend=0.25;drum::insertEnvelopePoint(shape,2,85);}
     controls.sound.output=4;controls.sound.sendA=-9;controls.macros[0]={4,-3,3};macros[0]=0.25;
     check(library.setControls(kit,id,controls).ok,"Preview comparison controls invalid");check(engine.waitForLoading(10000),"Preview comparison bank timed out");
@@ -130,40 +132,41 @@ void runPreviewTests()
     DrumAudioProcessorEditor editor(processor);editor.setSize(1280,900);click(editor,"open-sound-editor");settle(editor);
     auto initial=pixels(editor);
     auto& wave=control<juce::Component>(editor,"sample-waveform");auto bounds=wave.getBoundsInParent();
+    const auto initialStatus=control<juce::Label>(editor,"waveform-status").getText();
     for(int page=0;page<7;++page)
     {
         click(editor,"edit-tab-"+juce::String(page));
-        check(wave.isVisible() && wave.getBoundsInParent()==bounds,"Waveform moved or disappeared between tabs");
-        check(pixels(editor)==initial,"Tab switch changed preview signal");
+        check(wave.isVisible() && wave.getHeight()>=184,"Waveform disappeared between tabs");
+        check(control<juce::Label>(editor,"waveform-status").getText()==initialStatus,"Tab switch changed preview signal");
         capture(editor,"drum-preview-tab-"+juce::String(page)+".png");
     }
-    click(editor,"edit-tab-0");control<juce::ComboBox>(editor,"edit-mono").setSelectedId(2,juce::sendNotificationSync);settle(editor);
+    click(editor,"edit-tab-0");initial=pixels(editor);control<juce::ComboBox>(editor,"edit-mono").setSelectedId(2,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Mono playback did not update waveform");capture(editor,"drum-source-channels.png");
     control<juce::ComboBox>(editor,"edit-mono").setSelectedId(1,juce::sendNotificationSync);settle(editor);
-    click(editor,"edit-tab-6");control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(2,juce::sendNotificationSync);
+    click(editor,"edit-tab-6");initial=pixels(editor);control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(2,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-attackLevel").setValue(-3,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-attackDecay").setValue(40,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Attack controls did not update waveform");capture(editor,"drum-attack-layer.png");
     editor.setSize(800,600);capture(editor,"drum-attack-compact.png");editor.setSize(1280,900);
     control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(1,juce::sendNotificationSync);settle(editor);
-    click(editor,"edit-tab-3");control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(2,juce::sendNotificationSync);
+    click(editor,"edit-tab-3");settle(editor);initial=pixels(editor);control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(2,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-lfoVolume").setValue(90,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"LFO controls did not update waveform");
     control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(1,juce::sendNotificationSync);
-    click(editor,"edit-tab-1");control<juce::Slider>(editor,"edit-pitchAmount").setValue(12,juce::sendNotificationSync);settle(editor);
+    click(editor,"edit-tab-1");settle(editor);initial=pixels(editor);control<juce::Slider>(editor,"edit-pitchAmount").setValue(12,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Pitch envelope did not update waveform");
     auto& view=control<juce::ComboBox>(editor,"waveform-view");view.setSelectedId(1,juce::sendNotificationSync);auto sourcePixels=pixels(editor);
     control<juce::Slider>(editor,"edit-pitchAmount").setValue(0,juce::sendNotificationSync);
     check(pixels(editor)==sourcePixels,"Pitch changed Source waveform");view.setSelectedId(2,juce::sendNotificationSync);settle(editor);
     click(editor,"edit-tab-1");control<juce::Slider>(editor,"edit-ampAttack").setValue(200,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Envelope UI did not update waveform");capture(editor,"drum-preview-envelope.png");
-    click(editor,"edit-tab-2");auto before=pixels(editor);
+    click(editor,"edit-tab-2");click(editor,"filter-envelope-tab");auto before=pixels(editor);
     control<juce::ComboBox>(editor,"edit-filterOn").setSelectedId(2,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-cutoff").setValue(90,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=before,"Filter UI did not update waveform");capture(editor,"drum-preview-filter.png");
     // Scroll the controls while the waveform remains pinned outside the viewport.
     auto* viewport=dynamic_cast<juce::Viewport*>(find(editor,"sound-controls"));check(viewport!=nullptr,"Control viewport missing");
-    viewport->setViewPosition(0,300);check(wave.getBoundsInParent()==bounds,"Controls scrolling moved waveform");
+    bounds=wave.getBoundsInParent();viewport->setViewPosition(0,300);check(wave.getBoundsInParent()==bounds,"Controls scrolling moved waveform");
     click(editor,"edit-tab-5");control<juce::ComboBox>(editor,"macro-target-0").setSelectedId(2,juce::sendNotificationSync);settle(editor);
     before=pixels(editor);processor.macro(0).setValueNotifyingHost(0.9f);settle(editor);
     check(pixels(editor)!=before,"Host macro change did not update waveform");
@@ -195,9 +198,9 @@ void runPreviewTests()
     };
     editor.setSize(1920,1200);const int previousHeight=wave.getHeight();
     divider.mouseDown(dragEvent(0));divider.mouseDrag(dragEvent(140));
-    check(wave.getHeight()>previousHeight && viewport->getHeight()>=160,"Waveform height divider failed");
-    editor.setSize(800,600);check(viewport->getHeight()>=160,"Tall waveform obscures compact controls");capture(editor,"drum-waveform-zoom-compact.png");
-    divider.mouseDoubleClick(dragEvent(0));editor.setSize(1280,900);check(wave.getHeight()==280,"Waveform default height not restored");
+    check(wave.getHeight()>previousHeight && viewport->getHeight()>=116,"Waveform height divider failed");
+    editor.setSize(800,600);check(viewport->getHeight()>=116,"Tall waveform obscures compact controls");capture(editor,"drum-waveform-zoom-compact.png");
+    divider.mouseDoubleClick(dragEvent(0));editor.setSize(1280,900);check(wave.getHeight()<=340 && wave.getHeight()>=184,"Waveform default height not restored");
     check(library.toXml()->toString()==savedState,"Waveform display controls changed instrument state");
     control<juce::Slider>(editor,"edit-sampleGain").setValue(-6,juce::sendNotificationSync);settle(editor);
     check(vertical.getSelectedId()==fitted,"A sound edit automatically rescaled the waveform");

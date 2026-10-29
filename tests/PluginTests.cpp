@@ -16,6 +16,7 @@ void runWaveformTests();
 void runPreviewTests();
 void runChannelAttackTests();
 void runEnvelopeTests();
+void runEqualizerTests();
 void runVst3PlaybackTest(const juce::String&);
 
 int main(int argc, char** argv)
@@ -82,6 +83,7 @@ int main(int argc, char** argv)
         runPreviewTests();
         runChannelAttackTests();
         runEnvelopeTests();
+        runEqualizerTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
     }

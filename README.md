@@ -18,7 +18,9 @@ Version 0.8 adds draggable **amplitude, pitch and filter envelope graphs**. Drag
 
 Version 0.9 replaces fixed envelope handles with **2–32 editable points and curved segments**, including a movable sustain/hold point. Pitch amount is visible beside its graph, and audible graph edits switch to Edited view. A new readout separately shows the MIDI trigger, estimated processed pitch, and musical key/Camelot with uncertainty or an explicit manual label. Old projects retain their original ADSR behaviour.
 
-The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.9.0-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
+Version 0.10 adds waveform time graticules, compact single-row controls and a red sample-gain headroom warning. Envelope graphs sit above the larger waveform; quick line drags insert/move points, held drags bend segments, and points can cross neighbours. Audible amplitude edits enable Classic playback, filter edits enable the tone filter, and optional ADSR sliders stay out of the main view. Filter now also offers an eight-band stereo EQ with draggable frequency/gain, Q, eight response types and independent band bypass.
+
+The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.10.0-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
 
 ![Editable envelope points and curves](docs/images/drum-envelopes.png)
 

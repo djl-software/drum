@@ -302,6 +302,7 @@ void SampleEngine::startVoice(int note,int channel,float velocity) noexcept
     voice->randomPan=random(); voice->randomLfo=random(); voice->filter1={}; voice->filter2={}; voice->filterCounter=0;
     for(auto* env:{&voice->amp,&voice->filterEnvelope,&voice->pitchEnvelope}) { env->reset(); env->setSampleRate(hostRate); }
     configureEnvelopes(*voice);
+    voice->equalizer.reset(c.sound.equalizer,hostRate);
     voice->amp.noteOn(); voice->filterEnvelope.noteOn(); voice->pitchEnvelope.noteOn();
     voice->left.reset(hostRate,0.005); voice->right.reset(hostRate,0.005); voice->step.reset(hostRate,0.005);
     voice->left.setCurrentAndTargetValue(c.left); voice->right.setCurrentAndTargetValue(c.right);
@@ -342,6 +343,7 @@ void SampleEngine::updateVoices() noexcept
         voice.sound=c.sound;
         voice.sound.reverse=previous.reverse; voice.sound.loop=previous.loop; voice.sound.mode=previous.mode;
         configureEnvelopes(voice);
+        voice.equalizer.update(c.sound.equalizer,hostRate);
         voice.left.setTargetValue(c.left); voice.right.setTargetValue(c.right);
         voice.monoMix.setTargetValue((float)c.sound.mono);
         voice.attackGain.setTargetValue(c.sound.attackOn!=0 && c.sound.attackLevel>-60?juce::Decibels::decibelsToGain((float)c.sound.attackLevel):0.0f);
@@ -490,6 +492,7 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
                 voice.attackPhase+=attackHz/hostRate;
                 if(voice.attackPhase>=1)voice.attackPhase-=std::floor(voice.attackPhase);
             }
+            voice.equalizer.process(left,right);
             const double pan=juce::jlimit(-1.0,1.0,voice.randomPan*s.randomPan+lfo*s.lfoPan);
             left*=voice.left.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1-pan);
             right*=voice.right.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1+pan);

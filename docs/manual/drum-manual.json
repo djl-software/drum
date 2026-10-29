@@ -1,11 +1,11 @@
 {
   "product": "Drum",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "date": "29 October 2026",
   "platform": "Windows VST3",
   "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
-  "cover_caption": "Version 0.9.0 editing preview  |  Instructions, examples and why",
-  "footer": "Version 0.9.0  |  Windows VST3 editing preview",
+  "cover_caption": "Version 0.10.0 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.10.0  |  Windows VST3 editing preview",
   "logo": "../../assets/DJLLogoWhite.png",
   "cover_image": "assets/curves.png",
   "publisher": "DJL Software",
@@ -15,7 +15,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.9.0 editing preview."
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.10.0 editing preview."
         },
         {
           "type": "p",
@@ -35,7 +35,7 @@
         },
         {
           "type": "p",
-          "text": "Screenshots show the real 0.9.0 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
+          "text": "Screenshots show the real 0.10.0 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
         },
         {
           "type": "p",
@@ -77,7 +77,7 @@
         },
         {
           "type": "p",
-          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.9.0. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.10.0. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
         },
         {
           "type": "p",
@@ -165,7 +165,7 @@
         },
         {
           "type": "p",
-          "text": "Resize using the bottom-right corner. The minimum editor size is 800 × 600. A larger window makes envelopes and waveforms easier to inspect. Hover over controls for tooltips."
+          "text": "Resize using the bottom-right corner. The minimum editor size is 800 x 600. A larger window makes envelopes and waveforms easier to inspect. Hover over controls for tooltips."
         }
       ]
     },
@@ -198,7 +198,7 @@
               "One active kit at a time; kit switching ends the previous kit's voices."
             ],
             [
-              "1–16 groups per kit",
+              "1-16 groups per kit",
               "Groups can be empty. Their instrument counts need not be equal."
             ],
             [
@@ -206,7 +206,7 @@
               "This is the total across its groups, not 88 in each group."
             ],
             [
-              "MIDI 21–108",
+              "MIDI 21-108",
               "88 unique trigger positions per kit, A0 through C8 in Drum's naming."
             ]
           ],
@@ -385,7 +385,7 @@
         },
         {
           "type": "p",
-          "text": "Fine tuning in Envelopes & pitch adds up to ±100 cents. One semitone is 100 cents. Tune a sustained drum while listening with the bass, rather than expecting every noisy percussion hit to have a stable musical note."
+          "text": "Fine tuning in Envelopes & pitch adds up to +/-100 cents. One semitone is 100 cents. Tune a sustained drum while listening with the bass, rather than expecting every noisy percussion hit to have a stable musical note."
         }
       ]
     },
@@ -403,7 +403,7 @@
         },
         {
           "type": "why",
-          "text": "A real closed hi-hat stops the open cymbal's ringing. Choking reproduces that relationship. Organisational groups simply organise cards; choke numbers 1–16 determine which sounding hits exclude one another."
+          "text": "A real closed hi-hat stops the open cymbal's ringing. Choking reproduces that relationship. Organisational groups simply organise cards; choke numbers 1-16 determine which sounding hits exclude one another."
         },
         {
           "type": "p",
@@ -425,7 +425,7 @@
               "You want each new hit of that instrument to replace its prior voice."
             ],
             [
-              "Voices 1–128",
+              "Voices 1-128",
               "Limit the overlap available to one instrument; the entire engine still has a shared 128-voice limit."
             ]
           ],
@@ -450,9 +450,9 @@
           "max_height": 260,
           "crop": [
             42,
-            342,
+            250,
             1238,
-            623
+            584
           ]
         },
         {
@@ -471,7 +471,7 @@
               "Original decoded audio, with draggable trim boundaries. Source is scaled for visibility and does not show processing changes."
             ],
             [
-              "Send A–F",
+              "Send A-F",
               "The chosen send signal before effects on external DAW tracks. An off or silent send can show a flat waveform."
             ],
             [
@@ -480,7 +480,7 @@
             ],
             [
               "Y selector / Fit Y",
-              "Vertical display magnification, 0.25x–128x, or fit the visible signal. Alt + wheel changes Y zoom. This does not change gain."
+              "Vertical display magnification, 0.25x-128x, or fit the visible signal. Alt + wheel changes Y zoom. This does not change gain."
             ],
             [
               "Height divider",
@@ -498,7 +498,11 @@
         },
         {
           "type": "p",
-          "text": "At Edited Y 1x, the amplitude scale is ±1 (0 dBFS). Keep the same Y zoom while comparing levels. Fit Y can make a quieter sound look equally tall; it is a viewing aid, not normalisation. Zoomed peaks reaching the drawing boundary do not by themselves prove that the audio clips."
+          "text": "At Edited Y 1x, the amplitude scale is +/-1 (0 dBFS). Keep the same Y zoom while comparing levels. Fit Y can make a quieter sound look equally tall; it is a viewing aid, not normalisation. Zoomed peaks reaching the drawing boundary do not by themselves prove that the audio clips."
+        },
+        {
+          "type": "p",
+          "text": "Vertical time graticules appear in every waveform view. Labels adapt between milliseconds and seconds as you zoom. Edited timing follows the rendered hit, so pitch and trim can change its duration. The envelope graphs sit above the waveform; each graph has its own envelope-time axis because MIDI determines the held duration."
         }
       ]
     },
@@ -556,7 +560,7 @@
           "rows": [
             [
               "Start / End",
-              "0–100% of the original file. Removing silence at the beginning improves timing without moving MIDI notes."
+              "0-100% of the original file. Removing silence at the beginning improves timing without moving MIDI notes."
             ],
             [
               "Sample gain",
@@ -568,11 +572,11 @@
             ],
             [
               "Fade in",
-              "0–10,000 ms. Softens a hard start; also softens an added attack layer."
+              "0-10,000 ms. Softens a Trigger/Gate start, including the attack layer. Disabled in Classic because its amplitude graph controls the attack."
             ],
             [
               "Fade out / Gate release",
-              "0–10,000 ms. Controls end fading and Gate release; a minimum end ramp suppresses abrupt discontinuities."
+              "0-10,000 ms. Controls end fading and Gate release; a minimum end ramp suppresses abrupt discontinuities."
             ]
           ],
           "widths": [
@@ -587,6 +591,10 @@
         {
           "type": "p",
           "text": "Trim/loop markers, direction, playback mode and loop on/off apply to newly triggered hits. Many other controls can affect an already sounding voice. For a clear comparison, stop and retrigger after an edit."
+        },
+        {
+          "type": "p",
+          "text": "The Sample gain dB box turns red when the selected source region plus gain exceeds 0 dBFS before filtering, envelopes and the instrument fader. This is a headroom warning: Drum retains floating-point values rather than hard-clipping this stage. The Edited preview caption also turns red when its processed peak reaches full scale. A lower instrument fader or envelope can reduce the final peak. Source never shows fades; use Edited."
         }
       ]
     },
@@ -650,19 +658,19 @@
           "caption": "Pitch graph close-up: an extra point and a curved decay segment. The graph has its own amount and time-view controls.",
           "max_height": 245,
           "crop": [
-            642,
-            638,
+            646,
+            250,
             1238,
-            823
+            431
           ]
         },
         {
           "type": "steps",
           "items": [
-            "Open Envelopes & pitch, or Filter for its envelope. Click once on a connecting line and release to add a point without changing the existing curve.",
-            "Click and drag a point horizontally for time and vertically for level. Points can move in both directions, within the graph's time/level limits and the neighbouring points.",
+            "Open Envelopes & pitch, or Filter > Filter envelope. Click and release on a connecting line to add a point while preserving its curve. A quick click-drag inserts a point and moves it immediately.",
+            "Click and drag a point horizontally for time and vertically for level. Points can move in both directions, within the graph's time/level limits. They can cross neighbours and are reordered in time.",
             "Double-click a point to remove it. A minimum of two points is kept; each graph supports up to 32.",
-            "Press and hold on a line, then drag to bend that segment. The bend responds around the place you grabbed; horizontal movement shifts its position and vertical movement adjusts the curve.",
+            "Press and hold on a line for at least 250 ms, then drag to bend that segment. The bend responds around the place you grabbed; horizontal movement shifts its position and vertical movement adjusts the curve.",
             "Right-click a point to mark it S, the level held until note-off. The final point cannot be the hold point."
           ]
         },
@@ -676,7 +684,7 @@
         },
         {
           "type": "p",
-          "text": "Use ADSR discards the custom points and returns to the saved numeric ADSR values. Numeric A/D/S/R sliders are disabled while a custom shape is active. Reset page also clears that page's custom envelopes. These are sound changes; the graph's zoom is display-only."
+          "text": "ADSR values reveals the optional numeric stage controls below the waveform. Use ADSR on a graph discards its custom points and returns to the saved numeric contour. Numeric A/D/S/R sliders are disabled while a custom shape is active. Reset page also clears that page's custom envelopes. Pitch/filter amount remains in the graph header because it sets the depth and direction, independently of the shape."
         }
       ]
     },
@@ -686,7 +694,7 @@
         {
           "type": "steps",
           "items": [
-            "Choose Classic ADSR on Sample, or click Use Classic in the amplitude graph. In Trigger/Gate this graph is inactive.",
+            "Moving, bending or removing an amplitude point automatically selects Classic playback and Edited view. You can also choose Classic ADSR on Sample or click Use Classic. Simply adding a point preserves the current sound and mode.",
             "For a short drum tail, start with zero Attack, a short Decay, low Sustain and a short Release. Play a MIDI note long enough to hear the decay.",
             "For custom editing, move the peak near the start, place S at the desired held level and shape points after S for the release.",
             "Test both a held note and a note released during the initial rise. The release starts from the actual current level rather than jumping to the drawn S level."
@@ -731,7 +739,7 @@
         },
         {
           "type": "p",
-          "text": "Points cannot cross in time, but can meet to make an immediate transition. Levels stay between 0 and 100%; custom envelope time extends up to 80 seconds. A nonzero final level fades briefly to zero at the end to avoid leaving an indefinitely active voice."
+          "text": "Dragging can move points past their neighbours; the graph reorders them in time. Points can also meet to make an immediate transition. Levels stay between 0 and 100%; custom envelope time extends up to 80 seconds. A nonzero final level fades briefly to zero at the end to avoid leaving an indefinitely active voice."
         },
         {
           "type": "p",
@@ -764,23 +772,23 @@
           "rows": [
             [
               "Fine tuning",
-              "±100 cents for small pitch corrections after coarse Tuning."
+              "+/-100 cents for small pitch corrections after coarse Tuning."
             ],
             [
               "Velocity to volume",
-              "0–100%; reduce it for more even hits, or retain it for expressive playing."
+              "0-100%; reduce it for more even hits, or retain it for expressive playing."
             ],
             [
               "Velocity to pitch",
-              "±24 st; stronger MIDI velocities can alter pitch."
+              "+/-24 st; stronger MIDI velocities can alter pitch."
             ],
             [
               "Random pan",
-              "0–100%; gives hits different stereo positions. Keep centred bass drums controlled."
+              "0-100%; gives hits different stereo positions. Keep centred bass drums controlled."
             ],
             [
               "Pitch bend range",
-              "0–24 st; enables the MIDI pitch wheel per channel. Default zero leaves pitch unchanged."
+              "0-24 st; enables the MIDI pitch wheel per channel. Default zero leaves pitch unchanged."
             ]
           ],
           "widths": [
@@ -804,9 +812,9 @@
           "max_height": 240,
           "crop": [
             42,
-            236,
-            850,
-            268
+            142,
+            1218,
+            171
           ]
         },
         {
@@ -870,13 +878,13 @@
         {
           "type": "image",
           "path": "assets/filter.png",
-          "caption": "The Filter envelope has its own graph and amount in octaves. Filtering must be On before its modulation can affect the sound.",
+          "caption": "Filter > Filter envelope: the tone filter retains its own cutoff, drive and envelope. It is separate from the eight-band EQ.",
           "max_height": 245
         },
         {
           "type": "steps",
           "items": [
-            "On Filter, turn Filter On. Choose Low-pass to soften brightness, High-pass to remove low content, Band-pass for a narrower band or Notch to reduce a band.",
+            "Open Filter > Filter envelope, then turn Filter On. Choose Low-pass to soften brightness, High-pass to remove low content, Band-pass for a narrower band or Notch to reduce a band.",
             "Adjust Cutoff while auditioning. Raise Resonance cautiously to emphasise the area around the cutoff. Try 12 dB/oct or 24 dB/oct slope.",
             "Choose a nonzero Filter envelope amount. Use positive octaves to raise cutoff from its base, or negative to lower it. Shape its points and curves using the same gestures as the pitch graph.",
             "Use Drive for additional saturation, and compare at a similar final Volume. Use Velocity to filter if harder hits should have a different tone."
@@ -892,7 +900,76 @@
         },
         {
           "type": "p",
-          "text": "Cutoff is 20 Hz–20 kHz, Q is 0.1–10 and Drive is 0–24 dB. Resonant settings can change level substantially. This is Drum's filter implementation, not an emulation of Live's filter circuit models. An attack layer is mixed after this filter."
+          "text": "Cutoff is 20 Hz-20 kHz, Q is 0.1-10 and Drive is 0-24 dB. Resonant settings can change level substantially. This is Drum's filter implementation, not an emulation of Live's filter circuit models. An attack layer is mixed after this filter."
+        },
+        {
+          "type": "p",
+          "text": "Moving or bending a filter point automatically enables the tone filter; if its amount is zero and not macro-controlled, Drum starts at -2 octaves. An audible graph edit selects Edited view. The same quick click-drag, held-line bend, free point movement and double-click removal gestures apply to amplitude, pitch and filter."
+        }
+      ]
+    },
+    {
+      "title": "Eight-band EQ: sculpt the tone",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/equalizer.png",
+          "caption": "Filter > 8-band EQ. Demonstration low-cut setting; the curve shows the combined stereo response.",
+          "max_height": 245
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Open Filter > 8-band EQ. Select band 1-8, choose a response and enable Band on. EQ on bypasses or enables the complete equalizer.",
+            "Drag a numbered dot horizontally to set frequency and vertically to set gain. Dragging enables that band and the EQ automatically. For cuts and notch, vertical movement sets Q instead of gain.",
+            "Hold Alt while dragging vertically, or use the mouse wheel over the graph, to change Q for the selected band. Use the numeric Hz, dB and Q boxes for precise values.",
+            "Double-click a dot to bypass or re-enable its band. Compare the complete result with EQ on, then reduce dB out if boosts leave too little headroom."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "EQ changes which frequencies stand out. Reduce a narrow ringing frequency in a snare, remove low rumble from a hat, or lift the body of a kick. A bell shapes a local region; shelves change a broader low or high range. Lower Q makes a wider, gentler change; higher Q concentrates it. Start with a small cut and compare at similar loudness."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Control",
+            "Range and behaviour"
+          ],
+          "rows": [
+            [
+              "Bands",
+              "Eight independently enabled bands, sharing one response across left and right. New instruments start with EQ and all bands off."
+            ],
+            [
+              "Responses",
+              "Low cut 12/48 dB per octave; low shelf; bell; notch; high shelf; high cut 12/48 dB per octave."
+            ],
+            [
+              "Frequency",
+              "20 Hz-20 kHz, limited internally near the host Nyquist frequency."
+            ],
+            [
+              "Gain / Q",
+              "Gain -24 to +24 dB for shelves/bell; Q 0.1-18. Cuts and notch have no gain control."
+            ],
+            [
+              "Output",
+              "-24 to +24 dB after all bands. A flat/bypassed EQ preserves the original sound."
+            ]
+          ],
+          "widths": [
+            0.28,
+            0.72
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Try a bell around 300 Hz at -3 dB and Q 1 to reduce a boxy snare. Move the frequency while listening rather than assuming that value fits every sample. EQ follows the attack layer and precedes amplitude/mixing, so it affects an added front click too. The waveform uses the same EQ processing as playback."
+        },
+        {
+          "type": "p",
+          "text": "This is Drum's own stereo EQ with EQ Eight-style band editing, not a Live device import or an exact model of EQ Eight. There is no spectrum analyser, L/R or mid/side mode, band audition or adaptive Q in this preview. The envelope on Filter > Filter envelope modulates the separate tone filter, not the eight EQ frequencies."
         }
       ]
     },
@@ -920,7 +997,7 @@
         },
         {
           "type": "p",
-          "text": "Free rate is 0.01–30 Hz. Tempo divisions range from 1/64 to four bars. Each voice has its own LFO; Free-running is not locked to the DAW's bar position. Without host tempo, the development harness uses 120 BPM."
+          "text": "Free rate is 0.01-30 Hz. Tempo divisions range from 1/64 to four bars. Each voice has its own LFO; Free-running is not locked to the DAW's bar position. Without host tempo, the development harness uses 120 BPM."
         },
         {
           "type": "p",
@@ -952,7 +1029,7 @@
         },
         {
           "type": "p",
-          "text": "Click includes a harmonic for a sharper edge. Pulse is tonal. Noise is a repeatable filtered burst. Attack level ranges from -60 dB (silent) to 0 dB; Tone is 30 Hz–16 kHz, limited as needed by the sample rate."
+          "text": "Click includes a harmonic for a sharper edge. Pulse is tonal. Noise is a repeatable filtered burst. Attack level ranges from -60 dB (silent) to 0 dB; Tone is 30 Hz-16 kHz, limited as needed by the sample rate."
         },
         {
           "type": "p",
@@ -1018,11 +1095,11 @@
           ],
           "rows": [
             [
-              "Main + Out 2–16",
+              "Main + Out 2-16",
               "Sixteen main/aux destinations. Main can be mono or stereo; auxiliary buses are stereo."
             ],
             [
-              "Send A–F",
+              "Send A-F",
               "Six additional stereo buses with per-instrument post-fader send levels. -60 dB is Off."
             ],
             [
@@ -1058,7 +1135,7 @@
             "Open Macros for the selected instrument. Choose a Target for Macro 1, then set Min and Max to a useful range.",
             "Move Macro 1's value and audition. For example, map Filter cutoff from 300 Hz to 5,000 Hz with the filter enabled.",
             "Select another instrument and map its Macro 1 to a different target or range if one gesture should change both sounds.",
-            "Expose Macro 1–16 in the DAW's plug-in parameter controls and record or draw host automation. Test playback of that automation."
+            "Expose Macro 1-16 in the DAW's plug-in parameter controls and record or draw host automation. Test playback of that automation."
           ]
         },
         {
@@ -1239,12 +1316,12 @@
           ],
           "rows": [
             [
-              "Point will not pass another",
-              "Time order is preserved. Move or remove the neighbouring point first; levels can still move vertically."
+              "Moving points changes their numbers",
+              "Points can cross neighbours and are reordered by time. S follows its held point unless moved to the final position, where the preceding point becomes S."
             ],
             [
               "Line adds a point instead of curving",
-              "Press on the line and move while holding the mouse button. A click/release without a drag adds a point."
+              "Hold for at least 250 ms before moving to bend. An immediate click-drag inserts and moves a point; a click/release inserts without changing the curve."
             ],
             [
               "Cannot add/remove more points",
@@ -1338,7 +1415,7 @@
             ],
             [
               "Move envelope point",
-              "Drag in two dimensions; time remains between neighbours."
+              "Drag in two dimensions; points can cross neighbours and are reordered."
             ],
             [
               "Remove envelope point",
@@ -1346,7 +1423,7 @@
             ],
             [
               "Bend a segment",
-              "Hold on the line and drag; horizontal position influences bend placement."
+              "Hold on the line for at least 250 ms and drag; horizontal position influences bend placement."
             ],
             [
               "Set held level",
@@ -1389,17 +1466,17 @@
       "blocks": [
         {
           "type": "p",
-          "text": "For each hit, Drum reads the selected sample region with its direction, loop and pitch settings. Source Mono/Stereo and sample gain/normalisation feed the filter/drive stage. The attack layer is added after filtering. Amplitude, velocity, LFO volume and the instrument mixer shape the output; post-fader sends feed their separate buses."
+          "text": "For each hit, Drum reads the sample region with direction, loop and pitch settings. Source gain/normalisation and Mono/Stereo feed the tone filter/drive. The attack layer is added after that filter, then the eight-band stereo EQ processes the combined sound. Amplitude, velocity, LFO volume and the instrument mixer shape the output; post-fader sends feed their separate buses."
         },
         {
           "type": "why",
-          "text": "Position in the signal path explains why two similar controls differ. Increasing Sample gain can push Drive harder; decreasing final Volume turns the processed result down. The attack layer bypasses the sample filter but still follows the amplitude contour."
+          "text": "Position in the signal path explains why two similar controls differ. Increasing Sample gain can push Drive harder; decreasing final Volume turns the processed result down. The attack layer bypasses the sample filter but still follows the amplitude contour. The eight-band EQ affects both sample and attack layer."
         },
         {
           "type": "table",
           "headers": [
             "Facility",
-            "Scope of version 0.9.0"
+            "Scope of version 0.10.0"
           ],
           "rows": [
             [
@@ -1416,11 +1493,11 @@
             ],
             [
               "Envelopes",
-              "Amplitude, pitch and filter; ADSR or 2–32 custom points, curves and hold point. No repeating envelope loop mode."
+              "Amplitude, pitch and filter; ADSR or 2-32 custom points, curves and hold point. No repeating envelope loop mode."
             ],
             [
               "Effects",
-              "Filter/drive and attack generation inside Drum; native DAW effects via separate outputs. No internal return reverb/delay or plug-in hosting."
+              "Tone filter/drive, eight-band stereo EQ and attack generation inside Drum; native DAW effects via separate outputs. No internal return reverb/delay or plug-in hosting."
             ],
             [
               "Automation",
@@ -1442,7 +1519,7 @@
         },
         {
           "type": "p",
-          "text": "Groups are organisational, not layered device chains. MIDI notes 21–108 select unique instruments. The design is a clearer kit workspace with sound shaping; do not assume every function of another drum rack is present."
+          "text": "Groups are organisational, not layered device chains. MIDI notes 21-108 select unique instruments. The design is a clearer kit workspace with sound shaping; do not assume every function of another drum rack is present."
         }
       ]
     },

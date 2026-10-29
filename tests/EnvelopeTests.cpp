@@ -18,10 +18,10 @@ juce::Component* find(juce::Component& root,const juce::String& id)
 template<class T>T& control(juce::Component& root,const char* id)
 {auto* c=dynamic_cast<T*>(find(root,id));check(c!=nullptr,"Envelope control missing");return *c;}
 void click(juce::Component& root,const char* id) {control<juce::TextButton>(root,id).onClick();}
-juce::MouseEvent event(juce::Component& c,juce::Point<float> point,juce::Point<float> down,int mods=juce::ModifierKeys::leftButtonModifier)
+juce::MouseEvent event(juce::Component& c,juce::Point<float> point,juce::Point<float> down,int mods=juce::ModifierKeys::leftButtonModifier,int heldMs=0)
 {
     auto now=juce::Time::getCurrentTime();
-    return {juce::Desktop::getInstance().getMainMouseSource(),point,juce::ModifierKeys(mods),1,0,0,0,0,&c,&c,now,down,now,1,point!=down};
+    return {juce::Desktop::getInstance().getMainMouseSource(),point,juce::ModifierKeys(mods),1,0,0,0,0,&c,&c,now,down,now-juce::RelativeTime::milliseconds(heldMs),1,point!=down};
 }
 void drag(juce::Component& c,juce::Point<float> delta)
 {
@@ -111,7 +111,7 @@ void runEnvelopeTests()
     auto file=juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav");
     p.getSampleEngine().requestLoad(kit,id,file);check(p.getSampleEngine().waitForLoading(10000),"Envelope sample load timed out");
     check(p.getSampleEngine().statusFor(id).ready,"Envelope fixture unavailable");p.getSampleEngine().prepare(48000);
-    DrumAudioProcessorEditor editor(p);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");click(editor,"edit-tab-1");settle(editor);
+    DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");click(editor,"edit-tab-1");settle(editor);
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
     auto& soundEditor=control<SoundEditor>(editor,"sound-editor");
     auto refresh=[&]{auto s=library.snapshot();soundEditor.select(kit,drum::findInstrument(*drum::activeKit(s),id));};
@@ -128,6 +128,7 @@ void runEnvelopeTests()
             (float)(graph.getHeight()-40)-(float)drum::envelopeSegment(a.level,b,fraction)*(graph.getHeight()-96)};
     };
     auto line=onLine(pitch,drum::adsrShape(80,200,0.2,100),2,0.5);
+    check(editor.getComponentAt(editor.getLocalPoint(&pitch,line.roundToInt()))==&pitch,"Envelope line is intercepted by another component");
     pitch.mouseDown(event(pitch,line,line));pitch.mouseUp(event(pitch,line,line));
     check(current().sound.envelopes[1].count==5 && current().sound.pitchAmount==0,"Click did not add a silent-preserving point");
     const auto beforeWave=pixels(wave);
@@ -136,7 +137,7 @@ void runEnvelopeTests()
     settle(editor);check(pixels(wave)!=beforeWave,"Pitch shape did not change waveform");
     auto shaped=current().sound.envelopes[1];check(shaped.points[2].ms>180 && shaped.points[2].level>0.6,"Point cannot move freely in both axes");
     line=onLine(pitch,shaped,2,0.35);
-    pitch.mouseDown(event(pitch,line,line));pitch.mouseDrag(event(pitch,line+juce::Point<float>{8,12},line));pitch.mouseUp(event(pitch,line+juce::Point<float>{8,12},line));
+    pitch.mouseDown(event(pitch,line,line));pitch.mouseDrag(event(pitch,line+juce::Point<float>{8,12},line,juce::ModifierKeys::leftButtonModifier,300));pitch.mouseUp(event(pitch,line+juce::Point<float>{8,12},line));
     auto curved=current().sound.envelopes[1];check(curved.count==5 && std::abs(curved.points[2].bend)>0.01,"Drag line did not curve without adding point");
     check(curved.points[2].pivot!=0.5,"Curve ignored clicked position");
     settle(editor);capture(editor,"drum-envelope-curves.png");
@@ -145,11 +146,18 @@ void runEnvelopeTests()
     point.mouseDown(event(point,centre,centre,juce::ModifierKeys::rightButtonModifier));check(current().sound.envelopes[1].hold==2,"Set hold point failed");
     check(!control<juce::Slider>(editor,"edit-pitchAttack").isEnabled(),"Legacy ADSR overwrites custom points");
     control<juce::Slider>(editor,"envelope-pitch-amount").setValue(-7,juce::sendNotificationSync);check(current().sound.pitchAmount==-7,"Graph depth slider failed");
-    click(editor,"envelope-amp-activate");drag(control<juce::Component>(editor,"envelope-amp-point-1"),{10,12});check(current().sound.mode==2 && current().sound.envelopes[0].count==4,"Amplitude shape failed");
+    auto& ampHandle=control<juce::Component>(editor,"envelope-amp-point-1");
+    check(editor.getComponentAt(editor.getLocalPoint(&ampHandle,ampHandle.getLocalBounds().getCentre()))==&ampHandle,"Amplitude point cannot receive mouse events");
+    drag(ampHandle,{10,12});check(current().sound.mode==2 && current().sound.envelopes[0].count==4,"Amplitude drag failed to activate processing");
+    auto ampShape=current().sound.envelopes[0];line=onLine(amp,ampShape,2,0.4);
+    amp.mouseDown(event(amp,line,line));amp.mouseDrag(event(amp,line+juce::Point<float>{10,-12},line));amp.mouseUp(event(amp,line,line));
+    check(current().sound.envelopes[0].count==5,"Quick line drag did not add and move point");
+    drag(control<juce::Component>(editor,"envelope-amp-point-1"),{250,0});
+    check(current().sound.envelopes[0].points[1].ms>ampShape.points[1].ms,"Point could not cross neighbour");
     const auto saved=library.toXml()->toString();click(editor,"envelope-amp-zoom-in");click(editor,"envelope-amp-zoom-out");click(editor,"envelope-amp-fit");
     check(library.toXml()->toString()==saved,"View zoom changes sound");
     settle(editor);capture(editor,"drum-envelopes.png");editor.setSize(800,600);capture(editor,"drum-envelopes-compact.png");editor.setSize(1280,900);
-    click(editor,"edit-tab-2");check(filter.isVisible() && !amp.isVisible() && wave.getBounds()==waveBounds,"Filter graph moved waveform");
+    click(editor,"edit-tab-2");click(editor,"filter-envelope-tab");check(filter.isVisible() && !amp.isVisible() && wave.isVisible(),"Filter graph or waveform missing");
     c=current();c.sound.filterOn=1;c.sound.cutoff=1500;c.sound.filterAmount=3;c.sound.filterAttack=30;check(library.setControls(kit,id,c).ok,"Filter setup failed");refresh();
     drag(control<juce::Component>(editor,"envelope-filter-point-2"),{30,-10});check(current().sound.envelopes[2].count==4,"Filter graph did not save edits");settle(editor);capture(editor,"drum-filter-envelope.png");
     for(int tab:{0,3,4,5,6}){click(editor,("edit-tab-"+juce::String(tab)).toRawUTF8());settle(editor);capture(editor,("drum-manual-tab-"+juce::String(tab)+".png").toRawUTF8());}

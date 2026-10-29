@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include "EnvelopeShape.h"
+#include "Equalizer.h"
 
 namespace drum
 {
@@ -83,6 +84,7 @@ struct SoundParameters
     DRUM_SOUND_PARAMETERS(DRUM_DECLARE)
 #undef DRUM_DECLARE
     std::array<EnvelopeShape,3> envelopes {};
+    Equalizer equalizer;
     bool operator==(const SoundParameters&) const = default;
 };
 struct SoundParameter
@@ -110,6 +112,7 @@ inline bool introducedInVersion6(const SoundParameter& p)
 }
 inline bool validSound(const SoundParameters& sound)
 {
+    if(!validEqualizer(sound.equalizer))return false;
     for(auto& envelope:sound.envelopes)if(!validEnvelope(envelope))return false;
     for (auto& p : soundParameters)
     {

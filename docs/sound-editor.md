@@ -1,12 +1,12 @@
-# Drum sound editor (0.9)
+# Drum sound editor (0.10)
 
-Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Kit switching remains available above the editor. All editing is non-destructive and saved in the DAW project; sample files remain external.
+Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
 ## Waveform on every page
 
 The waveform stays above the scrolling controls on all seven tabs. The view selector offers:
 
-- **Edited** (default): one hit rendered through Drum's current trim/reverse, gain/normalise, tuning, envelopes, filter, LFO, instrument mixer and macro settings. It updates after control edits, host macro changes and host tempo changes, without playing audio. At Y 1x its amplitude scale is ±1 (0 dBFS). Vertical zoom magnifies the display without changing gain; values beyond the chosen scale meet the display edge. The header reports the actual signal peak in dBFS. This is display clipping only.
+- **Edited** (default): one hit rendered through Drum's current trim/reverse, gain/normalise, tuning, envelopes, tone filter, eight-band EQ, LFO, instrument mixer and macro settings. It updates after control edits, host macro changes and host tempo changes, without playing audio. At Y 1x its amplitude scale is ±1 (0 dBFS). Vertical zoom magnifies the display without changing gain; values beyond the chosen scale meet the display edge. The header reports the actual signal peak in dBFS. This is display clipping only.
 - **Source:** the original file with Start/End and loop markers. Choose this to drag trim markers. This view scales to the source peak and does not show processing. Numeric Start/End controls also work while Edited is selected.
 - **Send A–F:** the selected post-fader send signal, including its send level and macro mappings, before effects added in the DAW. An off send shows a flat line. These previews show the signal independently of whether its host output bus is enabled.
 
@@ -18,7 +18,7 @@ Preview work runs in the background. **Updating preview...** marks a pending res
 
 - **Y zoom:** choose 0.25x–128x, or use **Alt + wheel** over the waveform. Choose Y 1x to reset. The setting stays fixed across tabs and sound edits, so level changes remain visible.
 - **Fit Y:** fits the visible time range and displayed channel(s) once, choosing the largest available magnification that fits within the lane (subject to the zoom limits). Zoom into a quiet tail, then click Fit Y to inspect it. Silence resets to Y 1x. This does not enable continuous auto-scaling.
-- **Height divider:** drag the grip immediately below the waveform to make the panel taller or shorter; double-click to restore its default height. The panel starts at 280 logical pixels where space permits and preserves at least 160 pixels for scrolling controls at supported window sizes.
+- **Height divider:** drag the grip immediately below the waveform to make the panel taller or shorter; double-click to restore its default height. The panel starts at 340 logical pixels where space permits and reserves room for the controls on the selected page.
 - **Auto channels:** mono and exactly identical left/right signals use one full-height lane marked MONO. This includes a centred mono sample whose edited output has been duplicated to stereo. Once processing makes the channels differ, Auto shows separate L/R lanes.
 - **Stereo L / R:** shows both channels for a stereo buffer, including duplicated mono. **Left only / Right only:** gives the selected channel the full height without summing or changing the audio. A mono source always shows its one available channel.
 
@@ -46,15 +46,15 @@ The Edited waveform reflects these controls when active. Amplitude ADSR needs **
 
 ### Shape envelopes with points and curves
 
-Amplitude and pitch graphs sit side by side; Filter has its own graph. Click and release on a line to add a point without changing its existing shape. Drag a point in both axes to set time and level; points stay in time order and within 0–100%. Double-click a point to remove it (minimum two, maximum 32). Hold on a line and drag to curve that segment around the grabbed position; horizontal movement shifts the bend placement.
+Amplitude and pitch graphs sit side by side above the waveform; Filter > Filter envelope has its own graph. Click and release on a line to add a point without changing its existing shape. Drag a point in both axes to set time and level; points stay in time order and within 0–100%. Double-click a point to remove it (minimum two, maximum 32). Hold on a line for at least 250 ms and drag to curve that segment around the grabbed position; horizontal movement shifts the bend placement.
 
 Right-click a non-final point to mark **S**, the held level. The points before S run from note-on; points after S describe release time after note-off. A short MIDI note releases from the actual current level. There is no fixed sustain duration in the graph. A nonzero final level fades briefly to zero. Custom shapes allow up to 80 seconds.
 
-**Use ADSR** removes the custom shape and restores the stored numeric ADSR. Numeric stage sliders are disabled while a custom shape is active. Reset page clears custom shapes on that page. The curve changes audible DSP and is saved per instrument, including copies and slices.
+**ADSR values** reveals the optional numeric stage sliders. **Use ADSR** removes the custom shape and restores the stored numeric ADSR. Numeric stage sliders are disabled while a custom shape is active. Reset page clears custom shapes on that page. The curve changes audible DSP and is saved per instrument, including copies and slices.
 
 Graphs have separate **- / + / Fit** time controls; wheel movement pans. Fit resumes automatic fitting; scale stays fixed during a gesture. Focus a point and use arrows for 1 ms / 1% changes, Shift for 0.1 ms / 0.1%, or Delete/Backspace to remove. Overlapping points have offset grips connected to the actual curve.
 
-Amplitude still requires Classic. Filter requires Filter On and a nonzero amount. Pitch/filter amount sliders are now visible in the graph headers. Moving, bending or deleting a pitch point with amount zero enables +12 st unless a macro owns the amount; adding a point alone preserves silence. Audible graph edits select **Edited**, so their effect is immediately visible. Numeric ADSR changes at zero pitch amount still leave the sound unchanged.
+Audible amplitude graph edits switch to Classic automatically. Audible filter graph edits enable Filter and set -2 octaves when the amount is zero and not mapped. A click/release that only inserts a point preserves the current sound. Pitch/filter amount sliders are now visible in the graph headers. Moving, bending or deleting a pitch point with amount zero enables +12 st unless a macro owns the amount; adding a point alone preserves silence. Audible graph edits select **Edited**, so their effect is immediately visible. Numeric ADSR changes at zero pitch amount still leave the sound unchanged.
 
 When a macro controls amplitude timing, the effective curve follows its value and the whole graph locks point editing. Remove the timing mapping to reshape the stored base curve. Amount mappings lock the graph's amount slider. Reset page leaves macro mappings intact.
 
@@ -65,6 +65,12 @@ The header separately labels the assigned MIDI trigger, estimated processed-audi
 **Key label (manual override)** selects a known major/minor key, explicitly labelled manual. Auto detect returns to analysis. Manual labels are metadata and do not transpose automatically when tuning changes. Source view still analyses the processed preview; Send views analyse the chosen send. External Live effects are excluded. Examples: A minor = 8A, C major = 8B, B-flat minor = 3A; see the [official Camelot chart](https://mixedinkey.com/camelot-wheel/).
 
 ## Filter
+
+**8-band EQ** provides eight independently enabled stereo bands with low cuts (12/48 dB/oct), low shelf, bell, notch, high shelf and high cuts (12/48 dB/oct). Drag a dot horizontally for frequency, vertically for gain (Q for cuts/notch). Alt-drag or wheel changes Q; double-click a dot toggles its band. Numeric frequency (20 Hz–20 kHz), gain (±24 dB), Q (0.1–18) and output gain (±24 dB) are also available. Dragging enables the band and EQ. The combined response curve uses the same coefficients as playback; Edited includes the EQ. EQ is after the attack layer and before amplitude/mixing.
+
+The EQ uses one linked stereo curve. Spectrum analysis, independent L/R or M/S, band audition and adaptive Q are not included. It takes interaction cues from [EQ Eight](https://www.ableton.com/en/live-manual/12/live-audio-effect-reference/#eq-eight); it does not load or emulate the native device. **Filter envelope** selects the separate modulated tone filter described below.
+
+![Eight-band EQ](images/drum-eight-band-eq.png)
 
 Clean low-pass, high-pass, band-pass and notch filters offer 12/24 dB slopes, cutoff, resonance (Q), drive, filter ADSR, bipolar envelope amount and velocity sensitivity. The sample-gain stage precedes the filter; the amplitude envelope and instrument mixer follow it. Filter/envelope amounts are in octaves. This is Drum's filter implementation, not an emulation of Ableton's licensed circuit models.
 
@@ -87,7 +93,7 @@ Turn **Attack layer** On to add a centred transient at the start of each sample 
 - **Attack tone:** 30 Hz–16 kHz, controlling oscillator pitch or noise brightness. High settings are limited for the current host sample rate.
 - **Attack decay:** 1–100 ms, default 8 ms, controlling the transient's maximum duration.
 
-Start with Click, -18 dB, 1.8 kHz and 8 ms, then audition and adjust. The layer is added after sample gain/filtering and before the amplitude envelope, velocity response, LFO volume, instrument volume/pan, mute/solo, choke and sends. A long amplitude attack or Fade in softens it too. It starts once per note, does not repeat at loop boundaries, and ends if the sample voice ends. It requires a loaded sample. It does not follow sample tuning or pitch modulation; Attack tone controls its pitch separately. The sample and layer can sum above full scale, so adjust their levels as needed.
+Start with Click, -18 dB, 1.8 kHz and 8 ms, then audition and adjust. The layer is added after sample gain/tone filtering, then passes through the eight-band EQ before the amplitude envelope, velocity response, LFO volume, instrument volume/pan, mute/solo, choke and sends. A long amplitude attack or Fade in softens it too. It starts once per note, does not repeat at loop boundaries, and ends if the sample voice ends. It requires a loaded sample. It does not follow sample tuning or pitch modulation; Attack tone controls its pitch separately. The sample and layer can sum above full scale, so adjust their levels as needed.
 
 Edited and Send waveforms include the attack layer; Source does not. Zoom into the first few milliseconds to inspect its shape. These controls are saved per instrument and inherited by copies/slices. Reset page restores Off and the default settings.
 
@@ -111,6 +117,12 @@ Targets include the instrument mixer, sample gain, cutoff/resonance, envelope ti
 
 ## Compatibility and remaining scope
 
-Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
+Schema 8 adds eight EQ bands, bypass and output gain, with EQ off for older states. Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
 
 The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered chains, hosting arbitrary devices, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.
+
+## Compact editing and level warnings (0.10)
+
+Every waveform includes adaptive time graticules. The Edit Sound panel uses more of the window, single-line fields and graphs above the waveform. Envelope time and waveform time are separate: MIDI defines the duration of the S hold.
+
+Sample gain turns red if the selected source region plus normalisation/gain exceeds 0 dBFS before mono/filter/envelope/fader processing. This is a headroom warning, not a hard clip at the gain stage. Edited/Send captions also turn red when their rendered peak reaches full scale. Fade in is disabled in Classic, whose amplitude graph controls the attack; in Trigger/Gate, fade edits select Edited and visibly shape the hit.

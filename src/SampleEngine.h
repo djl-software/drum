@@ -102,6 +102,7 @@ private:
         bool held=true,preview=false;
         SoundParameters sound;
         VoiceEnvelope amp,filterEnvelope,pitchEnvelope;
+        VoiceEqualizer equalizer;
         // Two cascaded TPT state-variable sections, with independent stereo state.
         std::array<std::array<double,2>,2> filter1 {},filter2 {};
         int filterCounter=0;

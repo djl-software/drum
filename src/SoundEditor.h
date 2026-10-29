@@ -2,6 +2,7 @@
 #include "PluginProcessor.h"
 #include "SoundPreview.h"
 #include "EnvelopeEditor.h"
+#include "EqualizerEditor.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 class SoundEditor final : public juce::Component, public juce::FileDragAndDropTarget,private juce::Timer
@@ -39,6 +40,10 @@ private:
     juce::TextButton back,play,stop,reset;
     juce::Label noteIndicator;
     juce::TextButton slice;
+    juce::ToggleButton adsrValues{"ADSR values"};
+    juce::TextButton eqTab{"8-band EQ"},filterTab{"Filter envelope"};
+    EqualizerEditor equalizer;
+    bool filterEnvelopePage=false;
     juce::ComboBox sliceCount;
     std::array<juce::TextButton,7> tabs;
     juce::Viewport viewport;
@@ -46,7 +51,7 @@ private:
     std::unique_ptr<Waveform> waveform;
     std::unique_ptr<WaveformDivider> waveformDivider;
     std::array<std::unique_ptr<EnvelopeEditor>,3> envelopes;
-    int waveformHeight=280;
+    int waveformHeight=340;
     std::vector<std::unique_ptr<Field>> fields;
     std::vector<std::unique_ptr<MacroField>> macroFields;
 };

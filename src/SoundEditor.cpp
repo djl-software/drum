@@ -40,8 +40,15 @@ struct SoundEditor::Field final : juce::Component
             slider.onValueChange=[this,&editor] { editor.change(parameter,slider.getValue()/parameter.scale); };
         }
     }
-    void paint(juce::Graphics& g) override { text(g,parameter.label,{0,0,getWidth(),19},12,muted); }
-    void resized() override { slider.setBounds(0,23,getWidth(),28); combo.setBounds(0,23,getWidth(),28); }
+    juce::String label() const
+    {
+        const juce::String key(parameter.key);
+        if(key=="fadeOut")return "Fade out";if(key=="snap")return "Zero snap";
+        if(key=="keyOverride")return "Key label";if(key=="mono")return "Channels";
+        return parameter.label;
+    }
+    void paint(juce::Graphics& g) override { text(g,label(),{0,0,114,getHeight()},11,muted); }
+    void resized() override { slider.setBounds(118,1,getWidth()-118,26); combo.setBounds(118,1,getWidth()-118,26); }
     void update(double v,bool newSelection)
     {
         if(newSelection) slider.hideTextBox(true);
@@ -166,6 +173,7 @@ public:
         }
         status.setText(caption,juce::dontSendNotification);
         status.setTooltip(caption);
+        status.setColour(juce::Label::backgroundColourId,!busy && source && !sourceMode() && source->peak>=1?juce::Colour(0xff8f2638):juce::Colours::transparentBlack);
         repaint();
     }
     double zoom=1,offset=0;
@@ -195,6 +203,15 @@ public:
             const int pixels=juce::jlimit(1,16384,(int)std::ceil(area.getWidth()*scale));
             rebuildPaths(area,pixels);
             const int channels=displayChannels();
+            const double duration=1000.0*source->audio.getNumSamples()/source->rate,visible=duration/zoom;
+            const double rough=visible/juce::jmax(2,area.getWidth()/100),base=std::pow(10.0,std::floor(std::log10(juce::jmax(0.000001,rough))));
+            const double step=base*(rough/base<=1?1:rough/base<=2?2:rough/base<=5?5:10),first=std::ceil(offset*duration/step)*step;
+            for(double ms=first;ms<offset*duration+visible;ms+=step)
+            {
+                const int gx=(int)x(ms/duration);g.setColour(muted.withAlpha(0.28f));g.drawVerticalLine(gx,(float)area.getY(),(float)area.getBottom());
+                const auto stamp=step>=1000?juce::String(ms/1000,step<10000?1:0)+" s":juce::String(ms,step<1?2:step<10?1:0)+" ms";
+                text(g,stamp,{gx+4,area.getBottom()-17,84,16},10,ink);
+            }
             for(int channel=0;channel<channels;++channel)
             {
                 const float middle=area.getY()+area.getHeight()*(channel+0.5f)/channels;
@@ -387,13 +404,13 @@ public:
     void mouseDown(const juce::MouseEvent&) override {initialHeight=owner.waveform->getHeight();}
     void mouseDrag(const juce::MouseEvent& e) override
     {
-        owner.waveformHeight=juce::jlimit(184,juce::jmax(184,owner.getHeight()-359),initialHeight+e.getDistanceFromDragStartY());
+        owner.waveformHeight=juce::jlimit(184,800,initialHeight+e.getDistanceFromDragStartY());
         owner.resized();
     }
-    void mouseDoubleClick(const juce::MouseEvent&) override {owner.waveformHeight=280;owner.resized();}
+    void mouseDoubleClick(const juce::MouseEvent&) override {owner.waveformHeight=340;owner.resized();}
 private:
     SoundEditor& owner;
-    int initialHeight=280;
+    int initialHeight=340;
 };
 SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_unique<Waveform>(*this)),waveformDivider(std::make_unique<WaveformDivider>(*this))
 {
@@ -408,7 +425,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
         if(!i || kit->id!=kitId) return;
         auto c=i->controls; for(auto& parameter:drum::soundParameters) if(parameter.page==page) c.sound.*(parameter.member)=parameter.initial;
-        if(page==1){c.sound.envelopes[0]={};c.sound.envelopes[1]={};}else if(page==2)c.sound.envelopes[2]={};
+        if(page==1){c.sound.envelopes[0]={};c.sound.envelopes[1]={};}else if(page==2){c.sound.envelopes[2]={};c.sound.equalizer={};}
         auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
         if(result.ok) processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
         message=result.ok?"Page reset. The source file is unchanged.":result.message; refresh();
@@ -418,12 +435,23 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
     addAndMakeVisible(*waveform);
     addAndMakeVisible(*waveformDivider);
+    addAndMakeVisible(adsrValues);adsrValues.setComponentID("envelope-numeric-values");adsrValues.onClick=[this]{setPage(page);};
+    addAndMakeVisible(eqTab);addAndMakeVisible(filterTab);eqTab.setComponentID("filter-eq-tab");filterTab.setComponentID("filter-envelope-tab");
+    eqTab.onClick=[this]{filterEnvelopePage=false;setPage(2);};filterTab.onClick=[this]{filterEnvelopePage=true;setPage(2);};
+    addAndMakeVisible(equalizer);
+    equalizer.onChange=[this](const drum::Equalizer& eq){
+        auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
+        if(!i || kit->id!=kitId)return;auto c=i->controls;c.sound.equalizer=eq;
+        auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
+        if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+        waveform->showEdited();message=result.ok?"Eight-band stereo EQ saved. Filter envelope shapes the separate tone filter.":result.message;refresh();
+    };
     envelopes[0]=std::make_unique<EnvelopeEditor>("envelope-amp","Amplitude",mint);
     envelopes[1]=std::make_unique<EnvelopeEditor>("envelope-pitch","Pitch (st)",juce::Colour(0xff9bbdff));
     envelopes[2]=std::make_unique<EnvelopeEditor>("envelope-filter","Filter (oct)",juce::Colour(0xffffc17a));
     for(int n=0;n<3;++n)
     {
-        content.addAndMakeVisible(*envelopes[(size_t)n]);
+        addAndMakeVisible(*envelopes[(size_t)n]);
         envelopes[(size_t)n]->onShape=[this,n](const drum::EnvelopeShape& s,bool edit){changeEnvelope(n,s,edit);};
         envelopes[(size_t)n]->onReset=[this,n]{changeEnvelope(n,{},false);};
         if(n>0)envelopes[(size_t)n]->onAmount=[this,n](double value){waveform->showEdited();for(auto& p:drum::soundParameters)if(p.member==(n==1?&drum::SoundParameters::pitchAmount:&drum::SoundParameters::filterAmount))change(p,value);};
@@ -452,7 +480,8 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     {
         field->update(sound.*(field->parameter.member),changed);bool custom=false;
         for(int n=0;n<3;++n)for(auto member:envelopeMembers[(size_t)n])if(field->parameter.member==member)custom=sound.envelopes[(size_t)n].count!=0;
-        field->setEnabled(i!=nullptr && !custom);
+        field->setEnabled(i!=nullptr && !custom && !(field->parameter.member==&drum::SoundParameters::fadeIn && sound.mode==2));
+        if(field->parameter.member==&drum::SoundParameters::fadeIn)field->slider.setTooltip(sound.mode==2?"Classic playback uses the amplitude graph for its attack. Fade in applies in Trigger/Gate.":"Fade the beginning of a Trigger/Gate hit. View Edited to see the result.");
     }
     for(int n=0;n<drum::numMacros;++n)
     {
@@ -461,6 +490,19 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     }
     selectedSample=processor.getSampleEngine().waveformFor(instrumentId);
     selectedControls=i?i->controls:drum::InstrumentControls{};
+    equalizer.setEnabled(i!=nullptr);equalizer.update(sound.equalizer,processor.getSampleEngine().previewSampleRate());
+    double peak=0;
+    if(selectedSample)
+    {
+        const int length=selectedSample->audio.getNumSamples(),begin=(int)(sound.start*length),end=juce::jmax(begin+1,(int)(sound.end*length));
+        for(int c=0;c<selectedSample->audio.getNumChannels();++c){auto range=selectedSample->waveform.range(selectedSample->audio,c,begin,end);peak=juce::jmax(peak,(double)juce::jmax(std::abs(range.minimum),std::abs(range.maximum)));}
+        peak*=std::pow(10.0,sound.sampleGain/20)*(sound.normalise!=0 && selectedSample->peak>0?1.0/selectedSample->peak:1.0);
+    }
+    for(auto& field:fields)if(field->parameter.member==&drum::SoundParameters::sampleGain)
+    {
+        field->slider.setColour(juce::Slider::textBoxBackgroundColourId,peak>=1.00001?juce::Colour(0xff8f2638):bg);
+        field->slider.setTooltip("Red warns when the selected source region plus sample gain exceeds 0 dBFS before filtering, envelopes and the instrument fader. Floating-point audio is not hard-clipped here.");
+    }
     auto libraryState=processor.getLibrary().snapshot();
     if(i && !i->controls.solo)for(auto& group:drum::activeKit(libraryState)->groups)for(auto& other:group.instruments)
         if(other.controls.solo)selectedControls.mute=true;
@@ -487,9 +529,9 @@ void SoundEditor::refreshEnvelopes(bool newSelection)
         for(int h=0;h<4;++h)bindings[(size_t)h]=mapped(members[(size_t)h]);
         const double amount=n==0?1:n==1?effective.pitchAmount:effective.filterAmount;
         const bool active=n==0?sound.mode==2:n==1?amount!=0:sound.filterOn!=0 && amount!=0;
-        juce::String status=n==0?(active?"Classic ADSR / sustain held until note-off":"Inactive: Trigger/Gate use Fade in/out")
+        juce::String status=n==0?(active?"Classic / S holds until note-off; release follows":"Drag to enable amplitude shaping (Classic playback)")
             :n==1?(amount==0?"Zero amount: drag a point to enable +12 st":"Pitch shape / hold at S until note-off")
-            :sound.filterOn==0?"Inactive: Filter is Off":amount==0?"Inactive: raise the amount above":"Filter shape / hold at S until note-off";
+            :sound.filterOn==0 || amount==0?"Drag to enable tone filter and envelope":"Tone filter shape / S holds until note-off";
         juce::String controlled;
         for(int h=0;h<4;++h)if(bindings[(size_t)h])controlled+=juce::String::charToString("ADSR"[h]);
         if(controlled.isNotEmpty())status="Macro controls timing: "+controlled+" / remove mapping to edit points";
@@ -508,12 +550,18 @@ void SoundEditor::changeEnvelope(int envelope,const drum::EnvelopeShape& shape,b
     auto controls=i->controls;const auto& members=envelopeMembers[(size_t)envelope];
     for(auto& m:controls.macros)if(m.target>3)for(auto member:members)if(drum::macroTargets[(size_t)m.target].member==member)return;
     controls.sound.envelopes[(size_t)envelope]=shape;
+    if(envelope==0 && audibleEdit)controls.sound.mode=2;
     bool mappedAmount=false;for(auto& m:controls.macros)mappedAmount|=m.target==11;
     if(envelope==1 && audibleEdit && controls.sound.pitchAmount==0 && !mappedAmount)controls.sound.pitchAmount=12;
+    if(envelope==2 && audibleEdit)
+    {
+        controls.sound.filterOn=1;bool mapped=false;for(auto& m:controls.macros)mapped|=m.target==10;
+        if(controls.sound.filterAmount==0 && !mapped)controls.sound.filterAmount=-2;
+    }
     if(audibleEdit)waveform->showEdited();
     auto result=processor.getLibrary().setControls(kitId,instrumentId,controls);
     if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
-    message=result.ok?"Envelope saved. Right-click a point to hold there until note-off. Use ADSR restores the numeric envelope.":result.message;
+    message=result.ok?"Shape saved. Click/drag a line to add/move a point; hold 250 ms then drag to curve. S holds until note-off; preview gate is 1 s.":result.message;
     refresh();
 }
 void SoundEditor::refreshPreview()
@@ -551,6 +599,7 @@ void SoundEditor::change(const drum::SoundParameter& parameter,double value)
     if(!i || kit->id!=kitId) return;
     auto c=i->controls; c.sound.*(parameter.member)=value;
     auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
+    if(result.ok && (parameter.member==&drum::SoundParameters::fadeIn || parameter.member==&drum::SoundParameters::fadeOut))waveform->showEdited();
     if(result.ok) processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
     message=result.ok?"Saved with this kit. Markers, direction, playback mode and loop on/off apply on the next hit.":"Start must be before End; loop start must be before loop end.";
     refresh();
@@ -559,9 +608,17 @@ void SoundEditor::setPage(int value)
 {
     page=value; viewport.setViewPosition(0,0);
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)n].setToggleState(n==page,juce::dontSendNotification);
-    for(auto& field:fields) field->setVisible(field->parameter.page==page);
+    for(auto& field:fields)
+    {
+        bool numeric=false;for(auto& members:envelopeMembers)for(auto m:members)numeric|=field->parameter.member==m;
+        const bool amount=field->parameter.member==&drum::SoundParameters::pitchAmount || field->parameter.member==&drum::SoundParameters::filterAmount;
+        field->setVisible(field->parameter.page==page && (!numeric || adsrValues.getToggleState()) && !amount && (page!=2 || filterEnvelopePage));
+    }
     for(auto& field:macroFields) field->setVisible(page==5);
-    for(int n=0;n<3;++n)envelopes[(size_t)n]->setVisible(page==(n==2?2:1));
+    for(int n=0;n<3;++n)envelopes[(size_t)n]->setVisible(n==2?page==2 && filterEnvelopePage:page==1);
+    adsrValues.setVisible(page==1 || (page==2 && filterEnvelopePage));
+    equalizer.setVisible(page==2 && !filterEnvelopePage);eqTab.setVisible(page==2);filterTab.setVisible(page==2);
+    eqTab.setToggleState(!filterEnvelopePage,juce::dontSendNotification);filterTab.setToggleState(filterEnvelopePage,juce::dontSendNotification);
     slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5);
     resized(); repaint();
 }
@@ -571,13 +628,13 @@ void SoundEditor::paint(juce::Graphics& g)
     text(g,name,{18,12,getWidth()-410,30},22);
     static const char* help[]{
         "Choose Source to drag trim markers; Edited previews the sound. Ctrl + wheel zooms; Shift + wheel scrolls.",
-        "Click a line to add a point. Drag points freely; double-click to remove. Hold and drag a line to curve it.",
-        "Click to add points; drag to move; double-click to remove. Drag a line to bend it. Filter must be On with a nonzero amount.",
+        "Click/drag line: add/move. Hold 250 ms + drag: curve. Double-click point: remove. Right-click: hold at S.",
+        "Stereo EQ plus a separate envelope-controlled tone filter.",
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
         "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
         "Add a short Click, Pulse or Noise at the start of each hit. Mixed after the sample filter, before amplitude and pan."};
-    text(g,help[page],{18,116,getWidth()-36,24},12,muted);
+    text(g,help[page],{18,116,getWidth()-(page==2?470:page==1?170:36),24},12,muted);
     text(g,message.isEmpty()?"Non-destructive edits. The original audio file is preserved.":message,{18,getHeight()-29,getWidth()-36,23},11,muted);
 }
 void SoundEditor::resized()
@@ -586,22 +643,27 @@ void SoundEditor::resized()
     back.setBounds(getWidth()-380,15,125,32); play.setBounds(getWidth()-245,15,65,32); stop.setBounds(getWidth()-170,15,65,32); reset.setBounds(getWidth()-95,15,80,32);
     const int tabWidth=(getWidth()-36-8*((int)tabs.size()-1))/(int)tabs.size();
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)n].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
-    const int height=juce::jlimit(184,juce::jmax(184,getHeight()-359),waveformHeight);
-    waveform->setBounds(18,150,juce::jmax(1,getWidth()-36),height);
-    waveformDivider->setBounds(18,150+height,juce::jmax(1,getWidth()-36),12);
-    const int controlsTop=162+height;
-    viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
-    const int width=juce::jmax(1,viewport.getWidth()-12),columns=3,gap=24,cell=(width-gap*2)/columns;
-    int top=6;
-    const int envelopeHeight=juce::jlimit(152,180,viewport.getHeight()-8);
+    adsrValues.setBounds(getWidth()-146,116,128,24);
+    eqTab.setBounds(getWidth()-446,116,126,24);filterTab.setBounds(getWidth()-312,116,154,24);
+    const int graphHeight=page==1 || page==2?180:0;
+    const int graphWidth=getWidth()-36;
     if(page==1)
     {
-        const int half=(width-16)/2;envelopes[0]->setBounds(0,top,half,envelopeHeight);envelopes[1]->setBounds(half+16,top,width-half-16,envelopeHeight);top+=envelopeHeight+12;
+        const int half=(graphWidth-12)/2;envelopes[0]->setBounds(18,150,half,graphHeight);envelopes[1]->setBounds(30+half,150,graphWidth-half-12,graphHeight);
     }
-    if(page==2) {envelopes[2]->setBounds(0,top,width,envelopeHeight);top+=envelopeHeight+12;}
-    int n=0; for(auto& field:fields) if(field->parameter.page==page)
-    {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*65,cell,56); ++n;}
-    int bottom=top+((n+2)/3)*65+6;
+    if(page==2){envelopes[2]->setBounds(18,150,graphWidth,graphHeight);equalizer.setBounds(18,150,graphWidth,graphHeight);}
+    const int waveTop=150+(graphHeight?graphHeight+8:0);
+    const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:160;
+    const int height=juce::jlimit(184,juce::jmax(184,getHeight()-waveTop-reserved-49),waveformHeight);
+    waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
+    waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
+    const int controlsTop=waveTop+12+height;
+    viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
+    const int width=juce::jmax(1,viewport.getWidth()-12),columns=width>=1000?3:2,gap=16,cell=(width-gap*(columns-1))/columns;
+    int top=6;
+    int n=0; for(auto& field:fields) if(field->isVisible())
+    {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28); ++n;}
+    int bottom=top+((n+columns-1)/columns)*34+6;
     if(page==0) {sliceCount.setBounds(0,bottom,160,28);slice.setBounds(172,bottom,180,28);bottom+=40;}
     if(page==5)
     {

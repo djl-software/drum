@@ -13,7 +13,7 @@ public:
     {
         setComponentID(e.getComponentID()+"-point-"+juce::String(n));setName("Envelope point "+juce::String(n+1));
         setWantsKeyboardFocus(true);setViewportIgnoreDragFlag(true);
-        setTooltip("Drag in any direction. Double-click to remove. Right-click to hold here until note-off. Arrow keys adjust; Shift gives fine steps.");
+        setTooltip("Drag freely, including past neighbouring points. Double-click to remove. Right-click to hold here until note-off. Arrow keys adjust; Shift gives fine steps.");
     }
     void paint(juce::Graphics& g) override
     {
@@ -95,9 +95,9 @@ void EnvelopeEditor::layoutHandles()
     {
         auto& h=*handles[(size_t)n];if(n>=shape.count){h.setVisible(false);continue;}
         auto centre=position(shape.points[(size_t)n]);const bool visible=centre.x>=a.getX()-0.1f && centre.x<=a.getRight()+0.1f;
-        for(int previous=0;previous<n;++previous)if(centre.getDistanceFrom(placed[(size_t)previous])<18)centre.y+=centre.y<a.getCentreY()?18:-18;
+        for(int previous=0;previous<n;++previous)if(centre.getDistanceFrom(placed[(size_t)previous])<22)centre.y+=centre.y<a.getCentreY()?22:-22;
         centre.y=std::clamp(centre.y,a.getY(),a.getBottom());placed[(size_t)n]=centre;
-        h.setVisible(visible);h.setEnabled(editable());h.setAlpha(locked?0.35f:1);h.setBounds(juce::Rectangle<int>(16,16).withCentre(centre.roundToInt()));
+        h.setVisible(visible);h.setEnabled(editable());h.setAlpha(locked?0.35f:1);h.setBounds(juce::Rectangle<int>(20,20).withCentre(centre.roundToInt()));
         h.setMouseCursor(locked?juce::MouseCursor::NormalCursor:juce::MouseCursor::DraggingHandCursor);
     }
 }
@@ -127,7 +127,7 @@ void EnvelopeEditor::paint(juce::Graphics& g)
         if(bending && line>0){const auto& p=shape.points[(size_t)line];const auto& prev=shape.points[(size_t)line-1];const auto grip=position({prev.ms+(p.ms-prev.ms)*p.pivot,drum::envelopeSegment(prev.level,p,p.pivot)});g.setColour(ink);g.drawEllipse(grip.x-4,grip.y-4,8,8,1);}
     }
     for(int n=0;n<shape.count;++n)if(handles[(size_t)n]->isVisible()){g.setColour(c.withAlpha(0.5f));g.drawLine({position(shape.points[(size_t)n]),handles[(size_t)n]->getBounds().getCentre().toFloat()});}
-    label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click line to add / drag line to curve / double-click point to remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
+    label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click-drag: add / hold-drag: curve / double-click: remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
 }
 void EnvelopeEditor::submit(drum::EnvelopeShape value,bool audibleEdit)
 {if(editable() && drum::validEnvelope(value) && onShape)onShape(value,audibleEdit);}
@@ -136,9 +136,14 @@ void EnvelopeEditor::beginPoint(int n,juce::Point<float> p)
 void EnvelopeEditor::dragPoint(juce::Point<float> p)
 {
     if(dragging<0 || !editable())return;auto edited=initial;auto& node=edited.points[(size_t)dragging];
-    node.ms=std::clamp(std::round((node.ms+(p.x-dragStart.x)/plot().getWidth()*span)*100)/100,dragging?initial.points[(size_t)dragging-1].ms:0.0,dragging+1<initial.count?initial.points[(size_t)dragging+1].ms:80000.0);
+    node.ms=std::clamp(std::round((node.ms+(p.x-dragStart.x)/plot().getWidth()*span)*100)/100,0.0,80000.0);
     node.level=std::clamp(node.level+(amount<0?1:-1)*(p.y-dragStart.y)/plot().getHeight(),0.0,1.0);
-    feedback="Point "+juce::String(dragging+1)+": "+timeText(node.ms)+" / "+juce::String(node.level*100,1)+"%";submit(edited);
+    feedback="Point "+juce::String(dragging+1)+": "+timeText(node.ms)+" / "+juce::String(node.level*100,1)+"%";
+    // Sort a fixed index array, retaining the logical sustain point as nodes cross.
+    std::array<int,drum::maxEnvelopePoints> order{};for(int n=0;n<edited.count;++n)order[(size_t)n]=n;
+    std::sort(order.begin(),order.begin()+edited.count,[&](int a,int b){return edited.points[(size_t)a].ms==edited.points[(size_t)b].ms?a<b:edited.points[(size_t)a].ms<edited.points[(size_t)b].ms;});
+    auto sorted=edited;for(int n=0;n<edited.count;++n){sorted.points[(size_t)n]=edited.points[(size_t)order[(size_t)n]];if(order[(size_t)n]==edited.hold)sorted.hold=std::min(n,edited.count-2);}
+    submit(sorted);
 }
 void EnvelopeEditor::removePoint(int n)
 {
@@ -155,7 +160,7 @@ void EnvelopeEditor::visibilityChanged(){if(!isVisible())finish();}
 void EnvelopeEditor::mouseDown(const juce::MouseEvent& e)
 {
     if(!editable() || !plot().expanded(8).contains(e.position))return;
-    float best=9;int picked=-1;double pickedTime=0,pickedLevel=0;
+    float best=14;int picked=-1;double pickedTime=0,pickedLevel=0;
     for(int n=1;n<shape.count;++n)
     {
         const auto& a=shape.points[(size_t)n-1];const auto& b=shape.points[(size_t)n];auto previous=position(a);
@@ -172,6 +177,12 @@ void EnvelopeEditor::mouseDrag(const juce::MouseEvent& e)
 {
     if(dragging>=0){dragPoint(e.position);return;}
     if(line<=0 || !editable() || (!bending && e.position.getDistanceFrom(dragStart)<3))return;
+    if(!bending && e.getLengthOfMousePress()<250)
+    {
+        auto edited=initial;const int added=line;
+        if(!drum::insertEnvelopePoint(edited,added,grabTime))return;
+        submit(edited,false);dragging=added;line=-1;initial=edited;dragPoint(e.position);return;
+    }
     bending=true;auto edited=initial;auto& right=edited.points[(size_t)line];const auto& left=edited.points[(size_t)line-1];
     const double t=std::clamp((grabTime+(e.position.x-dragStart.x)/plot().getWidth()*span-left.ms)/(right.ms-left.ms),0.02,0.98);
     const double level=std::clamp(grabLevel+(amount<0?1:-1)*(e.position.y-dragStart.y)/plot().getHeight(),0.0,1.0);
