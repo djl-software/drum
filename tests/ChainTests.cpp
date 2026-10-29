@@ -90,12 +90,14 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
     setup.processor.getSampleEngine().requestLoad(setup.kit,setup.a,sampleFile("kick",0.25f));setup.settle();audio=setup.hit();near(audio.getSample(2,0),0.25f,"Missing effect did not pass through");
     auto malformed=library.toXml();auto* instrument=malformed->getChildByName("Kit")->getChildByName("Group")->getChildByName("Instrument");instrument->getChildByName("Effect")->getChildByName("State")->deleteAllTextElements();instrument->getChildByName("Effect")->getChildByName("State")->addTextElement("invalid");check(!library.restore(*malformed),"Corrupt plugin state accepted");
     rack.remove(setup.kit,setup.a,unavailable.id);setup.settle();
-    // UI file drops and browser drags append real VST3 effects, not samples.
+    // File drops append real VST3 effects without an embedded plugin browser.
     DrumAudioProcessorEditor editor(setup.processor);editor.setSize(1280,900);editor.setVisible(true);pump();click(editor,"open-sound-editor");click(editor,"edit-tab-7");
     auto* chain=dynamic_cast<ChainEditor*>(find(editor,"plugin-chain"));check(chain && chain->isVisible(),"Chain tab not visible");
     juce::StringArray dropped{effectPath};check(chain->isInterestedInFileDrag(dropped),"VST3 drop rejected");chain->filesDropped(dropped,700,60);pump(100);setup.settle();pump();
     auto uiSlots=setup.instrument(setup.a).effects;check(uiSlots.size()==1,"File drop failed to insert effect");
-    juce::DragAndDropTarget::SourceDetails drag("vst3:"+effectPath,chain,{700,60});check(chain->isInterestedInDragSource(drag),"Browser drag rejected");chain->itemDropped(drag);pump(100);setup.settle();pump();check(setup.instrument(setup.a).effects.size()==2,"Browser drag failed");
+    check(find(editor,"chain-browser")==nullptr && find(editor,"chain-search")==nullptr,"Removed plugin list is still present");
+    auto* flow=find(editor,"chain-flow");check(flow && flow->getX()==0,"Chain did not reclaim browser space");
+    chain->filesDropped(dropped,700,60);pump(100);setup.settle();pump();check(setup.instrument(setup.a).effects.size()==2,"Second VST3 drop failed");
     auto dragged=setup.instrument(setup.a).effects[0].id;
     auto limited=setup.instrument(setup.a).effects;
     while(limited.size()<drum::maxEffects){auto slot=limited.front();slot.id=juce::Uuid().toString();limited.push_back(slot);}

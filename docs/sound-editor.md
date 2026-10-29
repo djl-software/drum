@@ -1,4 +1,4 @@
-# Drum sound editor (0.12.0)
+# Drum sound editor (0.12.1)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has eight pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
@@ -106,7 +106,7 @@ Edited and Send waveforms include the attack layer; Source does not. Zoom into t
 
 ## Chain: per-instrument VST3 effects
 
-Open **Chain** and drag a VST3 audio effect from its browser into the row. **Add folder** includes a custom plugin location; **Refresh** updates the file list. You can also double-click a browser entry, choose **Add selected**, or drop a `.vst3` file/bundle from Explorer. Direct drag from Live's browser is unverified; native Live devices and instrument plugins are unsupported.
+Open **Chain** and drop a `.vst3` audio-effect file/bundle from Explorer into the full-width row. Alternatively use **Load VST3...** to choose an installed module. Drum no longer has an embedded plugin list. In the Windows Live browser drag check, the event arrived with no exported formats, file path or text identifying the plugin; direct Live-list dragging is therefore unsupported. Native Live devices and instrument plugins cannot load here.
 
 Audio runs left to right through up to 16 effects, after the built-in sample/attack processing and instrument volume/pan, before output and send routing. Empty, fully bypassed or unavailable chains pass through. **Open** displays the effect's own editor, **Bypass** skips it, **Remove** deletes it, and dragging its header or pressing **< / >** changes order. EQ before compression changes what drives the compressor; EQ after compression shapes its result. Compare both at matched levels.
 
@@ -140,7 +140,7 @@ Schema 11 adds ordered VST3 effect slots, bypass and opaque plugin state; older 
 
 The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered instrument chains, native Live device hosting, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.
 
-## Compact editing and level warnings (0.12.0)
+## Compact editing and level warnings (0.12.1)
 
 Every waveform includes adaptive time graticules. The Edit Sound panel uses more of the window, single-line fields and graphs below the waveform. Envelope time and waveform time are separate: MIDI defines the duration of the S hold.
 

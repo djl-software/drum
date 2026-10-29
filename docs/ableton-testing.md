@@ -113,12 +113,12 @@ Known compatibility limit: the separate browser entry `Tom-909-Mid.aif` returned
 The native test Set was saved and reopened on 27 October 2026. Both instruments, their sample references and the -17.4 dB volume setting recalled successfully with Ready status. Manual Play produced output on Live's track and Main meters before and after recall. This checks audition through Live's audio engine; it does not substitute for a controller or MIDI-clip performance test. The local test Set is retained under `.local/Controls Test/` and is excluded from Git and packages.
 
 
-## Review the instrument Chain (0.12.0)
+## Review the instrument Chain (0.12.1)
 
 1. Keep clips/controller input on the single Drum MIDI track. Open a loaded instrument's Edit sound > Chain.
-2. Add an installed VST3 audio effect from Drum's browser or Explorer. Open its controls and audition the instrument. Confirm another instrument stays unaffected.
+2. Add an installed VST3 audio effect from Explorer or using Load VST3. Open its controls and audition the instrument. Confirm another instrument stays unaffected.
 3. Add a second effect, drag its header to swap order, bypass each, then remove both and compare the unchanged dry sound.
 4. Save/reopen a test Set and confirm effect order, settings and bypass. Try switching kits and copying an instrument; copies must edit independently.
 5. Test high-latency modes and reverb/delay tails, plus any chosen outputs/sends. The waveform and pitch/key readout show built-in processing before Chain.
 
-No extra Live tracks are needed for internal VST3 chains. Native Live effects still require Live routing. Direct drag of entries from Live's browser has not been verified; use Drum's browser or a .vst3 file drop.
+No extra Live tracks are needed for internal VST3 chains. Native Live effects still require Live routing. Live's browser drag exported neither a file path nor plugin identity in the Windows check. Use Load VST3 or a .vst3 file drop instead.

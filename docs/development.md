@@ -156,3 +156,10 @@ The eighth SoundEditor tab provides module-folder discovery, search, drag/file i
 CTest now includes `vst3_instrument_chains`, using the real test-only `Drum Chain Test Effect.vst3`. It checks ordered noncommutative processing, isolated routing, post-chain sends, bypass, copied state, kit switching, missing/corrupt state, latency including dry paths, oversized blocks, tails, UI drag/reorder, editor removal and compiled Drum VST3 hosting/recall. The fixture is excluded from packages. Third-party compatibility and hands-on Live review remain separate from these deterministic checks.
 
 Windows Release validation: all three CTest suites and 47 Steinberg validator checks passed. Optional drum_tests --chain-smoke <module.vst3> checks also loaded, processed and recalled the installed DJL Meter and FabFilter Pro-Q 4. This is a compatibility smoke check, not exhaustive plugin certification. The manual has 40 pages, 38 bookmarks and 44 links.
+
+
+## Full-width Chain and Live drag investigation (0.12.1)
+
+Removed the module browser, search, folder scanning and folder preferences from ChainEditor. A small native file chooser remains beside the full-width flow. Module file drops, reorder, bypass, removal and state are unchanged. UI tests assert the list is absent, the flow begins at x=0, and repeated external module drops still insert independent effects.
+
+A user-performed drag from the installed Live Plug-ins list into a Windows OLE drop probe reached DragEnter but exported no IDataObject formats. Direct queries for FileDrop, FileNameW/FileName, UnicodeText/Text, URL, shell item IDs and virtual-file descriptors/contents all returned absent/null. This is evidence that the standard external-drop route supplies no usable plugin identity on this installation. No Live-specific bridge or private-process inspection has been added, and the product does not claim direct Live-browser drag support.
