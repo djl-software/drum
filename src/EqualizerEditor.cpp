@@ -24,7 +24,7 @@ EqualizerEditor::EqualizerEditor()
     }
     frequency.setComponentID("eq-frequency");frequency.setName("EQ frequency");frequency.setRange(20,20000,1);frequency.setSkewFactorFromMidPoint(1000);frequency.setTextValueSuffix(" Hz");
     gain.setComponentID("eq-gain");gain.setName("EQ gain");gain.setRange(-24,24,0.1);gain.setTextValueSuffix(" dB");
-    q.setComponentID("eq-q");q.setName("EQ Q");q.setRange(0.1,18,0.01);q.setSkewFactorFromMidPoint(1);q.setTextValueSuffix(" Q");
+    q.setComponentID("eq-q");q.setName("EQ Q");q.setRange(0.1,18,0.00000001);q.setNumDecimalPlacesToDisplay(2);q.setSkewFactorFromMidPoint(1);q.setTextValueSuffix(" Q");
     output.setComponentID("eq-output");output.setName("EQ output gain");output.setRange(-24,24,0.1);output.setTextValueSuffix(" dB out");output.setTooltip("EQ output gain. Reduce after boosting to keep headroom.");
     frequency.onValueChange=[this]{if(!updating){equalizer.bands[(size_t)selected].frequency=frequency.getValue();save();}};
     gain.onValueChange=[this]{if(!updating){equalizer.bands[(size_t)selected].gain=gain.getValue();save();}};
@@ -36,6 +36,7 @@ void EqualizerEditor::update(const drum::Equalizer& value,double sampleRate)
 {equalizer=value;rate=sampleRate>0?sampleRate:44100;select(selected);}
 void EqualizerEditor::select(int n)
 {
+    const drum::Equalizer defaults;frequency.setDoubleClickReturnValue(true,defaults.bands[(size_t)n].frequency);gain.setDoubleClickReturnValue(true,0);q.setDoubleClickReturnValue(true,0.70710678);output.setDoubleClickReturnValue(true,0);
     selected=n;updating=true;const auto& b=equalizer.bands[(size_t)n];
     enabled.setToggleState(equalizer.enabled,juce::dontSendNotification);bandOn.setToggleState(b.enabled,juce::dontSendNotification);
     for(int i=0;i<8;++i)bands[(size_t)i].setToggleState(i==n,juce::dontSendNotification);

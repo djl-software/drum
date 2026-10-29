@@ -1,5 +1,6 @@
 #pragma once
 #include "EnvelopeShape.h"
+#include "ResetSlider.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 class EnvelopeEditor final : public juce::Component
 {
@@ -9,8 +10,10 @@ public:
     ~EnvelopeEditor() override;
     void update(Values,const drum::EnvelopeShape&,bool locked,double amount,juce::String unit,bool active,juce::String status,bool newSelection,bool amountMapped=false);
     void setActivation(const juce::String&);
+    void setTimeLimit(double ms);
+    void setHistory(bool canUndo,bool canRedo);
     std::function<void(const drum::EnvelopeShape&,bool)> onShape;
-    std::function<void()> onActivate,onReset;
+    std::function<void()> onActivate,onReset,onUseAdsr,onUndo,onRedo,onBeginGesture,onEndGesture;
     std::function<void(double)> onAmount;
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -33,16 +36,20 @@ private:
     void submit(drum::EnvelopeShape,bool audibleEdit=true);
     void finish();
     void fit();
+    void zoom(double factor,double anchor);
+    void pan(double delta);
+    double extent() const;
+    double minimumSpan() const {return std::min(10.0,limit);}
     void layoutHandles();
     bool editable() const {return isEnabled() && !locked;}
     drum::EnvelopeShape shape,initial;
     std::array<std::unique_ptr<Handle>,drum::maxEnvelopePoints> handles;
-    juce::TextButton zoomOut{"-"},zoomIn{"+"},fitButton{"Fit"},activate,reset{"Use ADSR"};
-    juce::Slider depth;
+    juce::TextButton zoomOut{"-"},zoomIn{"+"},fitButton{"Fit"},activate,adsr{"ADSR"},reset{"Reset"},undo{"Undo"},redo{"Redo"};
+    ResetSlider depth;
     juce::String title,unit,status,feedback;
     juce::Colour colour;
-    double amount=1,span=500,offset=0,grabTime=0,grabLevel=0;
-    bool active=true,automatic=true,locked=false,custom=false,bending=false,updating=false;
+    double amount=1,span=500,offset=0,grabTime=0,grabLevel=0,limit=80000,panStart=0;
+    bool active=true,automatic=true,locked=false,custom=false,bending=false,updating=false,panning=false,gesture=false;
     int dragging=-1,line=-1;
     juce::Point<float> dragStart;
 };

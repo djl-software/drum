@@ -1,4 +1,4 @@
-# Drum sound editor (0.10.1)
+# Drum sound editor (0.10.2)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
@@ -16,7 +16,7 @@ Preview work runs in the background. **Updating preview...** marks a pending res
 
 ### Waveform size and channels
 
-- **Y zoom:** choose 0.25x–128x, or use **Alt + wheel** over the waveform. Choose Y 1x to reset. The setting stays fixed across tabs and sound edits, so level changes remain visible.
+- **Y zoom:** choose 0.25x–128x, or use **Shift + wheel** over the waveform. Choose Y 1x to reset. The setting stays fixed across tabs and sound edits, so level changes remain visible.
 - **Fit Y:** fits the visible time range and displayed channel(s) once, choosing the largest available magnification that fits within the lane (subject to the zoom limits). Zoom into a quiet tail, then click Fit Y to inspect it. Silence resets to Y 1x. This does not enable continuous auto-scaling.
 - **Height divider:** drag the grip immediately below the waveform to make the panel taller or shorter; double-click to restore its default height. The panel starts at 340 logical pixels where space permits and reserves room for the controls on the selected page.
 - **Auto channels:** mono and exactly identical left/right signals use one full-height lane marked MONO. This includes a centred mono sample whose edited output has been duplicated to stereo. Once processing makes the channels differ, Auto shows separate L/R lanes.
@@ -26,7 +26,7 @@ These are editor display preferences. They persist while the editor is open and 
 
 ## Sample
 
-- **Start / End:** trim the playable region, as percentages of the original file. Choose Source to drag either green marker, or enter a numeric percentage in either view. The waveform preserves signed peaks at the current display resolution. Close zoom draws the individual samples as a continuous trace. **+ / -** zoom around the centre; **Ctrl + wheel** zooms at the pointer; **Shift + wheel** scrolls; **Fit X** shows the entire waveform in time. The footer shows horizontal zoom and the visible duration in milliseconds. Zoom can reach a 32-sample window.
+- **Start / End:** trim the playable region, as percentages of the original file. Choose Source to drag either green marker, or enter a numeric percentage in either view. The waveform preserves signed peaks at the current display resolution. Close zoom draws the individual samples as a continuous trace. **+ / -** zoom around the centre; **Ctrl + wheel** zooms at the pointer; ordinary wheel or horizontal scrolling pans; **Fit X** shows the entire waveform in time. The footer shows horizontal zoom and the visible duration in milliseconds. Zoom can reach a 32-sample window.
 - **Sample gain:** -24 to +24 dB before the filter. **Normalise** compensates for the file's peak without rewriting it. Silent files remain silent.
 - **Source channels:** Stereo preserves the file's channels. Mono averages left and right before the filter; a mono file retains its level. Instrument pan and pan modulation still follow this stage. Opposite-polarity stereo material may cancel when summed. This is a playback setting saved per instrument, distinct from the waveform's display-only channel selector. Changing a sounding voice crossfades over 5 ms. Normalise continues to use the original file peak. Edited shows the result; Source still shows the original channels.
 - **Direction:** forward or reverse within the selected region. **Zero-crossing snap** searches up to 256 source frames for a nearby crossing in the left channel; markers retain the requested percentages while playback uses the snapped boundaries.
@@ -48,15 +48,19 @@ The Edited waveform reflects these controls when active. Amplitude ADSR needs **
 
 Amplitude and pitch graphs sit side by side below the waveform; Filter > Filter envelope has its own graph. Click and release on a line to add a point without changing its existing shape. Drag a point in both axes to set time and level; points stay in time order and within 0–100%. Double-click a point to remove it (minimum two, maximum 32). Drag a line with no minimum hold time to curve that segment around the grabbed position; horizontal movement shifts the bend placement.
 
-Right-click a non-final point to mark **S**, the held level. The points before S run from note-on; points after S describe release time after note-off. A short MIDI note releases from the actual current level. There is no fixed sustain duration in the graph. A nonzero final level fades briefly to zero. Custom shapes allow up to 80 seconds.
+Right-click a non-final point to mark **S**, the held level. The points before S run from note-on; points after S describe release time after note-off. A short MIDI note releases from the actual current level. There is no fixed sustain duration in the graph. A nonzero final level fades briefly to zero. New graph and numeric timing edits are limited to the **entire original sample duration**, independent of trim or tuning. Existing longer settings are preserved on load and brought within that limit when edited. Without a loaded sample the fallback limit is 80 seconds. Numeric time edits retain the chosen stage and proportionally fit other time stages into the remaining duration; defaults also obey the limit. MIDI hold time remains independent.
 
-**ADSR values** reveals the optional numeric stage sliders. **Use ADSR** removes the custom shape and restores the stored numeric ADSR. Numeric stage sliders are disabled while a custom shape is active. Reset page clears custom shapes on that page. The curve changes audible DSP and is saved per instrument, including copies and slices.
+**ADSR values** reveals the optional numeric stage sliders. **ADSR** removes the custom shape and restores the stored numeric ADSR. Numeric stage sliders are disabled while a custom shape is active. Reset page clears custom shapes on that page. The curve changes audible DSP and is saved per instrument, including copies and slices.
 
-Graphs have separate **- / + / Fit** time controls; wheel movement pans. Fit resumes automatic fitting; scale stays fixed during a gesture. Focus a point and use arrows for 1 ms / 1% changes, Shift for 0.1 ms / 0.1%, or Delete/Backspace to remove. Overlapping points have offset grips connected to the actual curve.
+Graphs have separate **- / + / Fit** time controls; wheel or horizontal scrolling pans, **Ctrl + wheel** zooms around the pointer, and middle-button dragging pans. Fit resumes automatic fitting; scale stays fixed during a gesture. Focus a point and use arrows for 1 ms / 1% changes, Shift for 0.1 ms / 0.1%, or Delete/Backspace to remove. Overlapping points have offset grips connected to the actual curve.
 
 Audible amplitude graph edits switch to Classic automatically. Audible filter graph edits enable Filter and set -2 octaves when the amount is zero and not mapped. A click/release that only inserts a point preserves the current sound. Pitch/filter amount sliders are now visible in the graph headers. Moving, bending or deleting a pitch point with amount zero enables +12 st unless a macro owns the amount; adding a point alone preserves silence. Audible graph edits select **Edited**, so their effect is immediately visible. Numeric ADSR changes at zero pitch amount still leave the sound unchanged.
 
 When a macro controls amplitude timing, the effective curve follows its value and the whole graph locks point editing. Click **Unlink timing** on the graph to keep the currently displayed timing and remove only its timing macro assignments, then edit the points. Other macro mappings and values are preserved. Removing a mapping from the Macros page instead restores the original base value. Amount mappings lock the graph's amount slider. Reset page leaves macro mappings intact.
+
+Each graph has **Reset / Undo / Redo**. Reset restores its shape, numeric ADSR and modulation amount to defaults (while retaining playback/filter enable state); reset is disabled for macro-controlled timing or amount. Undo/Redo retains up to 64 edits per envelope for the currently selected instrument. A whole point/curve/slider drag is one entry; view navigation does not enter history. New edits clear redo. Changing instrument/sample, closing the editor or externally recalling different envelope settings clears history. Undo can restore older settings beyond the current sample-length limit.
+
+Double-click a slider's **numeric box**, including an active text editor, to restore its default. Single-click still lets you type. This covers mixer, Edit Sound, envelope amounts, EQ and macro values/ranges. EQ frequency uses the selected band's default; macro values use 50%, and mapping min/max use the selected target's range.
 
 ### Trigger, pitch and Camelot
 
@@ -121,7 +125,7 @@ Schema 9 adds weighted curves; earlier envelope states retain their previous cur
 
 The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered chains, hosting arbitrary devices, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.
 
-## Compact editing and level warnings (0.10.1)
+## Compact editing and level warnings (0.10.2)
 
 Every waveform includes adaptive time graticules. The Edit Sound panel uses more of the window, single-line fields and graphs below the waveform. Envelope time and waveform time are separate: MIDI defines the duration of the S hold.
 

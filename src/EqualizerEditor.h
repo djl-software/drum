@@ -1,5 +1,6 @@
 #pragma once
 #include "Equalizer.h"
+#include "ResetSlider.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 class EqualizerEditor final : public juce::Component
@@ -27,5 +28,5 @@ private:
     juce::ToggleButton enabled{"EQ on"},bandOn{"Band on"};
     std::array<juce::TextButton,8> bands;
     juce::ComboBox type;
-    juce::Slider frequency,gain,q,output;
+    ResetSlider frequency,gain,q,output;
 };

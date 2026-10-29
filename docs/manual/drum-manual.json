@@ -1,11 +1,11 @@
 {
   "product": "Drum",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "date": "29 October 2026",
   "platform": "Windows VST3",
   "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
-  "cover_caption": "Version 0.10.1 editing preview  |  Instructions, examples and why",
-  "footer": "Version 0.10.1  |  Windows VST3 editing preview",
+  "cover_caption": "Version 0.10.2 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.10.2  |  Windows VST3 editing preview",
   "logo": "../../assets/DJLLogoWhite.png",
   "cover_image": "assets/curves.png",
   "publisher": "DJL Software",
@@ -15,7 +15,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.10.1 editing preview."
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.10.2 editing preview."
         },
         {
           "type": "p",
@@ -35,7 +35,7 @@
         },
         {
           "type": "p",
-          "text": "Screenshots show the real 0.10.1 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
+          "text": "Screenshots show the real 0.10.2 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
         },
         {
           "type": "p",
@@ -77,7 +77,7 @@
         },
         {
           "type": "p",
-          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.10.1. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.10.2. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
         },
         {
           "type": "p",
@@ -386,6 +386,10 @@
         {
           "type": "p",
           "text": "Fine tuning in Envelopes & pitch adds up to +/-100 cents. One semitone is 100 cents. Tune a sustained drum while listening with the bass, rather than expecting every noisy percussion hit to have a stable musical note."
+        },
+        {
+          "type": "p",
+          "text": "Double-click directly on a slider's numeric value to restore its default, including while the value is being typed. Single-click still opens numeric entry. This also works for Edit Sound, envelope amounts, EQ and macro values/ranges. EQ frequency resets to the selected band's default; macro values reset to 50%, and mapping limits to the selected target's range. Disabled controls remain locked."
         }
       ]
     },
@@ -476,11 +480,11 @@
             ],
             [
               "- / + / Fit X",
-              "Zoom out/in in time, or show the full duration. Ctrl + wheel zooms around the pointer; Shift + wheel scrolls."
+              "Zoom out/in in time, or show the full duration. Ctrl + wheel zooms around the pointer; ordinary wheel or horizontal scrolling pans left/right."
             ],
             [
               "Y selector / Fit Y",
-              "Vertical display magnification, 0.25x-128x, or fit the visible signal. Alt + wheel changes Y zoom. This does not change gain."
+              "Vertical display magnification, 0.25x-128x, or fit the visible signal. Shift + wheel changes Y zoom. This does not change gain."
             ],
             [
               "Height divider",
@@ -680,11 +684,15 @@
         },
         {
           "type": "p",
-          "text": "The graph's + / - / Fit buttons control its time view. Wheel movement pans the graph. Fit resumes automatic fitting; the scale stays fixed while dragging. Focus a point and use arrow keys for time/level changes; Shift gives finer steps. Delete/Backspace removes the focused point."
+          "text": "The graph's + / - / Fit buttons control its time view. Wheel or horizontal scrolling pans; Ctrl + wheel zooms around the pointer. Middle-button dragging also pans. Fit resumes automatic fitting; the scale stays fixed while dragging. Focus a point and use arrow keys for time/level changes; Shift gives finer steps. Delete/Backspace removes the focused point."
         },
         {
           "type": "p",
-          "text": "ADSR values reveals the optional numeric stage controls below the waveform. Use ADSR on a graph discards its custom points and returns to the saved numeric contour. Numeric A/D/S/R sliders are disabled while a custom shape is active. Reset page also clears that page's custom envelopes. Pitch/filter amount remains in the graph header because it sets the depth and direction, independently of the shape."
+          "text": "ADSR values reveals the optional numeric stage controls below the waveform. ADSR on a graph discards its custom points and returns to the saved numeric contour. Numeric A/D/S/R sliders are disabled while a custom shape is active. Reset page also clears that page's custom envelopes. Pitch/filter amount remains in the graph header because it sets the depth and direction, independently of the shape."
+        },
+        {
+          "type": "p",
+          "text": "Reset restores only this envelope's shape, numeric stages and modulation amount to defaults. Undo/Redo keeps up to 64 edits per envelope; an entire drag is one step. View changes are not edits. History lasts while this instrument remains selected in the open editor; changing instrument/sample or recalling different settings clears it. A new edit clears redo. Reset is disabled while a macro owns its timing or amount."
         }
       ]
     },
@@ -739,7 +747,7 @@
         },
         {
           "type": "p",
-          "text": "Dragging can move points past their neighbours; the graph reorders them in time. Points can also meet to make an immediate transition. Levels stay between 0 and 100%; custom envelope time extends up to 80 seconds. A nonzero final level fades briefly to zero at the end to avoid leaving an indefinitely active voice."
+          "text": "Dragging can move points past their neighbours; the graph reorders them in time. Points can also meet to make an immediate transition. Levels stay between 0 and 100%; new point and numeric timing edits stay within the entire original sample duration, irrespective of trim, tuning or MIDI note length. Older longer envelopes keep their sound on opening; their next edit brings points inside the limit. Numeric time edits retain the chosen stage and fit the other time stages into the remaining duration; even a default reset obeys the sample limit. Without a loaded sample the fallback limit is 80 seconds. A nonzero final level fades briefly to zero at the end to avoid leaving an indefinitely active voice."
         },
         {
           "type": "p",
@@ -1324,12 +1332,16 @@
               "Drag a line to bend it, with no minimum hold time. Click and release without dragging to insert a point. Drag an existing point to move it."
             ],
             [
+              "Point or stage will not move further in time",
+              "The original sample duration is the editing limit, even if trim or tuning changes playback length. MIDI hold time is separate."
+            ],
+            [
               "Cannot add/remove more points",
               "Each graph keeps at least two and at most 32 points."
             ],
             [
               "Numeric ADSR is disabled",
-              "A custom shape is active. Use ADSR restores the saved numeric contour and removes its custom points."
+              "A custom shape is active. ADSR restores the saved numeric contour and removes its custom points."
             ],
             [
               "Graph is locked",
@@ -1399,11 +1411,11 @@
             ],
             [
               "Waveform time scroll",
-              "Shift + wheel."
+              "Wheel or horizontal scrolling."
             ],
             [
               "Waveform vertical zoom",
-              "Alt + wheel; or Y selector / Fit Y."
+              "Shift + wheel; or Y selector / Fit Y."
             ],
             [
               "Waveform height",
@@ -1435,11 +1447,15 @@
             ],
             [
               "Envelope time view",
-              "- / + / Fit; wheel pans the graph."
+              "- / + / Fit; Ctrl + wheel zooms; wheel or middle-drag pans."
             ],
             [
               "Return to ordinary ADSR",
-              "Use ADSR on the graph."
+              "ADSR on the graph."
+            ],
+            [
+              "Envelope reset / undo / redo",
+              "Reset / Undo / Redo on each graph. One drag is one edit."
             ],
             [
               "Reset current editing page",
@@ -1476,7 +1492,7 @@
           "type": "table",
           "headers": [
             "Facility",
-            "Scope of version 0.10.1"
+            "Scope of version 0.10.2"
           ],
           "rows": [
             [

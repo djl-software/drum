@@ -116,7 +116,7 @@ void runWaveformTests()
     check(std::abs(start()-0.4375)<0.00001,"Zoomed marker uses wrong source position");
     reset();
     juce::MouseWheelDetails pan{};pan.deltaY=0.5f;
-    waveform->mouseWheelMove(event(*waveform,0.25f,juce::ModifierKeys::shiftModifier),pan);
+    waveform->mouseWheelMove(event(*waveform,0.25f),pan);
     waveform->mouseDown(event(*waveform,0.25f));
     check(std::abs(start()-0.3125)<0.00001,"Scrolled marker uses wrong source position");
     reset();click(editor,"waveform-fit");
@@ -124,6 +124,12 @@ void runWaveformTests()
     waveform->mouseWheelMove(event(*waveform,0.25f,juce::ModifierKeys::ctrlModifier),wheel);
     waveform->mouseDown(event(*waveform,0.25f));
     check(std::abs(start()-0.25)<0.00001,"Wheel zoom lost pointer anchor");
+    reset();click(editor,"waveform-fit");
+    auto* vertical=dynamic_cast<juce::ComboBox*>(find(editor,"waveform-vertical-zoom"));check(vertical!=nullptr,"Vertical zoom missing");
+    const auto initialY=vertical->getSelectedId();
+    waveform->mouseWheelMove(event(*waveform,0.25f,juce::ModifierKeys::shiftModifier),wheel);
+    check(vertical->getSelectedId()==initialY+1,"Shift-wheel did not zoom vertically");
+    waveform->mouseDown(event(*waveform,0.25f));check(std::abs(start()-0.25)<0.00001,"Vertical zoom moved horizontal position");
     reset();click(editor,"waveform-fit");
     // Inspect a transient, rather than the quiet tail at the middle of the file.
     juce::MouseWheelDetails detailZoom{};detailZoom.deltaY=(float)(std::log(128.0)/(5*std::log(1.4)));

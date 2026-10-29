@@ -22,7 +22,9 @@ Version 0.10 adds waveform time graticules, compact single-row controls and a re
 
 Version 0.10.1 restores the waveform above all controls, makes every line drag bend the curve without a timing threshold, and extends curvature so the grabbed part follows the pointer across the level range. **Unlink timing** releases envelope timing macro assignments while preserving their current values, allowing locked amplitude graphs to be edited.
 
-The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.10.1-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
+Version 0.10.2 adds pointer-centred envelope zoom, wheel/middle-drag pan, per-envelope reset and undo/redo, and editing limits based on the entire original sample duration. Double-clicking numeric slider values restores defaults. Waveforms use scroll to pan, Ctrl+scroll for horizontal zoom and Shift+scroll for vertical zoom.
+
+The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.10.2-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
 
 ![Editable envelope points and curves](docs/images/drum-envelopes.png)
 

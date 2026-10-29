@@ -28,6 +28,29 @@ private:
     void refreshEnvelopes(bool newSelection=false);
     void changeEnvelope(int,const drum::EnvelopeShape&,bool audibleEdit);
     void activateEnvelope(int);
+    void resetEnvelope(int);
+    void undoEnvelope(int,bool redo);
+    void beginEnvelopeGesture(int);
+    void endEnvelopeGesture(int);
+    double envelopeLimit() const;
+    void constrainEnvelope(drum::SoundParameters&,int, double drum::SoundParameters::* changed=nullptr) const;
+    struct EnvelopeState
+    {
+        drum::EnvelopeShape shape;
+        std::array<double,4> values{};
+        double amount=0,enabled=0;
+        std::array<drum::MacroMapping,drum::numMacros> macros{};
+        bool operator==(const EnvelopeState&) const = default;
+    };
+    static EnvelopeState envelopeState(const drum::InstrumentControls&,int);
+    void recordEnvelope(int,const drum::InstrumentControls&,const drum::InstrumentControls&);
+    struct EnvelopeHistory
+    {
+        std::vector<EnvelopeState> undo,redo;
+        EnvelopeState expected;
+        bool known=false,gesture=false,recorded=false;
+    };
+    std::array<EnvelopeHistory,3> envelopeHistory;
     void setPage(int);
     void timerCallback() override;
     DrumAudioProcessor& processor;

@@ -16,7 +16,7 @@ void text(juce::Graphics& g,const juce::String& value,juce::Rectangle<int> area,
 struct SoundEditor::Field final : juce::Component
 {
     const drum::SoundParameter& parameter;
-    juce::Slider slider;
+    ResetSlider slider;
     juce::ComboBox combo;
     explicit Field(const drum::SoundParameter& p,SoundEditor& editor) : parameter(p)
     {
@@ -38,6 +38,8 @@ struct SoundEditor::Field final : juce::Component
             slider.setColour(juce::Slider::textBoxTextColourId,ink); slider.setColour(juce::Slider::textBoxBackgroundColourId,bg);
             slider.setColour(juce::Slider::textBoxOutlineColourId,juce::Colour(0xff2b3648));
             slider.onValueChange=[this,&editor] { editor.change(parameter,slider.getValue()/parameter.scale); };
+            for(int n=0;n<3;++n)if(std::find(envelopeMembers[n].begin(),envelopeMembers[n].end(),p.member)!=envelopeMembers[n].end())
+            {slider.onDragStart=[&editor,n]{editor.beginEnvelopeGesture(n);};slider.onDragEnd=[&editor,n]{editor.endEnvelopeGesture(n);};}
         }
     }
     juce::String label() const
@@ -60,7 +62,7 @@ struct SoundEditor::MacroField final : juce::Component
 {
     SoundEditor& editor;
     int index;
-    juce::Slider value,minimum,maximum;
+    ResetSlider value,minimum,maximum;
     juce::ComboBox target;
     explicit MacroField(SoundEditor& e,int n):editor(e),index(n)
     {
@@ -71,7 +73,7 @@ struct SoundEditor::MacroField final : juce::Component
             addAndMakeVisible(*slider); slider->setSliderStyle(juce::Slider::LinearHorizontal);slider->setTextBoxStyle(juce::Slider::TextBoxRight,false,74,23);
             slider->setColour(juce::Slider::trackColourId,mint);slider->setColour(juce::Slider::thumbColourId,mint);slider->setColour(juce::Slider::textBoxTextColourId,ink);slider->setColour(juce::Slider::textBoxBackgroundColourId,bg);
         }
-        value.setRange(0,100,0.1);value.setTextValueSuffix(" %");value.setName("Macro "+juce::String(n+1));value.setComponentID("macro-value-"+juce::String(n));
+        value.setDoubleClickReturnValue(true,50);value.setRange(0,100,0.1);value.setTextValueSuffix(" %");value.setName("Macro "+juce::String(n+1));value.setComponentID("macro-value-"+juce::String(n));
         minimum.setName("Mapping minimum");maximum.setName("Mapping maximum");minimum.setComponentID("macro-min-"+juce::String(n));maximum.setComponentID("macro-max-"+juce::String(n));
         value.onDragStart=[this]{editor.processor.macro(index).beginChangeGesture();};
         value.onDragEnd=[this]{editor.processor.macro(index).endChangeGesture();};
@@ -101,6 +103,7 @@ struct SoundEditor::MacroField final : juce::Component
             if(changed) slider->hideTextBox(true);
             slider->setRange(t.minimum,t.maximum,0.001);slider->setEnabled(m.target!=0);
         }
+        minimum.setDoubleClickReturnValue(true,t.minimum);maximum.setDoubleClickReturnValue(true,t.maximum);
         if(changed || (!minimum.isMouseButtonDown() && !minimum.hasKeyboardFocus(true))) minimum.setValue(m.minimum,juce::dontSendNotification);
         if(changed || (!maximum.isMouseButtonDown() && !maximum.hasKeyboardFocus(true))) maximum.setValue(m.maximum,juce::dontSendNotification);
     }
@@ -121,7 +124,7 @@ public:
     explicit Waveform(SoundEditor& e):owner(e)
     {
         setComponentID("sample-waveform"); setName("Sample waveform display");
-        setTooltip("Ctrl + wheel zooms in time; Alt + wheel zooms vertically; Shift + wheel scrolls. Fit X shows the whole sample, Fit Y fits its visible height. Source allows marker dragging.");
+        setTooltip("Wheel pans left/right; Ctrl + wheel zooms in time; Shift + wheel zooms vertically. Fit X shows the whole sample, Fit Y fits its visible height. Source allows marker dragging.");
         auto button=[this](juce::TextButton& b,const char* label,const char* id,const char* tip)
         { addAndMakeVisible(b); b.setButtonText(label); b.setComponentID(id); b.setTooltip(tip); };
         button(zoomOut,"-","waveform-zoom-out","Zoom out around the centre");
@@ -271,7 +274,7 @@ public:
     }
     void mouseWheelMove(const juce::MouseEvent& e,const juce::MouseWheelDetails& wheel) override
     {
-        if(e.mods.isAltDown())
+        if(e.mods.isShiftDown())
         {
             const int direction=wheel.deltaY>0?1:wheel.deltaY<0?-1:0;
             verticalZoom.setSelectedId(juce::jlimit(1,10,verticalZoom.getSelectedId()+direction),juce::sendNotificationSync);
@@ -280,7 +283,7 @@ public:
         {
             setZoom(zoom*std::pow(1.4,wheel.deltaY*5),juce::jlimit(0.0,1.0,(e.position.x-plot().getX())/(double)plot().getWidth()));
         }
-        else if(e.mods.isShiftDown()) offset=juce::jlimit(0.0,1-1/zoom,offset-wheel.deltaY/zoom);
+        else offset=juce::jlimit(0.0,1-1/zoom,offset-(std::abs(wheel.deltaX)>std::abs(wheel.deltaY)?wheel.deltaX:wheel.deltaY)/zoom);
         repaint();
     }
 private:
@@ -425,9 +428,9 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
         if(!i || kit->id!=kitId) return;
         auto c=i->controls; for(auto& parameter:drum::soundParameters) if(parameter.page==page) c.sound.*(parameter.member)=parameter.initial;
-        if(page==1){c.sound.envelopes[0]={};c.sound.envelopes[1]={};}else if(page==2){c.sound.envelopes[2]={};c.sound.equalizer={};}
+        if(page==1){c.sound.envelopes[0]={};c.sound.envelopes[1]={};constrainEnvelope(c.sound,0);constrainEnvelope(c.sound,1);}else if(page==2){c.sound.envelopes[2]={};c.sound.equalizer={};constrainEnvelope(c.sound,2);}
         auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
-        if(result.ok) processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+        if(result.ok){for(int n=0;n<3;++n)if(page==(n==2?2:1))recordEnvelope(n,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
         message=result.ok?"Page reset. The source file is unchanged.":result.message; refresh();
     };
     const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer"};
@@ -453,7 +456,12 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
     {
         addAndMakeVisible(*envelopes[(size_t)n]);
         envelopes[(size_t)n]->onShape=[this,n](const drum::EnvelopeShape& s,bool edit){changeEnvelope(n,s,edit);};
-        envelopes[(size_t)n]->onReset=[this,n]{changeEnvelope(n,{},false);};
+        envelopes[(size_t)n]->onUseAdsr=[this,n]{changeEnvelope(n,{},false);};
+        envelopes[(size_t)n]->onReset=[this,n]{resetEnvelope(n);};
+        envelopes[(size_t)n]->onUndo=[this,n]{undoEnvelope(n,false);};
+        envelopes[(size_t)n]->onRedo=[this,n]{undoEnvelope(n,true);};
+        envelopes[(size_t)n]->onBeginGesture=[this,n]{beginEnvelopeGesture(n);};
+        envelopes[(size_t)n]->onEndGesture=[this,n]{endEnvelopeGesture(n);};
         envelopes[(size_t)n]->onActivate=[this,n]{activateEnvelope(n);};
         if(n>0)envelopes[(size_t)n]->onAmount=[this,n](double value){waveform->showEdited();for(auto& p:drum::soundParameters)if(p.member==(n==1?&drum::SoundParameters::pitchAmount:&drum::SoundParameters::filterAmount))change(p,value);};
     }
@@ -473,6 +481,7 @@ SoundEditor::~SoundEditor() {stopTimer();viewport.setViewedComponent(nullptr,fal
 void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
 {
     const bool changed=kitId!=kit || instrumentId!=(i?i->id:juce::String());
+    if(changed || path!=(i?i->samplePath:juce::String()))envelopeHistory={};
     updating=true; kitId=kit; instrumentId=i?i->id:juce::String(); name=i?i->name:"No instrument selected"; path=i?i->samplePath:juce::String(); note=i?i->note:21; sound=i?i->controls.sound:drum::SoundParameters{};
     if(changed) {waveform->zoom=1;waveform->offset=0;message.clear();}
     for(auto& field:fields)
@@ -487,7 +496,9 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
         auto& field=*macroFields[(size_t)n];field.update(i?i->controls.macros[(size_t)n]:drum::MacroMapping{},changed);field.setEnabled(i!=nullptr);
         if(!field.value.isMouseButtonDown() && !field.value.hasKeyboardFocus(true)) field.value.setValue(processor.macro(n).get()*100,juce::dontSendNotification);
     }
-    selectedSample=processor.getSampleEngine().waveformFor(instrumentId);
+    const auto nextSample=processor.getSampleEngine().waveformFor(instrumentId);
+    if(selectedSample && nextSample!=selectedSample)envelopeHistory={};
+    selectedSample=nextSample;
     selectedControls=i?i->controls:drum::InstrumentControls{};
     equalizer.setEnabled(i!=nullptr);equalizer.update(sound.equalizer,processor.getSampleEngine().previewSampleRate());
     double peak=0;
@@ -537,7 +548,12 @@ void SoundEditor::refreshEnvelopes(bool newSelection)
         const bool amountMapped=n>0 && mapped(n==1?&drum::SoundParameters::pitchAmount:&drum::SoundParameters::filterAmount);
         if(amountMapped)status=amount==0?"Inactive: macro sets amount to zero":"Amount controlled by macro";
         auto& graph=*envelopes[(size_t)n];graph.setEnabled(instrumentId.isNotEmpty());
+        auto& history=envelopeHistory[(size_t)n];const auto actual=envelopeState(selectedControls,n);
+        if(history.known && history.expected!=actual)history={};
+        history.known=true;history.expected=actual;
+        graph.setTimeLimit(envelopeLimit());
         graph.update({effective.*members[0],effective.*members[1],effective.*members[2],effective.*members[3]},effective.envelopes[(size_t)n],controlled.isNotEmpty(),amount,n==0?"%":n==1?"st":"oct",active,status,newSelection,amountMapped);
+        graph.setHistory(!history.undo.empty(),!history.redo.empty());
         graph.setActivation(controlled.isNotEmpty()?"Unlink timing":n==0 && !active?"Use Classic":"");
     }
 }
@@ -563,9 +579,74 @@ void SoundEditor::activateEnvelope(int envelope)
     }
     else if(envelope==0)c.sound.mode=2;else if(envelope==2)c.sound.filterOn=1;
     const auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
-    if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+    if(result.ok){recordEnvelope(envelope,instrument->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
     message=result.ok?(unlinked?"Timing macros unlinked for this envelope; current timing preserved. Points and lines can now be edited.":"Envelope enabled."):result.message;
     refresh();
+}
+double SoundEditor::envelopeLimit() const
+{return selectedSample && selectedSample->rate>0?std::clamp(1000.0*selectedSample->audio.getNumSamples()/selectedSample->rate,0.001,80000.0):80000.0;}
+void SoundEditor::constrainEnvelope(drum::SoundParameters& s,int n,SoundMember changed) const
+{
+    const double limit=envelopeLimit();auto& shape=s.envelopes[(size_t)n];
+    for(int k=0;k<shape.count;++k)shape.points[(size_t)k].ms=std::min(shape.points[(size_t)k].ms,limit);
+    const auto& m=envelopeMembers[(size_t)n];
+    double total=s.*m[0]+s.*m[1]+s.*m[3];
+    if(total<=limit)return;
+    // Honour the edited stage (including a numeric default reset), fitting the
+    // other time stages into the remainder of the original sample duration.
+    if(changed==m[0] || changed==m[1] || changed==m[3])
+    {
+        s.*changed=std::min(s.*changed,limit);
+        double remaining=0;for(int k:{0,1,3})if(m[(size_t)k]!=changed)remaining+=s.*m[(size_t)k];
+        if(remaining>0)for(int k:{0,1,3})if(m[(size_t)k]!=changed)s.*m[(size_t)k]*=(limit-s.*changed)/remaining;
+    }
+    total=s.*m[0]+s.*m[1]+s.*m[3];
+    if(total>limit)for(int k:{0,1,3})s.*m[(size_t)k]*=limit/total;
+}
+SoundEditor::EnvelopeState SoundEditor::envelopeState(const drum::InstrumentControls& c,int n)
+{
+    EnvelopeState value;value.shape=c.sound.envelopes[(size_t)n];value.macros=c.macros;
+    for(int k=0;k<4;++k)value.values[(size_t)k]=c.sound.*envelopeMembers[(size_t)n][(size_t)k];
+    value.amount=n==1?c.sound.pitchAmount:n==2?c.sound.filterAmount:0;
+    value.enabled=n==0?c.sound.mode:n==2?c.sound.filterOn:0;return value;
+}
+void SoundEditor::beginEnvelopeGesture(int n) {auto& h=envelopeHistory[(size_t)n];h.gesture=true;h.recorded=false;}
+void SoundEditor::endEnvelopeGesture(int n) {auto& h=envelopeHistory[(size_t)n];h.gesture=false;h.recorded=false;}
+void SoundEditor::recordEnvelope(int n,const drum::InstrumentControls& before,const drum::InstrumentControls& after)
+{
+    auto& h=envelopeHistory[(size_t)n];const auto a=envelopeState(before,n),b=envelopeState(after,n);
+    if(a==b)return;
+    if(!h.gesture || !h.recorded){if(h.undo.size()==64)h.undo.erase(h.undo.begin());h.undo.push_back(a);h.recorded=true;}
+    h.redo.clear();h.expected=b;h.known=true;
+}
+void SoundEditor::resetEnvelope(int n)
+{
+    auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
+    if(!i || kit->id!=kitId)return;
+    auto c=i->controls;const drum::SoundParameters defaults;
+    for(auto member:envelopeMembers[(size_t)n])c.sound.*member=defaults.*member;
+    c.sound.envelopes[(size_t)n]={};
+    if(n==1)c.sound.pitchAmount=defaults.pitchAmount;if(n==2)c.sound.filterAmount=defaults.filterAmount;
+    constrainEnvelope(c.sound,n);
+    const auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
+    if(result.ok){recordEnvelope(n,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
+    waveform->showEdited();message=result.ok?"Envelope reset to defaults. Undo restores the previous settings.":result.message;refresh();
+}
+void SoundEditor::undoEnvelope(int n,bool redo)
+{
+    auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
+    if(!i || kit->id!=kitId)return;
+    auto& h=envelopeHistory[(size_t)n];const auto current=envelopeState(i->controls,n);
+    if(!h.known || h.expected!=current){h={};refresh();return;}
+    auto& from=redo?h.redo:h.undo;auto& to=redo?h.undo:h.redo;if(from.empty())return;
+    const auto value=from.back();auto c=i->controls;c.sound.envelopes[(size_t)n]=value.shape;c.macros=value.macros;
+    for(int k=0;k<4;++k)c.sound.*envelopeMembers[(size_t)n][(size_t)k]=value.values[(size_t)k];
+    if(n==0)c.sound.mode=value.enabled;
+    else if(n==1)c.sound.pitchAmount=value.amount;
+    else {c.sound.filterAmount=value.amount;c.sound.filterOn=value.enabled;}
+    const auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
+    if(result.ok){to.push_back(current);from.pop_back();h.expected=value;h.gesture=h.recorded=false;processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
+    waveform->showEdited();message=result.ok?(redo?"Envelope edit redone.":"Envelope edit undone."):result.message;refresh();
 }
 void SoundEditor::changeEnvelope(int envelope,const drum::EnvelopeShape& shape,bool audibleEdit)
 {
@@ -574,7 +655,7 @@ void SoundEditor::changeEnvelope(int envelope,const drum::EnvelopeShape& shape,b
     if(!i || kit->id!=kitId)return;
     auto controls=i->controls;const auto& members=envelopeMembers[(size_t)envelope];
     for(auto& m:controls.macros)if(m.target>3)for(auto member:members)if(drum::macroTargets[(size_t)m.target].member==member)return;
-    controls.sound.envelopes[(size_t)envelope]=shape;
+    controls.sound.envelopes[(size_t)envelope]=shape;constrainEnvelope(controls.sound,envelope);
     if(envelope==0 && audibleEdit)controls.sound.mode=2;
     bool mappedAmount=false;for(auto& m:controls.macros)mappedAmount|=m.target==11;
     if(envelope==1 && audibleEdit && controls.sound.pitchAmount==0 && !mappedAmount)controls.sound.pitchAmount=12;
@@ -585,7 +666,7 @@ void SoundEditor::changeEnvelope(int envelope,const drum::EnvelopeShape& shape,b
     }
     if(audibleEdit)waveform->showEdited();
     auto result=processor.getLibrary().setControls(kitId,instrumentId,controls);
-    if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+    if(result.ok){recordEnvelope(envelope,i->controls,controls);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
     message=result.ok?"Shape saved. Click a line to add a point; drag a point to move it; drag a line to curve it. S holds until note-off; preview gate is 1 s.":result.message;
     refresh();
 }
@@ -623,9 +704,13 @@ void SoundEditor::change(const drum::SoundParameter& parameter,double value)
     auto state=processor.getLibrary().snapshot(); auto* kit=drum::activeKit(state); auto* i=drum::findInstrument(*kit,instrumentId);
     if(!i || kit->id!=kitId) return;
     auto c=i->controls; c.sound.*(parameter.member)=value;
+    int envelope=-1;
+    for(int n=0;n<3;++n)if(std::find(envelopeMembers[n].begin(),envelopeMembers[n].end(),parameter.member)!=envelopeMembers[n].end()
+        || (n==1 && parameter.member==&drum::SoundParameters::pitchAmount) || (n==2 && parameter.member==&drum::SoundParameters::filterAmount))envelope=n;
+    if(envelope>=0)constrainEnvelope(c.sound,envelope,parameter.member);
     auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
     if(result.ok && (parameter.member==&drum::SoundParameters::fadeIn || parameter.member==&drum::SoundParameters::fadeOut))waveform->showEdited();
-    if(result.ok) processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+    if(result.ok){if(envelope>=0)recordEnvelope(envelope,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
     message=result.ok?"Saved with this kit. Markers, direction, playback mode and loop on/off apply on the next hit.":"Start must be before End; loop start must be before loop end.";
     refresh();
 }
@@ -652,7 +737,7 @@ void SoundEditor::paint(juce::Graphics& g)
     g.fillAll(panel);
     text(g,name,{18,12,getWidth()-410,30},22);
     static const char* help[]{
-        "Choose Source to drag trim markers; Edited previews the sound. Ctrl + wheel zooms; Shift + wheel scrolls.",
+        "Choose Source to drag trim markers; Edited previews the sound. Scroll pans; Ctrl + scroll zooms X; Shift + scroll zooms Y.",
         "Click line: add point. Drag point: move. Drag line: curve. Double-click point: remove. Right-click: hold at S.",
         "Stereo EQ plus a separate envelope-controlled tone filter.",
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",

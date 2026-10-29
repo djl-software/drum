@@ -1,3 +1,4 @@
+#include "ResetSlider.h"
 #include "PluginEditor.h"
 #include "DJLAssets.h"
 #include "SoundEditor.h"
@@ -544,7 +545,7 @@ private:
     juce::TextButton addInstrument,copyInstrument,deleteInstrument,instrumentUp,instrumentDown;
     juce::TextButton loadSample,playSample,stopSample;
     juce::TextButton mute,solo;
-    juce::Slider volume,pan,tuning;
+    ResetSlider volume,pan,tuning;
     std::unique_ptr<juce::FileChooser> chooser;
     uint64_t sampleEpoch = 0;
     juce::TextEditor kitName,groupName,instrumentName;

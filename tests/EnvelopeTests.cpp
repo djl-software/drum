@@ -141,7 +141,7 @@ void runEnvelopeTests()
     {
         const auto a=shape.points[segment-1],b=shape.points[segment];const double ms=a.ms+(b.ms-a.ms)*fraction;
         return juce::Point<float>{35+(float)(ms/(shape.points[shape.count-1].ms*1.1))*(graph.getWidth()-55),
-            (float)(graph.getHeight()-40)-(float)drum::envelopeSegment(a.level,b,fraction)*(graph.getHeight()-96)};
+            (float)(graph.getHeight()-40)-(float)drum::envelopeSegment(a.level,b,fraction)*(graph.getHeight()-104)};
     };
     auto line=onLine(pitch,drum::adsrShape(80,200,0.2,100),2,0.5);
     check(editor.getComponentAt(editor.getLocalPoint(&pitch,line.roundToInt()))==&pitch,"Envelope line is intercepted by another component");
@@ -199,6 +199,70 @@ void runEnvelopeTests()
     drag(ampA,{60,20});auto wet=drum::SampleEngine::renderPreview(source,current(),{},120,48000);
     check(current().sound.mode==2 && current().sound.envelopes[0].count==4 && wet.sample && dry.sample && wet.sample->peak<dry.sample->peak*0.8f,"Unlocked amplitude drag did not shape playback");
     check(wave.getBottom()<amp.getY(),"Waveform is not above amplitude controls");
+    // Each graph has independent, gesture-sized history and obeys the original
+    // file's duration even when the playable region has been trimmed much shorter.
+    const double fullMs=1000.0*source->audio.getNumSamples()/source->rate;
+    for(int n=0;n<3;++n)
+    {
+        const juce::String prefix=n==0?"envelope-amp":n==1?"envelope-pitch":"envelope-filter";
+        click(editor,n==2?"edit-tab-2":"edit-tab-1");if(n==2)click(editor,"filter-envelope-tab");
+        c=current();c.macros={};c.sound.start=0.2;c.sound.end=0.3;c.sound.envelopes[(size_t)n]=drum::adsrShape(100,150,0.4,150);
+        check(library.setControls(kit,id,c).ok,"Navigation fixture failed");refresh();
+        auto& graph=control<EnvelopeEditor>(editor,prefix.toRawUTF8());
+        auto& handle=control<juce::Component>(editor,(prefix+"-point-1").toRawUTF8());
+        check(handle.getY()>control<juce::TextButton>(editor,(prefix+"-reset").toRawUTF8()).getBottom(),"Envelope toolbar overlaps top-level point grip");
+        const auto before=current();auto anchor=handle.getBounds().getCentre().toFloat();const auto initialX=anchor.x;
+        juce::MouseWheelDetails wheel{};wheel.deltaY=0.4f;
+        graph.mouseWheelMove(event(graph,anchor,anchor,juce::ModifierKeys::ctrlModifier),wheel);
+        check(std::abs(handle.getBounds().getCentreX()-initialX)<2,"Envelope zoom lost pointer anchor");
+        wheel.deltaY=-0.15f;graph.mouseWheelMove(event(graph,anchor,anchor,0),wheel);
+        check(handle.getBounds().getCentreX()<initialX-5,"Envelope wheel did not pan");
+        const auto panned=handle.getBounds().getCentreX();
+        graph.mouseDown(event(graph,anchor,anchor,juce::ModifierKeys::middleButtonModifier));
+        graph.mouseDrag(event(graph,anchor+juce::Point<float>{20,0},anchor,juce::ModifierKeys::middleButtonModifier));graph.mouseUp(event(graph,anchor,anchor));
+        check(handle.getBounds().getCentreX()>panned+10,"Middle drag did not pan envelope");
+        check(current()==before,"Navigation changed sound");click(editor,(prefix+"-fit").toRawUTF8());
+        auto downPoint=handle.getLocalBounds().getCentre().toFloat(),startPosition=handle.getPosition().toFloat();
+        handle.mouseDown(event(handle,downPoint,downPoint));
+        for(int move:{10,20,35})handle.mouseDrag(event(handle,startPosition+downPoint+juce::Point<float>{(float)move,10}-handle.getPosition().toFloat(),downPoint));
+        handle.mouseUp(event(handle,downPoint,downPoint));const auto after=current();
+        check(after.sound.envelopes[(size_t)n]!=before.sound.envelopes[(size_t)n],"History gesture did not edit");
+        click(editor,(prefix+"-undo").toRawUTF8());check(current()==before,"Undo did not restore entire drag and activation");
+        check(!control<juce::TextButton>(editor,(prefix+"-undo").toRawUTF8()).isEnabled(),"Drag created multiple undo entries");
+        click(editor,(prefix+"-redo").toRawUTF8());check(current()==after,"Redo did not restore envelope edit");
+        click(editor,(prefix+"-reset").toRawUTF8());check(current().sound.envelopes[(size_t)n].count==0,"Envelope reset left custom points");
+        click(editor,(prefix+"-undo").toRawUTF8());check(current()==after,"Reset cannot be undone");
+        drag(handle,{(float)graph.getWidth()*5,0});
+        const auto bounded=current().sound.envelopes[(size_t)n];
+        near(bounded.points[(size_t)bounded.count-1].ms,fullMs,0.001,"Envelope limit uses trimmed audio or exceeds original duration");
+        for(int k=0;k<bounded.count;++k)check(bounded.points[(size_t)k].ms<=fullMs,"Envelope node exceeds sample length");
+        check(!control<juce::TextButton>(editor,(prefix+"-redo").toRawUTF8()).isEnabled(),"New edit retained stale redo");
+        click(editor,(prefix+"-adsr").toRawUTF8());
+        const char* decay=n==0?"edit-ampDecay":n==1?"edit-pitchDecay":"edit-filterDecay";
+        control<juce::Slider>(editor,decay).setValue(20000,juce::sendNotificationSync);
+        const auto limited=current().sound;
+        const auto total=n==0?limited.ampAttack+limited.ampDecay+limited.ampRelease:n==1?limited.pitchAttack+limited.pitchDecay+limited.pitchRelease:limited.filterAttack+limited.filterDecay+limited.filterRelease;
+        check(total<=fullMs+0.00001,"Numeric ADSR bypassed original sample limit");
+    }
+    // Reset gestures from the value label and an already-open text editor must
+    // reach the same default and notification path as the slider itself.
+    auto resetNumber=[&](const char* key,double changed,double expected,bool editing=false) {
+        auto& slider=control<ResetSlider>(editor,key);slider.setValue(changed,juce::sendNotificationSync);
+        juce::Label* label=nullptr;for(auto* child:slider.getChildren())if(auto* l=dynamic_cast<juce::Label*>(child))label=l;
+        check(label!=nullptr,"Slider value label missing");
+        juce::Component* target=label;
+        if(editing){label->showEditor();target=label->getCurrentTextEditor();check(target!=nullptr,"Numeric entry unavailable");}
+        slider.mouseDoubleClick(event(*target,{2,2},{2,2}));check(slider.isUpdatePending(),"Value-box double click not routed");slider.handleUpdateNowIfNeeded();
+        near(slider.getValue(),expected,0.0001,"Numeric double click did not restore default");
+    };
+    click(editor,"edit-tab-0");resetNumber("edit-sampleGain",7,0);check(current().sound.sampleGain==0,"Numeric reset did not reach sound state");
+    resetNumber("edit-fadeOut",25,2,true);check(current().sound.fadeOut==2,"Open editor reset did not reach sound state");
+    click(editor,"edit-tab-1");resetNumber("envelope-pitch-amount",5,0);check(current().sound.pitchAmount==0,"Envelope amount default incorrect");
+    resetNumber("edit-ampRelease",0,100);check(current().sound.ampRelease==100 && current().sound.ampAttack+current().sound.ampDecay+current().sound.ampRelease<=fullMs+0.00001,"Bounded timing reset did not retain its default");
+    click(editor,"edit-tab-2");click(editor,"filter-eq-tab");click(editor,"eq-band-4");resetNumber("eq-frequency",3000,1500);resetNumber("eq-output",6,0);resetNumber("eq-q",3,0.70710678);
+    click(editor,"edit-tab-5");resetNumber("macro-value-0",75,50);near(p.macro(0).get(),0.5,0.0001,"Macro numeric reset did not notify host");
+    click(editor,"edit-tab-1");
+    c=current();c.sound.envelopes[0]=drum::adsrShape(100,150,0.4,150);check(library.setControls(kit,id,c).ok,"Recall shape fixture failed");refresh();
     auto down=ampA.getLocalBounds().getCentre().toFloat();ampA.mouseDown(event(ampA,down,down));const auto original=current();
     const auto second=library.addInstrument(kit,group).id;state=library.snapshot();soundEditor.select(kit,drum::findInstrument(*drum::activeKit(state),second));
     ampA.mouseDrag(event(ampA,down+juce::Point<float>{70,0},down));ampA.mouseUp(event(ampA,down,down));
