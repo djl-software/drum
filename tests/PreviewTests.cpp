@@ -97,6 +97,7 @@ void runPreviewTests()
     controls.sound.filterOn=1;controls.sound.cutoff=1300;controls.sound.filterAmount=2;controls.sound.filterAttack=10;controls.sound.drive=2;
     controls.sound.lfoOn=1;controls.sound.lfoSync=1;controls.sound.lfoVolume=0.3;controls.sound.lfoPitch=0.5;controls.sound.lfoPan=0.2;
     controls.sound.mono=1;controls.sound.attackOn=1;controls.sound.attackType=2;controls.sound.attackLevel=-6;controls.sound.attackDecay=45;
+    for(auto& shape:controls.sound.envelopes){shape=drum::adsrShape(20,120,0.35,200);shape.points[1].bend=-0.3;shape.points[2].bend=0.25;drum::insertEnvelopePoint(shape,2,85);}
     controls.sound.output=4;controls.sound.sendA=-9;controls.macros[0]={4,-3,3};macros[0]=0.25;
     check(library.setControls(kit,id,controls).ok,"Preview comparison controls invalid");check(engine.waitForLoading(10000),"Preview comparison bank timed out");
     for(double rate:{44100.0,48000.0,96000.0})

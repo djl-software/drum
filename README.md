@@ -16,6 +16,12 @@ Version 0.7 adds per-instrument **Source channels: Stereo / Mono** on the Sample
 
 Version 0.8 adds draggable **amplitude, pitch and filter envelope graphs**. Drag their A/D/S/R points or connecting lines to shape the sound; numeric controls and the Edited waveform update together. Each graph has its own time zoom and Fit. Inactive envelopes are labelled, and macro-controlled stages follow automation without overwriting their base settings.
 
+Version 0.9 replaces fixed envelope handles with **2–32 editable points and curved segments**, including a movable sustain/hold point. Pitch amount is visible beside its graph, and audible graph edits switch to Edited view. A new readout separately shows the MIDI trigger, estimated processed pitch, and musical key/Camelot with uncertainty or an explicit manual label. Old projects retain their original ADSR behaviour.
+
+The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.9.0-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
+
+![Editable envelope points and curves](docs/images/drum-envelopes.png)
+
 Use **Add example kit** to review a populated layout. Its named instrument slots start empty. Select a slot and choose **Load sample**, or drop one audio file onto an instrument card to replace its sound. Drop one or more audio samples from Ableton's Samples browser or Explorer into empty workspace space to create named instruments in the selected group, with free MIDI notes. **Play** auditions the selected instrument; incoming MIDI triggers its assigned note with velocity-sensitive, overlapping one-shot playback. WAV, AIFF, FLAC, OGG and MP3 are supported, with mono/stereo files up to 30 seconds and 64 MB decoded. The active kit allows 512 MB of unique sample data including waveform caches, and 128 simultaneous voices.
 
 Volume ranges from silence to +12 dB, pan from left to right, and tuning from -48 to +48 semitones, plus fine tuning in the editor. Double-click a slider to reset it. Solo works across the active kit and allows multiple solos; mute takes priority. Choke Off allows overlap. Instruments sharing choke group 1–16 cut earlier hits in that choke group, independently of organisational groups and MIDI channels. Tuning changes sample speed and duration; pan is stereo balance.

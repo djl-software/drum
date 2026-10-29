@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DJLDrum VERSION 0.8.0 LANGUAGES C CXX)
+project(DJLDrum VERSION 0.9.0 LANGUAGES C CXX)
 if(APPLE)
   enable_language(OBJC OBJCXX)
 endif()
@@ -30,7 +30,7 @@ juce_add_plugin(DJLDrum
   HARDENED_RUNTIME_ENABLED TRUE)
 juce_add_binary_data(DJLDrumAssets NAMESPACE DJLAssets HEADER_NAME DJLAssets.h
   SOURCES assets/DJLLogoWhite.png)
-target_sources(DJLDrum PRIVATE src/PluginProcessor.cpp src/PluginEditor.cpp src/KitLibrary.cpp src/SampleEngine.cpp src/SoundEditor.cpp src/WaveformData.cpp src/EnvelopeEditor.cpp)
+target_sources(DJLDrum PRIVATE src/PluginProcessor.cpp src/PluginEditor.cpp src/KitLibrary.cpp src/SampleEngine.cpp src/SoundEditor.cpp src/WaveformData.cpp src/EnvelopeEditor.cpp src/TonalAnalysis.cpp)
 target_compile_definitions(DJLDrum PUBLIC
   DRUM_VERSION_STRING="${PROJECT_VERSION}"
   JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)

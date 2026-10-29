@@ -1,4 +1,4 @@
-# Drum sound editor (0.8)
+# Drum sound editor (0.9)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Kit switching remains available above the editor. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
@@ -44,24 +44,25 @@ Classic mode exposes amplitude Attack, Decay, Sustain and Release. The pitch env
 
 The Edited waveform reflects these controls when active. Amplitude ADSR needs **Playback: Classic ADSR**; Trigger and Gate use Fade in/out instead. The pitch envelope needs a nonzero **Pitch envelope** amount. Editing its ADSR with amount zero leaves the sound unchanged. Source always shows the unprocessed file.
 
-### Shape envelopes by dragging
+### Shape envelopes with points and curves
 
-The **Envelopes & pitch** page shows amplitude and pitch graphs side by side. **Filter** shows its own envelope graph. The sample waveform remains above them, and the existing numeric sliders are below the graphs in the scrolling controls area.
+Amplitude and pitch graphs sit side by side; Filter has its own graph. Click and release on a line to add a point without changing its existing shape. Drag a point in both axes to set time and level; points stay in time order and within 0–100%. Double-click a point to remove it (minimum two, maximum 32). Hold on a line and drag to curve that segment around the grabbed position; horizontal movement shifts the bend placement.
 
-- **A / attack line:** drag horizontally to set the rise time.
-- **D / decay line:** drag horizontally for decay time and vertically for sustain level.
-- **S / sustain line:** drag vertically for the held level. Horizontal movement does not change note length.
-- **R / release line:** drag horizontally for release time after note-off.
+Right-click a non-final point to mark **S**, the held level. The points before S run from note-on; points after S describe release time after note-off. A short MIDI note releases from the actual current level. There is no fixed sustain duration in the graph. A nonzero final level fades briefly to zero. Custom shapes allow up to 80 seconds.
 
-Times are displayed in milliseconds/seconds and sustain in percent. Pitch and filter graphs show the signed envelope amount: negative amounts draw downwards from zero. With zero amount, their inactive curve shows the normalised shape for editing. Graphs and sliders stay in sync, and every drag is saved to the selected instrument and updates Edited through the existing preview renderer. No new envelope curves or audio processing modes are introduced: the lines represent Drum's existing linear ADSR stages.
+**Use ADSR** removes the custom shape and restores the stored numeric ADSR. Numeric stage sliders are disabled while a custom shape is active. Reset page clears custom shapes on that page. The curve changes audible DSP and is saved per instrument, including copies and slices.
 
-Each graph has **- / + / Fit** time controls, independent of waveform zoom. The scale stays fixed during a drag. Fit resumes automatic fitting after the gesture ends; manual zoom stays fixed until Fit is clicked. For precise changes, focus a point and use Left/Right for 1 ms steps or Up/Down on D/S for one-percent level steps. Hold Shift for 0.1 ms or 0.1 percent. Overlapping zero-length stages have separate grips with short connectors to the actual curve.
+Graphs have separate **- / + / Fit** time controls; wheel movement pans. Fit resumes automatic fitting; scale stays fixed during a gesture. Focus a point and use arrows for 1 ms / 1% changes, Shift for 0.1 ms / 0.1%, or Delete/Backspace to remove. Overlapping points have offset grips connected to the actual curve.
 
-The graphs illustrate a note held through attack and decay, then an illustrative 250 ms sustain interval before note-off. That sustain width is not a stored duration. Actual note length comes from MIDI or manual Play; short notes can release before attack/decay finish, and a short sample can end sooner. Trigger ignores note-off. The waveform above shows the actual preview with its one-second gate, so its time axis does not align with these held-note diagrams.
+Amplitude still requires Classic. Filter requires Filter On and a nonzero amount. Pitch/filter amount sliders are now visible in the graph headers. Moving, bending or deleting a pitch point with amount zero enables +12 st unless a macro owns the amount; adding a point alone preserves silence. Audible graph edits select **Edited**, so their effect is immediately visible. Numeric ADSR changes at zero pitch amount still leave the sound unchanged.
 
-Inactive graphs are grey and state why. **Use Classic** explicitly enables amplitude ADSR; editing its points alone does not switch playback modes. The filter graph offers **Enable filter** when the filter is Off, but still needs a nonzero Filter envelope amount. Pitch needs a nonzero Pitch envelope amount. Those amount sliders remain below the graphs.
+When a macro controls amplitude timing, the effective curve follows its value and the whole graph locks point editing. Remove the timing mapping to reshape the stored base curve. Amount mappings lock the graph's amount slider. Reset page leaves macro mappings intact.
 
-When a macro controls an ADSR stage, the graph shows its current effective value and labels the controlled letters. That stage's grip and line are locked; other stages remain editable. Change/remove the macro mapping to edit the stage directly. Base numeric values remain stored separately, as before. Page reset restores base ADSR values and does not remove macro mappings. View zoom is editor-local and is not saved with the kit.
+### Trigger, pitch and Camelot
+
+The header separately labels the assigned MIDI trigger, estimated processed-audio pitch (note/Hz or a varying range), and musical key/Camelot. Background analysis is bounded and can report uncertainty. A stable single drum tone cannot establish major/minor; noisy and short hits may have no reliable pitch.
+
+**Key label (manual override)** selects a known major/minor key, explicitly labelled manual. Auto detect returns to analysis. Manual labels are metadata and do not transpose automatically when tuning changes. Source view still analyses the processed preview; Send views analyse the chosen send. External Live effects are excluded. Examples: A minor = 8A, C major = 8B, B-flat minor = 3A; see the [official Camelot chart](https://mixedinkey.com/camelot-wheel/).
 
 ## Filter
 
@@ -110,6 +111,6 @@ Targets include the instrument mixer, sample gain, cutoff/resonance, envelope ti
 
 ## Compatibility and remaining scope
 
-Schema 6 saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
+Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
 
 The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered chains, hosting arbitrary devices, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.

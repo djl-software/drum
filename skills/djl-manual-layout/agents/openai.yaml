@@ -1,0 +1,5 @@
+interface:
+  display_name: "DJL Manual Layout"
+  short_description: "Meter-style illustrated manuals with how and why"
+  brand_color: "#6fe0c1"
+  default_prompt: "Use $djl-manual-layout to create a complete illustrated product manual with beginner-friendly instructions and explanations."

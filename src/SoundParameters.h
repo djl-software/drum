@@ -2,6 +2,7 @@
 #include <juce_core/juce_core.h>
 #include <array>
 #include <cmath>
+#include "EnvelopeShape.h"
 
 namespace drum
 {
@@ -73,13 +74,15 @@ namespace drum
  X(attackType,"Attack sound",0,0,2,1,"",6,"Click|Pulse|Noise",1) \
  X(attackLevel,"Attack level",-18,-60,0,0.1," dB",6,"",1) \
  X(attackTone,"Attack tone",1800,30,16000,1," Hz",6,"",1) \
- X(attackDecay,"Attack decay",8,1,100,0.1," ms",6,"",1)
+ X(attackDecay,"Attack decay",8,1,100,0.1," ms",6,"",1) \
+ X(keyOverride,"Key label (manual override)",0,0,24,1,"",1,"Auto detect|C major|C# major|D major|D# major|E major|F major|F# major|G major|G# major|A major|A# major|B major|C minor|C# minor|D minor|D# minor|E minor|F minor|F# minor|G minor|G# minor|A minor|A# minor|B minor",1)
 
 struct SoundParameters
 {
 #define DRUM_DECLARE(key,label,initial,low,high,step,unit,page,choices,scale) double key = initial;
     DRUM_SOUND_PARAMETERS(DRUM_DECLARE)
 #undef DRUM_DECLARE
+    std::array<EnvelopeShape,3> envelopes {};
     bool operator==(const SoundParameters&) const = default;
 };
 struct SoundParameter
@@ -107,6 +110,7 @@ inline bool introducedInVersion6(const SoundParameter& p)
 }
 inline bool validSound(const SoundParameters& sound)
 {
+    for(auto& envelope:sound.envelopes)if(!validEnvelope(envelope))return false;
     for (auto& p : soundParameters)
     {
         const auto v = sound.*(p.member);
@@ -147,5 +151,24 @@ inline bool validMapping(const MacroMapping& m)
     auto& target=macroTargets[(size_t)m.target];
     return std::isfinite(m.minimum) && std::isfinite(m.maximum)
         && m.minimum>=target.minimum && m.minimum<=target.maximum && m.maximum>=target.minimum && m.maximum<=target.maximum;
+}
+inline void resolveEnvelopeMacros(SoundParameters& sound,const std::array<MacroMapping,numMacros>& mappings)
+{
+    auto& s=sound.envelopes[0];if(!s.count)return;
+    bool a=false,d=false,r=false;
+    for(const auto& m:mappings){a|=m.target==7;d|=m.target==8;r|=m.target==9;}
+    if(!a && !d && !r)return;
+    int peak=0;for(int n=1;n<=s.hold;++n)if(s.points[(size_t)n].level>s.points[(size_t)peak].level)peak=n;
+    const double oldA=s.points[(size_t)peak].ms,oldD=s.points[(size_t)s.hold].ms-oldA,oldR=s.points[(size_t)s.count-1].ms-oldA-oldD;
+    const double attack=a?sound.ampAttack:oldA,decay=d?sound.ampDecay:oldD,release=r?sound.ampRelease:oldR;
+    for(int n=0;n<s.count;++n)
+    {
+        auto& p=s.points[(size_t)n];
+        if(n<=peak)p.ms=attack*(oldA>0?p.ms/oldA:n==peak?1:0);
+        else if(n<=s.hold)p.ms=attack+decay*(oldD>0?(p.ms-oldA)/oldD:1);
+        else p.ms=attack+decay+release*(oldR>0?(p.ms-oldA-oldD)/oldR:1);
+    }
+    const auto end=s.points[(size_t)s.count-1].ms;
+    if(end>80000)for(int n=0;n<s.count;++n)s.points[(size_t)n].ms*=80000/end;
 }
 }

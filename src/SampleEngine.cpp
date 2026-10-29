@@ -231,7 +231,11 @@ void SampleEngine::updateBank(const State& state)
             auto& s=c.sound;
             { const juce::ScopedLock guard(statusLock); waveforms[instrument.id]=sample; }
             auto seconds=sample->audio.getNumSamples()/sample->rate; duration=juce::jmax(duration,seconds/render.pitch);
-            if(s.mode==2 && s.loop!=0) duration=juce::jmax(duration,30.0+s.ampRelease/1000.0);
+            if(s.mode==2 && s.loop!=0)
+            {
+                const auto& e=s.envelopes[0];const double release=e.count?e.points[(size_t)e.count-1].ms-e.points[(size_t)e.hold].ms+2:s.ampRelease;
+                duration=juce::jmax(duration,30.0+release/1000.0);
+            }
             setStatus(instrument.id,{false,true,"Ready",seconds});
         }
         else { setStatus(instrument.id,{false,false,error,0}); const juce::ScopedLock guard(statusLock); waveforms.erase(instrument.id); }
@@ -313,6 +317,8 @@ void SampleEngine::configureEnvelopes(Voice& v) noexcept
     v.amp.setParameters(s.mode==2 ? parameters(s.ampAttack,s.ampDecay,s.ampSustain,s.ampRelease) : parameters(s.fadeIn,0,1,s.fadeOut));
     v.filterEnvelope.setParameters(parameters(s.filterAttack,s.filterDecay,s.filterSustain,s.filterRelease));
     v.pitchEnvelope.setParameters(parameters(s.pitchAttack,s.pitchDecay,s.pitchSustain,s.pitchRelease));
+    v.amp.setShape(s.mode==2?s.envelopes[0]:EnvelopeShape{});
+    v.pitchEnvelope.setShape(s.envelopes[1]);v.filterEnvelope.setShape(s.envelopes[2]);
 }
 void SampleEngine::releaseNote(int note,int channel) noexcept
 {
@@ -354,6 +360,7 @@ void SampleEngine::updateRenderControls() noexcept
             const double value=m.minimum+(m.maximum-m.minimum)*macroValues[(size_t)n];
             switch(m.target) {case 1:c.volumeDb=value;break;case 2:c.pan=value;break;case 3:c.tuning=value;break;default:c.sound.*(macroTargets[(size_t)m.target].member)=value;break;}
         }
+        resolveEnvelopeMacros(c.sound,c.macros);
         const float gain=c.volumeDb<=-60?0.0f:juce::Decibels::decibelsToGain((float)c.volumeDb);
         render.left=gain*(float)juce::jmin(1.0,1-c.pan); render.right=gain*(float)juce::jmin(1.0,1+c.pan);
         render.pitch=std::pow(2.0,(c.tuning+c.sound.detune/100)/12);

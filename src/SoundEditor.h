@@ -25,7 +25,7 @@ private:
     void refresh();
     void refreshPreview();
     void refreshEnvelopes(bool newSelection=false);
-    void changeEnvelope(int envelope,int handle,EnvelopeEditor::Values);
+    void changeEnvelope(int,const drum::EnvelopeShape&,bool audibleEdit);
     void setPage(int);
     void timerCallback() override;
     DrumAudioProcessor& processor;
@@ -37,6 +37,7 @@ private:
     bool updating=false;
     int page=0,note=21;
     juce::TextButton back,play,stop,reset;
+    juce::Label noteIndicator;
     juce::TextButton slice;
     juce::ComboBox sliceCount;
     std::array<juce::TextButton,7> tabs;

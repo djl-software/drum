@@ -1,4 +1,4 @@
-# Testing Drum 0.5 in Ableton Live
+# Testing Drum 0.9 in Ableton Live
 
 This is a Windows x64 development VST3 with sample loading, a full-screen sound editor, playback modes, modulation, routing and macros. It is ready for host testing, not a commercial release. See the [sound editor guide](sound-editor.md) for the exact supported controls and remaining parity work.
 
@@ -51,6 +51,16 @@ Computer Use was stopped by the user during the final update. The tested native 
 Automated processor tests cover every editing field's persistence, Gate/Classic release, loops in both directions, ADSR, pitch, filters, LFO bypass, voice limits, macros, routing, slicing and UI wiring. The compiled VST3 test verifies gate timing, auxiliary/send audio and host macro automation as well as earlier playback/recall. Native MIDI performance, Live output-track routing and automation-lane recording still require their separate host checks; they are not implied by the audition test.
 
 ## Validation boundary
+
+### Free envelope and pitch/key review (0.9)
+
+Installed on 29 October 2026 with Live closed. The two installed bundle files match the tested build. Module SHA-256: `0dc21f9d9cb503c9322729a5b152d457aa25622e33ba39fc2f00c2745cce078a`. Backup: `.local/installed-pre-0.9-20261029-091843/`. CTest 2/2 and Steinberg validator 47/47 passed; native Live review remains pending.
+
+1. Click a line to add a point; move it in both axes; double-click to remove. Hold and drag a segment to bend it around the grabbed location.
+2. Right-click a non-final point to set S. Compare held notes and short note-offs in Classic; inspect the release section.
+3. With pitch amount zero, add a point (no sound change), then move it (+12 st enabled). Check Edited waveform cycle spacing and listen. Try negative amounts and the graph-header amount slider.
+4. Confirm Trigger MIDI note and Preview pitch are separate. Noise may be uncertain. Choose a manual key and check the Camelot code; save/reopen to verify its recall.
+5. Use ADSR to restore numeric control, test a timing macro, and check compact view. Review the complete PDF manual in the package for how/why guidance.
 
 ### Draggable envelope review (0.8)
 

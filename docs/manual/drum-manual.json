@@ -1,0 +1,1528 @@
+{
+  "product": "Drum",
+  "version": "0.9.0",
+  "date": "29 October 2026",
+  "platform": "Windows VST3",
+  "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
+  "cover_caption": "Version 0.9.0 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.9.0  |  Windows VST3 editing preview",
+  "logo": "../../assets/DJLLogoWhite.png",
+  "cover_image": "assets/curves.png",
+  "publisher": "DJL Software",
+  "chapters": [
+    {
+      "title": "Welcome to Drum",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.9.0 editing preview."
+        },
+        {
+          "type": "p",
+          "text": "You can keep up to eight kits in one instance. Each kit contains one to sixteen groups and up to 88 instruments in total. One kit plays at a time. Each instrument contains one audio sample and has a unique MIDI trigger note within its kit."
+        },
+        {
+          "type": "why",
+          "text": "A kit is a complete set of sounds, a group is a way of keeping related sounds together, and an instrument is one playable hit. For example, a kit called House can contain Kick, Snare and Hats groups. Groups help you find sounds; they do not automatically mix or process audio together."
+        },
+        {
+          "type": "sub",
+          "text": "How to use this guide"
+        },
+        {
+          "type": "p",
+          "text": "Start with Your first playable kit. Then follow the sound-editing chapters in order, or use the clickable contents to find a control. Each chapter explains the actions and the reason to use them. Suggested settings are starting points, not rules for every sample."
+        },
+        {
+          "type": "p",
+          "text": "Screenshots show the real 0.9.0 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
+        },
+        {
+          "type": "p",
+          "text": "This is a development preview, not complete Ableton Drum Rack or Simpler parity. A separate standalone product is planned. The optional Windows standalone executable is currently a development harness; the VST3 is the main testing target. No factory sample library or finished installer is included."
+        },
+        {
+          "type": "p",
+          "text": "DJL Software · Manual updated 29 October 2026. Keep the version of this guide with the build it describes."
+        }
+      ]
+    },
+    {
+      "title": "Install, update and load",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Save your DAW project, then close any application using DJL Drum before replacing the plug-in.",
+            "Copy the complete DJL Drum.vst3 folder from the supplied package into the VST3 location enabled in your DAW. Preserve its Contents subfolder. The bundle is a folder even though its name ends in .vst3.",
+            "In Live, open Settings/Preferences > Plug-Ins. Enable the VST3 system folder or your configured VST3 custom folder, as appropriate, and rescan. Keep a single current Drum installation in the locations being scanned.",
+            "Find DJL Drum under Plug-Ins and load it onto a MIDI track. Open the plug-in editor to see the kit workspace."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A VST3 instrument turns incoming MIDI notes into audio. It belongs on a MIDI/instrument track. An audio track receiving Drum's extra output is a different part of the routing."
+        },
+        {
+          "type": "p",
+          "text": "The usual Windows VST3 system location is C:\\Program Files\\Common Files\\VST3. Use your existing dedicated VST3 custom location if that is how this test system is configured. Keep sample libraries and the optional standalone executable outside the plug-in scan folder."
+        },
+        {
+          "type": "p",
+          "text": "See <link href=\"https://help.ableton.com/hc/en-us/articles/209071729-Using-VST-plug-ins-on-Windows\" color=\"#15745f\">Ableton: Using VST plug-ins on Windows</link> for host folder and scanning guidance."
+        },
+        {
+          "type": "sub",
+          "text": "Updating an existing project"
+        },
+        {
+          "type": "p",
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.9.0. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
+        },
+        {
+          "type": "p",
+          "text": "There is no commercial installer, licensing workflow or automatic updater in this preview. If your DAW still shows an older version in the editor header, check for another scanned copy and close/reopen the host."
+        }
+      ]
+    },
+    {
+      "title": "Your first playable kit",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Open Drum. Rename Kit 1 using the active-kit name box. Press Enter or click away to keep the name; Escape cancels a name edit.",
+            "Select Group 1 and rename it Drums. Click + Instrument, select its card, then click Load sample and choose a short WAV or AIFF drum hit. Wait for Ready. Alternatively, drop a sample into the empty card area.",
+            "Click Play in the instrument panel. You should hear one hit. Click Stop to end sounding voices.",
+            "Use the Key chooser to assign MIDI 36. Drum calls this C2. In your DAW, draw MIDI note number 36 in a clip, or send that note from a controller.",
+            "Play the clip. For live keyboard input, arm the MIDI track or choose the appropriate input-monitoring setting in the DAW.",
+            "Add a snare and a hat on different free notes. Save the DAW project once playback works."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "The trigger note selects the instrument; it does not tell Drum what pitch the sample should have. MIDI 36 can trigger any sample. DAWs use different octave labels, so compare the numerical MIDI note when labels disagree."
+        },
+        {
+          "type": "p",
+          "text": "Play auditions at 80% velocity. Gate and Classic audition use a one-second held note before release. A MIDI clip can use a different velocity or note length, so its result can sound different from the audition."
+        },
+        {
+          "type": "sub",
+          "text": "A useful first comparison"
+        },
+        {
+          "type": "p",
+          "text": "Select the kick, open Edit sound and keep the waveform view on Edited. Change Volume in the kit panel, or Sample gain in the editor, and audition again. The sound and Edited waveform should both respond. Use Back to kit to return to the cards."
+        },
+        {
+          "type": "p",
+          "text": "If you see a named card with No sample, it is an empty slot. Add example kit creates a layout of named slots; it does not supply recordings."
+        }
+      ]
+    },
+    {
+      "title": "Find your way around",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/workspace.png",
+          "caption": "The kit workspace: kit tabs above, groups left, instrument cards in the centre, selected-instrument controls right, and the 88-key map below.",
+          "max_height": 300
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Area",
+            "What to do"
+          ],
+          "rows": [
+            [
+              "Kit tabs",
+              "Select the active kit. + Kit creates another; Copy kit duplicates the selected kit."
+            ],
+            [
+              "Groups",
+              "Select a group to show its cards. Rename, copy, move Up/Down or remove it."
+            ],
+            [
+              "Instrument cards",
+              "Click a card to select it. Use the right panel to name, assign, load, mix or edit its sound."
+            ],
+            [
+              "Key map",
+              "Coloured keys show assignments. Click an assigned key to select its instrument; this map is a selection overview."
+            ],
+            [
+              "Edit sound",
+              "Opens seven tabs with a shared waveform. Scroll the controls area while the waveform stays visible."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Resize using the bottom-right corner. The minimum editor size is 800 × 600. A larger window makes envelopes and waveforms easier to inspect. Hover over controls for tooltips."
+        }
+      ]
+    },
+    {
+      "title": "Kits, groups and instruments",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Use + Kit to create another kit, then give it a descriptive name. Click a kit tab to make it active.",
+            "Use + Group to divide the active kit. For example, separate drums, percussion, cymbals and effects.",
+            "Select an instrument and use its Group chooser to move it between groups. Earlier/Later changes its order within the group; group Up/Down changes group order.",
+            "Use Duplicate for an instrument, Copy for a group or Copy kit for a whole kit. The copies keep sound settings and sample references; copied instruments receive free notes where required.",
+            "Use Remove for unwanted items and read the confirmation. Drum retains at least one kit and one group per kit."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Use separate kits for alternative drum sets or song sections, and groups to organise the sounds within one set. A group is not a choke group or an audio bus. Renaming or moving an instrument does not change its sample's sound."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Limit",
+            "Meaning"
+          ],
+          "rows": [
+            [
+              "8 kits",
+              "One active kit at a time; kit switching ends the previous kit's voices."
+            ],
+            [
+              "1–16 groups per kit",
+              "Groups can be empty. Their instrument counts need not be equal."
+            ],
+            [
+              "88 instruments per kit",
+              "This is the total across its groups, not 88 in each group."
+            ],
+            [
+              "MIDI 21–108",
+              "88 unique trigger positions per kit, A0 through C8 in Drum's naming."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "New slots and slices take free notes. Assigned notes are unavailable to another instrument in the same kit. Reordering cards does not automatically remap their notes. Switching kits can briefly wait for samples to load; check Ready before playing."
+        },
+        {
+          "type": "p",
+          "text": "Removing a slot or kit removes its saved configuration, not its original audio file. There is no general undo history inside this preview, so save a project copy before substantial rearrangement."
+        }
+      ]
+    },
+    {
+      "title": "Load and replace samples",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Select the destination group. Drag one or more actual audio files from Live's Samples browser or Windows Explorer into empty space in the instrument grid to create slots.",
+            "To replace one sound, drop one file directly onto its card, or select the card and click Replace. An empty slot instead shows Load sample.",
+            "Wait for the status message before auditioning. Check the filename displayed on the card and in the selected-instrument panel.",
+            "Rename the slot if a musical role such as Closed hat is more useful than the filename."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Dropping onto a card replaces that slot's source; dropping into empty grid space creates instruments. This distinction keeps a replacement from accidentally adding a second hit. Replacement preserves the slot's editing controls, so reset any old trim or processing that does not suit the new sample."
+        },
+        {
+          "type": "p",
+          "text": "Supported audio formats are WAV, AIFF, FLAC, OGG and MP3, with mono or stereo sources. Use audio files rather than Live .adv/.adg devices or presets. Drum does not import Live racks, MIDI clips or arbitrary device chains."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Resource limit",
+            "Current behaviour"
+          ],
+          "rows": [
+            [
+              "Per file",
+              "Up to 30 seconds and 64 MiB of decoded audio."
+            ],
+            [
+              "Active kit",
+              "Up to 512 MiB of unique loaded sample data including waveform caches."
+            ],
+            [
+              "Playback voices",
+              "128 simultaneous voices across the active kit."
+            ],
+            [
+              "References",
+              "Audio remains in its original file. It is not embedded into the plug-in state."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A failed replacement leaves the previous assignment intact and reports the problem. A missing file on project reload cannot play until relinked. Cloud-only placeholders, disconnected drives or a moved sample folder can make a previously working path unavailable."
+        }
+      ]
+    },
+    {
+      "title": "Save, recall and move a project",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Save the DAW project to store Drum's kits, names, note assignments, sample paths, edits, custom envelopes, key labels, outputs and macro mappings.",
+            "Keep the referenced sample files at their saved paths. Before moving a project to another computer, copy the needed audio into a known project sample folder.",
+            "On the destination computer, load the Set, inspect missing-file messages and use Replace on each affected instrument to choose its copied source. Save the Set again after relinking.",
+            "Reopen a saved test project once to verify that both Drum and the DAW's receiving/effect tracks recall as expected."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "The DAW saves Drum's settings, but Drum currently saves file references rather than collecting the sample audio. Do not assume a host's Collect All and Save operation has gathered files held privately by this plug-in. Verify the actual copied files before archiving or transferring."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Saved with the instance",
+            "Not a portable sample archive"
+          ],
+          "rows": [
+            [
+              "All eight kits, groups and instruments",
+              "Original audio file contents are external."
+            ],
+            [
+              "Custom point/curve envelopes and manual key label",
+              "Detected pitch/key is recalculated from processed preview audio."
+            ],
+            [
+              "Macro values and mappings; output/send choices",
+              "Live effects and receiving-track routing belong to the Live Set."
+            ],
+            [
+              "Sound and mixer controls",
+              "Waveform/envelope zoom is an editor view, not a sound parameter."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Edits are non-destructive: trim, reverse, normalise and mono playback do not rewrite the source file. Reset page affects the current page's sound settings. It does not remove macro mappings or undo an earlier file replacement."
+        }
+      ]
+    },
+    {
+      "title": "Volume, pan, tuning, mute and solo",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Control",
+            "How and why"
+          ],
+          "rows": [
+            [
+              "Volume",
+              "Adjust the selected instrument from -60 dB (silent) to +12 dB. Balance the kit here; lower loud hits before raising the whole track."
+            ],
+            [
+              "Pan",
+              "Move left/right to place a hit. Stereo material uses balance, not an independent width control. Centre is 0%."
+            ],
+            [
+              "Tuning",
+              "-48 to +48 semitones. +12 raises one octave, -12 lowers one. This changes playback speed and duration."
+            ],
+            [
+              "Mute",
+              "Silences the instrument. Mute takes priority over Solo."
+            ],
+            [
+              "Solo",
+              "Audition one or several instruments in the active kit. Multiple solos are allowed; clear all solos to hear the full kit again."
+            ],
+            [
+              "Reset a slider",
+              "Double-click a mixer slider to restore its default. Check the displayed value before playing."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Louder often seems more impressive. When comparing tone changes, roughly match the listening level so you can judge the timbre rather than just the added volume. Summing several samples or adding an attack layer can exceed full scale even when each source file is safe."
+        },
+        {
+          "type": "sub",
+          "text": "Sample gain versus Volume"
+        },
+        {
+          "type": "p",
+          "text": "Sample gain is earlier in the sound path, before filtering and drive. Instrument Volume is later and also scales the post-fader sends. Raising sample gain can change how hard processing is driven; lowering Volume can compensate the final level."
+        },
+        {
+          "type": "p",
+          "text": "Fine tuning in Envelopes & pitch adds up to ±100 cents. One semitone is 100 cents. Tune a sustained drum while listening with the bass, rather than expecting every noisy percussion hit to have a stable musical note."
+        }
+      ]
+    },
+    {
+      "title": "Choke groups and voice behaviour",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Select an open hi-hat and choose Choke 1. Select a closed hi-hat and also choose Choke 1.",
+            "Play the open hat, then trigger the closed hat. The new hit cuts older voices belonging to that choke group with a short ramp.",
+            "Put another exclusive family, such as alternate cymbal articulations, in a different choke number. Leave unrelated sounds at Off.",
+            "Use Sample > Retrigger: Cut previous if only repeated hits of the same instrument should cut each other."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A real closed hi-hat stops the open cymbal's ringing. Choking reproduces that relationship. Organisational groups simply organise cards; choke numbers 1–16 determine which sounding hits exclude one another."
+        },
+        {
+          "type": "p",
+          "text": "Choke works across the active kit and MIDI channels. Any instrument in the same choke number can cut an earlier member, including an earlier hit of itself. Off allows normal overlap."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Setting",
+            "Choose it when"
+          ],
+          "rows": [
+            [
+              "Overlap",
+              "You want tails from successive hits to coexist."
+            ],
+            [
+              "Cut previous",
+              "You want each new hit of that instrument to replace its prior voice."
+            ],
+            [
+              "Voices 1–128",
+              "Limit the overlap available to one instrument; the entire engine still has a shared 128-voice limit."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A large number of long cymbal or loop voices can consume the available pool. Shorten unnecessary tails, reduce per-instrument voices or use suitable choke groups. Stop ends current voices during editing."
+        }
+      ]
+    },
+    {
+      "title": "Waveform views and zoom",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/sample.png",
+          "caption": "The shared waveform and its view, channel and zoom controls. These display controls do not change the audio.",
+          "max_height": 260,
+          "crop": [
+            42,
+            342,
+            1238,
+            623
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [
+            "View or control",
+            "Meaning"
+          ],
+          "rows": [
+            [
+              "Edited",
+              "One simulated hit through current Drum processing, at 80% velocity and a one-second Gate/Classic note. Updates after edits and macro changes."
+            ],
+            [
+              "Source",
+              "Original decoded audio, with draggable trim boundaries. Source is scaled for visibility and does not show processing changes."
+            ],
+            [
+              "Send A–F",
+              "The chosen send signal before effects on external DAW tracks. An off or silent send can show a flat waveform."
+            ],
+            [
+              "- / + / Fit X",
+              "Zoom out/in in time, or show the full duration. Ctrl + wheel zooms around the pointer; Shift + wheel scrolls."
+            ],
+            [
+              "Y selector / Fit Y",
+              "Vertical display magnification, 0.25x–128x, or fit the visible signal. Alt + wheel changes Y zoom. This does not change gain."
+            ],
+            [
+              "Height divider",
+              "Drag the divider below the waveform to make it taller; double-click to restore the default height."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "why",
+          "text": "At full duration, many audio cycles fit into one screen pixel, so the display shows their extremes. Zoom in horizontally to see individual cycles. Use vertical zoom for quiet sounds instead of making them louder just to see them."
+        },
+        {
+          "type": "p",
+          "text": "At Edited Y 1x, the amplitude scale is ±1 (0 dBFS). Keep the same Y zoom while comparing levels. Fit Y can make a quieter sound look equally tall; it is a viewing aid, not normalisation. Zoomed peaks reaching the drawing boundary do not by themselves prove that the audio clips."
+        }
+      ]
+    },
+    {
+      "title": "Mono, stereo and what the picture shows",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Open Sample and choose Source channels: Mono to average the left and right source channels before filtering. Choose Stereo to retain the source's channels.",
+            "Audition the hit with the rest of the kit, then check the Edited waveform. Use Auto channels to give mono or identical L/R output a single full-height lane.",
+            "For a stereo source, choose Stereo L / R, Left only or Right only in the waveform display to inspect channel detail. These display choices do not select which channel is played."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "There is no need to make every drum mono. A centred kick or snare can work well as mono, while room recordings, cymbals and stereo effects may benefit from their original width. Decide per sound. Mono averaging can cancel out-of-phase material, so listen as well as looking."
+        },
+        {
+          "type": "p",
+          "text": "Instrument pan and later stereo modulation still apply after mono conversion. Native Live effects can add stereo space on a receiving track. Source view continues to show the original file even when playback is mono."
+        },
+        {
+          "type": "sub",
+          "text": "Preview boundaries"
+        },
+        {
+          "type": "p",
+          "text": "Edited includes Drum's gain, trim/reverse, tuning, envelopes, filter, LFO, attack layer, mixer and macros. It does not include EQ, compression or reverb added later in Live. An amplitude envelope changes height; a pitch envelope changes cycle spacing and often duration; a filter changes spectral detail. They need not create the same visual change."
+        },
+        {
+          "type": "p",
+          "text": "The preview is one hit, not a recording of your MIDI performance. Note length, velocity, overlapping voices, pitch wheel and free-running modulation can differ during actual playback. Long renders are capped at 30 seconds or 2.88 million frames and labelled when truncated."
+        }
+      ]
+    },
+    {
+      "title": "Trim, reverse, gain and fades",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Choose Source in the waveform view. Drag Start and End to isolate the part you want, or enter their percentage values on Sample. Start must precede End.",
+            "Enable Zero-crossing snap when a trim boundary clicks. It nudges a boundary towards a nearby zero crossing.",
+            "Choose Reverse for backward playback of the trimmed section. Trigger a new hit after changing trim or direction.",
+            "Adjust Sample gain, Normalise and Fade in/out, then compare in Edited and audition."
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Control",
+            "Purpose"
+          ],
+          "rows": [
+            [
+              "Start / End",
+              "0–100% of the original file. Removing silence at the beginning improves timing without moving MIDI notes."
+            ],
+            [
+              "Sample gain",
+              "-24 to +24 dB before processing. Balance source level or feed more/less signal into filter drive."
+            ],
+            [
+              "Normalise",
+              "Uses the source peak to scale the sample. It is not loudness matching, compression or a limiter."
+            ],
+            [
+              "Fade in",
+              "0–10,000 ms. Softens a hard start; also softens an added attack layer."
+            ],
+            [
+              "Fade out / Gate release",
+              "0–10,000 ms. Controls end fading and Gate release; a minimum end ramp suppresses abrupt discontinuities."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A tiny fade can remove a discontinuity, while a long fade deliberately changes the instrument's attack or tail. Avoid removing the musical transient when trimming a kick or snare. Check at a useful horizontal zoom and compare before/after by listening."
+        },
+        {
+          "type": "p",
+          "text": "Trim/loop markers, direction, playback mode and loop on/off apply to newly triggered hits. Many other controls can affect an already sounding voice. For a clear comparison, stop and retrigger after an edit."
+        }
+      ]
+    },
+    {
+      "title": "Playback modes and loops",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Mode",
+            "What happens"
+          ],
+          "rows": [
+            [
+              "Trigger",
+              "Plays the hit independently of MIDI note-off. Fade controls shape its amplitude. Useful for one-shot drum programming."
+            ],
+            [
+              "Gate",
+              "MIDI note-off begins the release set by Fade out. Useful when note length should shorten a hit."
+            ],
+            [
+              "Classic ADSR",
+              "Amplitude follows its ADSR or custom point envelope. Can sustain a loop while held, then release on note-off."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "steps",
+          "items": [
+            "For a sustained sound, choose Classic ADSR on Sample and turn Loop On.",
+            "Set Loop start/end inside the trimmed section. These percentages are relative to the trimmed region, not the entire original file.",
+            "Raise Loop crossfade a little if the repeated join is abrupt. The effective crossfade is limited to half the loop length.",
+            "Play a held MIDI note, then release it. Adjust the amplitude release and listen to the tail. Also test short notes."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Trigger makes a kick's length independent of how long you hold a keyboard key. Gate makes note length useful for articulation. Classic adds a shaped amplitude contour and looping for sustained sounds. A short non-looping source still ends when its audio runs out."
+        },
+        {
+          "type": "p",
+          "text": "Manual Play holds Gate/Classic for one second. It will not demonstrate a ten-second sustain. Test sustained loops from MIDI. Forward and reverse loops are supported; Drum does not time-stretch them to the song tempo."
+        },
+        {
+          "type": "p",
+          "text": "Pitch and filter envelopes can act in all three modes, but Trigger ignores note-off. Their release sections need Gate/Classic note-off to be heard. Amplitude ADSR/custom points affect Classic only; the graph states when it is inactive."
+        }
+      ]
+    },
+    {
+      "title": "Envelope editing: points and curves",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/curves.png",
+          "caption": "Pitch graph close-up: an extra point and a curved decay segment. The graph has its own amount and time-view controls.",
+          "max_height": 245,
+          "crop": [
+            642,
+            638,
+            1238,
+            823
+          ]
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Open Envelopes & pitch, or Filter for its envelope. Click once on a connecting line and release to add a point without changing the existing curve.",
+            "Click and drag a point horizontally for time and vertically for level. Points can move in both directions, within the graph's time/level limits and the neighbouring points.",
+            "Double-click a point to remove it. A minimum of two points is kept; each graph supports up to 32.",
+            "Press and hold on a line, then drag to bend that segment. The bend responds around the place you grabbed; horizontal movement shifts its position and vertical movement adjusts the curve.",
+            "Right-click a point to mark it S, the level held until note-off. The final point cannot be the hold point."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Additional points let you shape more than a simple rise and fall: a fast initial spike, a second shoulder, or a slower tail. Curves control how quickly the sound moves between points, even when the points themselves stay at the same times and levels."
+        },
+        {
+          "type": "p",
+          "text": "The graph's + / - / Fit buttons control its time view. Wheel movement pans the graph. Fit resumes automatic fitting; the scale stays fixed while dragging. Focus a point and use arrow keys for time/level changes; Shift gives finer steps. Delete/Backspace removes the focused point."
+        },
+        {
+          "type": "p",
+          "text": "Use ADSR discards the custom points and returns to the saved numeric ADSR values. Numeric A/D/S/R sliders are disabled while a custom shape is active. Reset page also clears that page's custom envelopes. These are sound changes; the graph's zoom is display-only."
+        }
+      ]
+    },
+    {
+      "title": "Amplitude envelopes and note release",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Choose Classic ADSR on Sample, or click Use Classic in the amplitude graph. In Trigger/Gate this graph is inactive.",
+            "For a short drum tail, start with zero Attack, a short Decay, low Sustain and a short Release. Play a MIDI note long enough to hear the decay.",
+            "For custom editing, move the peak near the start, place S at the desired held level and shape points after S for the release.",
+            "Test both a held note and a note released during the initial rise. The release starts from the actual current level rather than jumping to the drawn S level."
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [
+            "ADSR stage",
+            "Meaning"
+          ],
+          "rows": [
+            [
+              "Attack",
+              "Time to rise from zero to full level."
+            ],
+            [
+              "Decay",
+              "Time to move from the peak to the sustain level."
+            ],
+            [
+              "Sustain",
+              "A level held while the note remains down; it is not a duration."
+            ],
+            [
+              "Release",
+              "Time to fall after note-off. A source that ends earlier cannot supply a longer tail."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Amplitude is the loudness contour. A sharp attack preserves impact; a slower attack softens it. Lower sustain and shorter decay leave more room between hits. Release controls the transition after the key is lifted, not the duration of a Trigger-mode one-shot."
+        },
+        {
+          "type": "p",
+          "text": "Custom point times run from note-on up to S. After S, point spacing describes time after note-off; the actual held duration comes from MIDI. The graph does not include a fixed-length sustain plateau. The waveform preview uses its own one-second gate, so the two time axes need not align."
+        },
+        {
+          "type": "p",
+          "text": "Points cannot cross in time, but can meet to make an immediate transition. Levels stay between 0 and 100%; custom envelope time extends up to 80 seconds. A nonzero final level fades briefly to zero at the end to avoid leaving an indefinitely active voice."
+        },
+        {
+          "type": "p",
+          "text": "If a macro controls amplitude Attack, Decay or Release, the graph displays the effective timing and locks point editing. Remove that timing mapping to reshape it directly. The stored base curve remains available."
+        }
+      ]
+    },
+    {
+      "title": "Pitch envelopes, velocity and expression",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Open Envelopes & pitch. Choose a positive Pitch envelope amount for an upward offset, or negative for a downward offset. The amount is also visible in the pitch graph header.",
+            "For a kick pitch drop, start at +12 st, Attack 0 ms, Decay about 40 ms, Sustain 0%, then audition. Increase or shorten the drop to taste.",
+            "Add or move points for a more detailed contour, or drag a line to change the bend. Audible graph edits switch the waveform to Edited.",
+            "If the pitch amount is zero, moving/bending/removing points enables +12 st automatically unless a macro controls the amount. Adding a point alone preserves the sound. Set the amount back to zero to bypass the contour."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A kick often starts higher and settles rapidly into a low body. A pitch envelope recreates that movement. It changes sample playback speed, so a positive offset usually makes cycles closer together and shortens the source. The waveform may change in spacing more obviously than height."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Additional control",
+            "What to try"
+          ],
+          "rows": [
+            [
+              "Fine tuning",
+              "±100 cents for small pitch corrections after coarse Tuning."
+            ],
+            [
+              "Velocity to volume",
+              "0–100%; reduce it for more even hits, or retain it for expressive playing."
+            ],
+            [
+              "Velocity to pitch",
+              "±24 st; stronger MIDI velocities can alter pitch."
+            ],
+            [
+              "Random pan",
+              "0–100%; gives hits different stereo positions. Keep centred bass drums controlled."
+            ],
+            [
+              "Pitch bend range",
+              "0–24 st; enables the MIDI pitch wheel per channel. Default zero leaves pitch unchanged."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A sample assigned to a different trigger note does not automatically transpose to that note. There is no chromatic key tracking in this preview. Use Tuning, Fine tuning or pitch modulation to change audible pitch. The attack layer has its own Tone control and does not follow sample pitch modulation."
+        }
+      ]
+    },
+    {
+      "title": "Note, key and Camelot indicators",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/notes.png",
+          "caption": "Readout close-up: Trigger, Preview pitch and a separately labelled manual key.",
+          "max_height": 240,
+          "crop": [
+            42,
+            236,
+            850,
+            268
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Readout",
+            "Interpretation"
+          ],
+          "rows": [
+            [
+              "Trigger",
+              "Assigned note name and MIDI number, such as A0 / MIDI 21. This selects the slot."
+            ],
+            [
+              "Preview",
+              "Estimated pitch of the processed audio, shown as a note and Hz, or a note range when it varies."
+            ],
+            [
+              "Key (estimate)",
+              "An uncertain musical-key estimate from sufficiently tonal preview material, paired with Camelot."
+            ],
+            [
+              "Key (manual)",
+              "Your chosen key label. Saved with this instrument; does not tune or otherwise process the sound."
+            ],
+            [
+              "Uncertain / no reliable pitch",
+              "The audio does not support a confident result. This is common for hats, snares, noise and short transients."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A single A note does not establish A minor or A major. A drum may have a detectable resonant pitch but insufficient harmony to justify a Camelot code. Keep the key uncertain unless the sample contains useful tonal evidence or you know its key."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Read Trigger separately from Preview when tuning. A4 corresponds to 440 Hz in this display.",
+            "If you know the sample's musical key, scroll in Envelopes & pitch to Key label (manual override) and select it. Choose Auto detect to return to analysis.",
+            "Recheck a manual label after transposing: it remains your entered label and does not automatically transpose with Tuning."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Camelot A codes are minor and B codes are major. For example, A minor is 8A, C major is 8B, and B-flat minor is 3A. The menu may spell an equivalent note with a sharp, such as A# for B-flat. Analysis is an aid, not a guarantee of harmonic compatibility."
+        },
+        {
+          "type": "p",
+          "text": "Key mapping reference: <link href=\"https://mixedinkey.com/camelot-wheel/\" color=\"#15745f\">Mixed In Key: Camelot wheel</link>. Analysis uses a bounded portion of the preview and excludes external DAW effects. In a Send view it analyses that send, which may be silent."
+        }
+      ]
+    },
+    {
+      "title": "Filter and filter envelope",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/filter.png",
+          "caption": "The Filter envelope has its own graph and amount in octaves. Filtering must be On before its modulation can affect the sound.",
+          "max_height": 245
+        },
+        {
+          "type": "steps",
+          "items": [
+            "On Filter, turn Filter On. Choose Low-pass to soften brightness, High-pass to remove low content, Band-pass for a narrower band or Notch to reduce a band.",
+            "Adjust Cutoff while auditioning. Raise Resonance cautiously to emphasise the area around the cutoff. Try 12 dB/oct or 24 dB/oct slope.",
+            "Choose a nonzero Filter envelope amount. Use positive octaves to raise cutoff from its base, or negative to lower it. Shape its points and curves using the same gestures as the pitch graph.",
+            "Use Drive for additional saturation, and compare at a similar final Volume. Use Velocity to filter if harder hits should have a different tone."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A moving filter changes brightness through the hit. For example, a positive envelope with fast attack and short decay can let the transient through brightly, then darken the tail. This can create perceived punch without merely raising peak level."
+        },
+        {
+          "type": "p",
+          "text": "An octave doubles frequency: a +1 octave envelope at full level doubles the base cutoff, subject to the valid frequency range. Amount zero bypasses the envelope movement. Filter Off bypasses the filter and its envelope regardless of the graph shape."
+        },
+        {
+          "type": "p",
+          "text": "Cutoff is 20 Hz–20 kHz, Q is 0.1–10 and Drive is 0–24 dB. Resonant settings can change level substantially. This is Drum's filter implementation, not an emulation of Live's filter circuit models. An attack layer is mixed after this filter."
+        }
+      ]
+    },
+    {
+      "title": "LFO: repeating movement",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/lfo.png",
+          "caption": "The LFO page. Turn the LFO on and raise a destination depth; On alone does not add modulation.",
+          "max_height": 235
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Turn LFO On. Choose a shape: Sine, Triangle, Square, Saw up, Saw down or Random.",
+            "Choose Free Hz for a rate in cycles per second, or Host tempo for a musical beat division.",
+            "Raise one depth at a time: Volume for rhythmic level movement, Pitch for vibrato or warble, Pan for stereo motion, or Filter for changing brightness. Filter depth also requires Filter On.",
+            "Try Per note retrigger for the same motion at each hit. Free-running uses elapsed phase. Adjust Phase to change where the motion begins, and Fade in to introduce it gradually."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "An envelope normally describes one contour after a hit. An LFO repeats. At 1 Hz it completes one cycle per second; a 50 ms drum hit contains only a small part of that cycle, so a slow LFO may make little visible or audible difference."
+        },
+        {
+          "type": "p",
+          "text": "Free rate is 0.01–30 Hz. Tempo divisions range from 1/64 to four bars. Each voice has its own LFO; Free-running is not locked to the DAW's bar position. Without host tempo, the development harness uses 120 BPM."
+        },
+        {
+          "type": "p",
+          "text": "For an obvious learning example, use a longer sample, Volume depth around 40%, Sine and 4 Hz. Then reduce the depth to suit the mix. A long fade-in can make modulation inaudible on a short hit. Edited shows its representative audition, not every possible phase of a performance."
+        }
+      ]
+    },
+    {
+      "title": "Add a front click, pulse or noise",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/attack.png",
+          "caption": "Attack layer adds a generated transient to the loaded sample. The illustration retains demonstration settings; use the recipe below as a starting point.",
+          "max_height": 240
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Load a kick sample and open Attack layer. Turn Attack layer On and choose Click.",
+            "Start with Level -18 dB, Tone 1.8 kHz and Decay 8 ms. Audition, then compare Off/On at a similar overall level.",
+            "Raise Tone for a brighter tick or lower it for more knock. Adjust Decay between 1 and 100 ms to change the transient's length.",
+            "Try Pulse for a short sine burst, or Noise for a rougher front edge. Zoom Edited into the first few milliseconds to see the addition."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "The low body of a kick can be strong yet difficult to hear on small speakers or through a dense mix. A short upper-frequency transient can make its start easier to perceive without extending the bass tail."
+        },
+        {
+          "type": "p",
+          "text": "Click includes a harmonic for a sharper edge. Pulse is tonal. Noise is a repeatable filtered burst. Attack level ranges from -60 dB (silent) to 0 dB; Tone is 30 Hz–16 kHz, limited as needed by the sample rate."
+        },
+        {
+          "type": "p",
+          "text": "The layer starts once per note and does not repeat at a loop boundary. It requires a loaded sample and ends with that voice. It is mixed after sample gain/filtering but before amplitude shaping, velocity, LFO volume and the instrument mixer. A long Fade in or amplitude attack therefore softens it too."
+        },
+        {
+          "type": "p",
+          "text": "Attack Tone controls the layer's pitch independently of sample tuning. Sample and transient can add above full scale; reduce levels if needed. Source view never includes this generated layer."
+        }
+      ]
+    },
+    {
+      "title": "Slice a sample into instruments",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Load the audio you want to divide. Set its Start/End range on Sample.",
+            "Scroll to the slicing controls. Choose 2, 4, 8, 16, 32 or 64 equal slices, then click Slice to new group.",
+            "Return to the kit workspace and select the new slices group. Audition the new instruments and inspect their free MIDI assignments.",
+            "Rename useful slices and refine their Start/End points individually. Save your project when the mapping is ready."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Slicing lets different MIDI notes trigger different regions of one recording. This can rearrange a loop into a new rhythm while keeping the original file and instrument available."
+        },
+        {
+          "type": "p",
+          "text": "Slices divide the selected region equally in time. This preview does not detect transients or warp slices to the host tempo. A slice boundary may fall between beats; use a sensible trimmed range and inspect each hit."
+        },
+        {
+          "type": "p",
+          "text": "The operation creates a new group and keeps the source instrument. It needs enough of the kit's 88 slots and a free group within the limit of sixteen. If there is insufficient room, the operation is rejected as a whole."
+        },
+        {
+          "type": "p",
+          "text": "Each slice shares the source file and inherits sound controls, including custom envelopes, outputs and macros, but starts in Trigger with looping off. A copied amplitude envelope is therefore inactive until you choose Classic. Copies reference the audio rather than creating new audio files."
+        }
+      ]
+    },
+    {
+      "title": "Outputs, sends and native Live effects",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "For a kick needing its own Live effect chain, open Outputs & sends and choose Out 2. Leave other instruments on Main or assign other outputs.",
+            "In Live, create an audio track. In Audio From, choose the track containing Drum, then choose the corresponding Drum output in the lower chooser. Set Monitor to In and route that track to Main.",
+            "Put native Live audio effects, such as EQ Eight or Compressor, on that receiving audio track. Use Out 3 and another receiving track for a separate snare chain.",
+            "For a shared effect, raise Send A on several instruments and receive Drum's Send A on another audio track. Add a wet reverb or delay there; keep the direct instrument outputs for the dry signal."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Drum supplies the separate audio; Live owns the effect devices. Sounds sharing one output share that effect chain. A shared send is useful when several instruments should sound as though they occupy the same space."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Output facility",
+            "Current behaviour"
+          ],
+          "rows": [
+            [
+              "Main + Out 2–16",
+              "Sixteen main/aux destinations. Main can be mono or stereo; auxiliary buses are stereo."
+            ],
+            [
+              "Send A–F",
+              "Six additional stereo buses with per-instrument post-fader send levels. -60 dB is Off."
+            ],
+            [
+              "Disabled destination",
+              "A disabled instrument output falls back to Main; a disabled send is silent."
+            ],
+            [
+              "Enabled but unreceived",
+              "An instrument assigned to an enabled auxiliary leaves Main even if you have not connected a receiving track."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Native Live effects cannot be dropped into Drum. This build also does not host third-party VST3 effects internally. The separate-track approach offers sixteen instrument-output destinations, not 88 independent chains. Organisational groups do not automatically create buses."
+        },
+        {
+          "type": "p",
+          "text": "Host routing reference: <link href=\"https://www.ableton.com/en/manual/routing-and-i-o/\" color=\"#15745f\">Ableton: Routing and I/O</link>. Output names may include channel numbers. External effect audio is not included in Drum's waveform; monitor the receiving track to hear it."
+        }
+      ]
+    },
+    {
+      "title": "Macros and automation",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Open Macros for the selected instrument. Choose a Target for Macro 1, then set Min and Max to a useful range.",
+            "Move Macro 1's value and audition. For example, map Filter cutoff from 300 Hz to 5,000 Hz with the filter enabled.",
+            "Select another instrument and map its Macro 1 to a different target or range if one gesture should change both sounds.",
+            "Expose Macro 1–16 in the DAW's plug-in parameter controls and record or draw host automation. Test playback of that automation."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A macro is a single control that can coordinate changes across a kit. The mapping belongs to each instrument, while the sixteen macro values belong to the plug-in instance. A new kit can interpret the same macro value differently."
+        },
+        {
+          "type": "p",
+          "text": "Each instrument has one target per macro. Reversed Min/Max ranges are allowed. If several macros map to the same target, the highest-numbered mapping wins. Unmapped macros do nothing."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Target families",
+            "Examples"
+          ],
+          "rows": [
+            [
+              "Mixer",
+              "Volume, Pan, Tuning."
+            ],
+            [
+              "Sound",
+              "Sample gain, Filter cutoff, Resonance."
+            ],
+            [
+              "Envelopes",
+              "Amplitude Attack/Decay/Release; Pitch and Filter amounts."
+            ],
+            [
+              "LFO",
+              "Rate, Pitch depth and Volume depth."
+            ],
+            [
+              "Sends",
+              "Send A through Send F."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A mapped target uses the macro's effective value instead of its stored base control. Removing the mapping restores the base value. Reset page does not clear mappings. Custom amplitude timing mappings stretch the relevant curve sections; the graph follows that timing and locks direct point editing while a timing mapping is present."
+        },
+        {
+          "type": "p",
+          "text": "The sixteen stable macro parameters support host automation. Direct automation lanes for every per-instrument field, macro names and macro variations are not supplied in this preview."
+        }
+      ]
+    },
+    {
+      "title": "Practical sound recipes",
+      "blocks": [
+        {
+          "type": "sub",
+          "text": "A kick with more thwack"
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Keep the initial sample transient when trimming. Try Mono if the stereo source loses focus, then compare in context.",
+            "Add Click at -18 dB, 1.8 kHz and 8 ms. Increase only until the attack becomes clear.",
+            "Try a +12 st pitch envelope with zero attack, around 40 ms decay and zero sustain. Use a curved decay if the pitch sweep sounds too obvious.",
+            "Balance final Volume and compare with bass and hats playing."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "The click and pitch drop do different jobs: the click adds high-frequency definition, while the pitch contour changes the kick body's movement. Too much of either can turn a natural kick into a conspicuous effect."
+        },
+        {
+          "type": "sub",
+          "text": "Shorten a ringing snare"
+        },
+        {
+          "type": "p",
+          "text": "Choose Classic, keep the amplitude attack fast, lower Sustain and shorten Decay. Test with a long MIDI note so note-off does not mask the decay setting. Then set Release to avoid an abrupt cutoff on short notes. If the original sample is already short, lengthening an envelope cannot recover missing audio."
+        },
+        {
+          "type": "sub",
+          "text": "Natural hi-hat interplay"
+        },
+        {
+          "type": "p",
+          "text": "Put open and closed hats in the same choke number. Leave kick and snare outside that choke group. Use different velocities for rhythmic accents; avoid excessive Random pan if the pattern needs a stable stereo position."
+        },
+        {
+          "type": "sub",
+          "text": "A shared room"
+        },
+        {
+          "type": "p",
+          "text": "Send several instruments lightly to the same external reverb bus. Use a mostly wet effect on the receiving track to avoid doubling the dry path. Keep low-frequency drums drier if the room tail clouds the rhythm."
+        },
+        {
+          "type": "sub",
+          "text": "A swelling reversed cymbal"
+        },
+        {
+          "type": "p",
+          "text": "Reverse the sample, trim to a useful length, then adjust Fade in and end fading. Use a MIDI clip to place the swell's arrival precisely. Tuning changes its length; there is no warp-based duration lock."
+        }
+      ]
+    },
+    {
+      "title": "Troubleshooting sound and display",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Symptom",
+            "Check and action"
+          ],
+          "rows": [
+            [
+              "No sound",
+              "Wait for Ready; verify a loaded file, active kit, assigned MIDI number, input monitoring, Mute/Solo, Volume, sample gain and output routing. Try Play."
+            ],
+            [
+              "Play works but MIDI does not",
+              "Compare MIDI numbers rather than octave names. Check the DAW track's input, arm/monitor state and clip notes."
+            ],
+            [
+              "A hit disappears after routing",
+              "Connect the chosen auxiliary output to a receiving track. If the host enables it, audio may already have left Main."
+            ],
+            [
+              "Missing sample after reopening",
+              "Use Replace to relink the external file, then save. Check drive/cloud availability."
+            ],
+            [
+              "Pitch graph changes but sound does not",
+              "Check Pitch amount, macro overrides and the preview view. Numeric ADSR at zero amount is silent; audible point edits enable +12 st unless mapped."
+            ],
+            [
+              "Amplitude graph is grey",
+              "Choose Classic ADSR or Use Classic. Trigger/Gate use fade controls."
+            ],
+            [
+              "Filter/LFO makes no difference",
+              "Enable the processor and raise its amount/depth. Filter modulation also needs Filter On. A slow motion may be subtle on a short hit."
+            ],
+            [
+              "Waveform seems unchanged",
+              "Use Edited. Zoom in in time for pitch or filter detail. External Live effects are not part of the preview."
+            ],
+            [
+              "Waveform is too small",
+              "Try Fit Y, Y zoom, a taller divider position, or Left/Right only for full-height channel detail."
+            ],
+            [
+              "Sound clips or crackles",
+              "Lower summed levels/drive/attack layer; inspect trim and loop joins. If dropouts affect the whole project, check the DAW driver/buffer and system load."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "After changing a latched playback setting, stop and play a new hit. Compare with a simple unprocessed sample to distinguish a source problem from a routing or modulation problem."
+        }
+      ]
+    },
+    {
+      "title": "Troubleshooting editing and recall",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Symptom",
+            "Reason and next step"
+          ],
+          "rows": [
+            [
+              "Point will not pass another",
+              "Time order is preserved. Move or remove the neighbouring point first; levels can still move vertically."
+            ],
+            [
+              "Line adds a point instead of curving",
+              "Press on the line and move while holding the mouse button. A click/release without a drag adds a point."
+            ],
+            [
+              "Cannot add/remove more points",
+              "Each graph keeps at least two and at most 32 points."
+            ],
+            [
+              "Numeric ADSR is disabled",
+              "A custom shape is active. Use ADSR restores the saved numeric contour and removes its custom points."
+            ],
+            [
+              "Graph is locked",
+              "A macro controls its timing. Remove the relevant mapping to edit points; changing only the base slider does not override automation."
+            ],
+            [
+              "Control reset has no audible effect",
+              "A macro may still override it. Also check the correct kit/instrument and the mode/processor enable setting."
+            ],
+            [
+              "Note or key is uncertain",
+              "Noise and short/changing transients may lack stable pitch; a single tone does not establish major/minor. Use a known manual key only when appropriate."
+            ],
+            [
+              "Manual key is wrong after tuning",
+              "Manual labels are metadata and do not transpose automatically. Update the label yourself."
+            ],
+            [
+              "Copy/slice cannot complete",
+              "Check 8-kit, 16-group and 88-instrument capacity and available notes."
+            ],
+            [
+              "Changes absent in a reopened Set",
+              "Save the DAW project after editing, confirm the intended instance/build and sample paths, then verify by reopening."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "sub",
+          "text": "Reporting a reproducible issue"
+        },
+        {
+          "type": "p",
+          "text": "Record the Drum version shown in the header, Windows and DAW versions, audio sample rate/buffer, the selected playback mode, output routing and exact steps. Include whether the problem happens with Play, MIDI or both. A screenshot and a short sample you are allowed to share are useful. Keep a project backup before simplifying it for investigation."
+        },
+        {
+          "type": "p",
+          "text": "This preview has automated processor/state/preview checks and compiled VST3 loading checks. These do not guarantee every host, hardware or controller workflow. Review the new envelope gestures, output routing and project recall in your own Live Set."
+        }
+      ]
+    },
+    {
+      "title": "Shortcuts and editing reference",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Action",
+            "Control"
+          ],
+          "rows": [
+            [
+              "Rename",
+              "Enter or click away commits; Escape cancels the text edit."
+            ],
+            [
+              "Mixer default",
+              "Double-click Volume, Pan or Tuning slider."
+            ],
+            [
+              "Waveform time zoom",
+              "Ctrl + wheel; or - / + / Fit X."
+            ],
+            [
+              "Waveform time scroll",
+              "Shift + wheel."
+            ],
+            [
+              "Waveform vertical zoom",
+              "Alt + wheel; or Y selector / Fit Y."
+            ],
+            [
+              "Waveform height",
+              "Drag divider; double-click divider restores default."
+            ],
+            [
+              "Add envelope point",
+              "Click and release on a segment."
+            ],
+            [
+              "Move envelope point",
+              "Drag in two dimensions; time remains between neighbours."
+            ],
+            [
+              "Remove envelope point",
+              "Double-click, or focus it and press Delete/Backspace."
+            ],
+            [
+              "Bend a segment",
+              "Hold on the line and drag; horizontal position influences bend placement."
+            ],
+            [
+              "Set held level",
+              "Right-click a non-final point to mark S."
+            ],
+            [
+              "Precise point adjustment",
+              "Left/Right: 1 ms; Up/Down: 1% of level. Shift: 0.1 ms / 0.1%."
+            ],
+            [
+              "Envelope time view",
+              "- / + / Fit; wheel pans the graph."
+            ],
+            [
+              "Return to ordinary ADSR",
+              "Use ADSR on the graph."
+            ],
+            [
+              "Reset current editing page",
+              "Reset page. Does not remove macro assignments."
+            ],
+            [
+              "Audition / stop",
+              "Play / Stop. Play uses 80% velocity and a one-second gate where applicable."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Zoom controls do not change audio. Point/envelope controls do. Changing a point from a keyboard follows the displayed direction for negative modulation amounts."
+        }
+      ]
+    },
+    {
+      "title": "Signal path and current limits",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "For each hit, Drum reads the selected sample region with its direction, loop and pitch settings. Source Mono/Stereo and sample gain/normalisation feed the filter/drive stage. The attack layer is added after filtering. Amplitude, velocity, LFO volume and the instrument mixer shape the output; post-fader sends feed their separate buses."
+        },
+        {
+          "type": "why",
+          "text": "Position in the signal path explains why two similar controls differ. Increasing Sample gain can push Drive harder; decreasing final Volume turns the processed result down. The attack layer bypasses the sample filter but still follows the amplitude contour."
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Facility",
+            "Scope of version 0.9.0"
+          ],
+          "rows": [
+            [
+              "Sources",
+              "One mono/stereo audio sample per instrument; no velocity-layer stack or nested instrument devices."
+            ],
+            [
+              "Timing and pitch",
+              "Resampling changes pitch and duration together. No Warp/time-stretch or chromatic key tracking."
+            ],
+            [
+              "Slicing",
+              "Equal regions only; no transient, beat or manual slice-marker engine."
+            ],
+            [
+              "Envelopes",
+              "Amplitude, pitch and filter; ADSR or 2–32 custom points, curves and hold point. No repeating envelope loop mode."
+            ],
+            [
+              "Effects",
+              "Filter/drive and attack generation inside Drum; native DAW effects via separate outputs. No internal return reverb/delay or plug-in hosting."
+            ],
+            [
+              "Automation",
+              "Sixteen macros; no full per-field automation matrix or macro variations."
+            ],
+            [
+              "Platform",
+              "Windows x64 VST3 preview. macOS build scaffolding needs native validation; standalone product is planned."
+            ],
+            [
+              "State and samples",
+              "Settings saved by the host; external audio files must be retained/relinked."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Groups are organisational, not layered device chains. MIDI notes 21–108 select unique instruments. The design is a clearer kit workspace with sound shaping; do not assume every function of another drum rack is present."
+        }
+      ]
+    },
+    {
+      "title": "Glossary and further reading",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Term",
+            "Plain-language meaning"
+          ],
+          "rows": [
+            [
+              "Sample",
+              "A recorded audio file played by an instrument slot."
+            ],
+            [
+              "MIDI note / velocity",
+              "A trigger message and its strength value. MIDI contains instructions, not recorded sound."
+            ],
+            [
+              "Voice",
+              "One currently playing occurrence of a sample. Repeated hits may overlap as separate voices."
+            ],
+            [
+              "Transient",
+              "The short initial change at the start of a hit."
+            ],
+            [
+              "Envelope / sustain",
+              "A one-hit contour; sustain is the held level, not a time."
+            ],
+            [
+              "LFO",
+              "A repeating control signal that moves a sound parameter."
+            ],
+            [
+              "Semitone / cent / octave",
+              "Pitch distances: 100 cents per semitone; twelve semitones per octave; an octave doubles frequency."
+            ],
+            [
+              "Hz / ms",
+              "Cycles per second / thousandths of a second."
+            ],
+            [
+              "dB / dBFS",
+              "A level ratio / level relative to digital full scale. 0 dBFS is the reference peak limit for ordinary fixed-point audio."
+            ],
+            [
+              "Cutoff / Q",
+              "Filter transition frequency / resonance strength or selectivity."
+            ],
+            [
+              "Choke group",
+              "A set of instruments whose new hits stop older members."
+            ],
+            [
+              "Send / post-fader",
+              "A parallel output feed / one whose level follows the instrument's final volume."
+            ],
+            [
+              "Camelot",
+              "A musical-key code: A for minor, B for major. It does not identify a MIDI octave."
+            ],
+            [
+              "Non-destructive",
+              "Processing preserves the original audio file."
+            ]
+          ],
+          "widths": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For host routing, see <link href=\"https://www.ableton.com/en/manual/routing-and-i-o/\" color=\"#15745f\">Ableton Routing and I/O</link>. For installation, see <link href=\"https://help.ableton.com/hc/en-us/articles/209071729-Using-VST-plug-ins-on-Windows\" color=\"#15745f\">Ableton VST on Windows</link>. For the key chart, see <link href=\"https://mixedinkey.com/camelot-wheel/\" color=\"#15745f\">Mixed In Key Camelot wheel</link>. Third-party names identify their respective products or owners."
+        }
+      ]
+    }
+  ]
+}

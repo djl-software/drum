@@ -34,4 +34,5 @@ CMakeUserPresets.json
 CMakeFiles/
 CMakeCache.txt
 output/
+tmp/
 *.log

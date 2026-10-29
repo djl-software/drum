@@ -1,6 +1,8 @@
 #pragma once
 #include "KitLibrary.h"
 #include "WaveformData.h"
+#include "VoiceEnvelope.h"
+#include "TonalAnalysis.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
@@ -29,6 +31,7 @@ struct PreviewResult
     std::shared_ptr<const Sample> sample;
     bool truncated = false;
     juce::String error;
+    TonalAnalysis analysis;
 };
 class SampleEngine final : private juce::Thread
 {
@@ -98,7 +101,7 @@ private:
         float randomPan=0,randomLfo=0;
         bool held=true,preview=false;
         SoundParameters sound;
-        juce::ADSR amp,filterEnvelope,pitchEnvelope;
+        VoiceEnvelope amp,filterEnvelope,pitchEnvelope;
         // Two cascaded TPT state-variable sections, with independent stereo state.
         std::array<std::array<double,2>,2> filter1 {},filter2 {};
         int filterCounter=0;

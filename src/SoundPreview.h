@@ -53,7 +53,11 @@ private:
             }
             auto cancelled=[&]{return threadShouldExit() || generation.load()!=revision;};
             PreviewResult rendered;
-            try {rendered=SampleEngine::renderPreview(input.source,input.controls,input.macros,input.bpm,input.rate,input.send,cancelled);}
+            try
+            {
+                rendered=SampleEngine::renderPreview(input.source,input.controls,input.macros,input.bpm,input.rate,input.send,cancelled);
+                if(rendered.sample && !cancelled())rendered.analysis=analyseTonal(rendered.sample->audio,rendered.sample->rate,cancelled);
+            }
             catch(...) {rendered.error="Preview unavailable";}
             {
                 const juce::ScopedLock guard(lock);

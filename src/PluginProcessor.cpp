@@ -73,7 +73,7 @@ void DrumAudioProcessor::getStateInformation(juce::MemoryBlock& data)
 
 void DrumAudioProcessor::setStateInformation(const void* data, int size)
 {
-    if (data == nullptr || size <= 0 || size > 4 * 1024 * 1024) return;
+    if (data == nullptr || size <= 0 || size > 32 * 1024 * 1024) return;
     if (const auto state = getXmlFromBinary(data, size))
     {
         std::array<float,drum::numMacros> values;

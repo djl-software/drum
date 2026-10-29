@@ -325,7 +325,7 @@ Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String&
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 6); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 7); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
@@ -341,6 +341,15 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
                 instrument->setAttribute("tuning",i.controls.tuning); instrument->setAttribute("mute",i.controls.mute?1:0);
                 instrument->setAttribute("solo",i.controls.solo?1:0); instrument->setAttribute("choke",i.controls.choke);
                 for (auto& p : soundParameters) instrument->setAttribute(juce::String("edit_")+p.key,i.controls.sound.*(p.member));
+                for(int n=0;n<3;++n)if(const auto& shape=i.controls.sound.envelopes[(size_t)n];shape.count)
+                {
+                    auto* envelope=instrument->createNewChildElement("Envelope");envelope->setAttribute("index",n);envelope->setAttribute("hold",shape.hold);
+                    for(int point=0;point<shape.count;++point)
+                    {
+                        const auto& p=shape.points[(size_t)point];auto* node=envelope->createNewChildElement("Point");
+                        node->setAttribute("ms",p.ms);node->setAttribute("level",p.level);node->setAttribute("bend",p.bend);node->setAttribute("pivot",p.pivot);
+                    }
+                }
                 for(int n=0;n<numMacros;++n)
                 {
                     const auto key="map"+juce::String(n); const auto& m=i.controls.macros[(size_t)n];
@@ -360,7 +369,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); return true;
     }
-    if (version != 2 && version != 3 && version != 4 && version != 5 && version != 6) return false;
+    if (version < 2 || version > 7) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -373,7 +382,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
             Group group { g->getStringAttribute("id"), g->getStringAttribute("name"), integerAttribute(*g, "colour"), {} };
             for (auto* i : g->getChildIterator())
             {
-                if (!i->hasTagName("Instrument") || ++count > maxInstruments || i->getNumChildElements() != 0) return false;
+                if (!i->hasTagName("Instrument") || ++count > maxInstruments || (version<7 && i->getNumChildElements()!=0)) return false;
                 group.instruments.push_back({ i->getStringAttribute("id"), i->getStringAttribute("name"), integerAttribute(*i, "note"), version >= 3 ? i->getStringAttribute("samplePath") : juce::String() });
                 if(version>=4)
                 {
@@ -381,12 +390,27 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                     if(mute<0 || mute>1 || solo<0 || solo>1) return false;
                     group.instruments.back().controls={numberAttribute(*i,"volumeDb"),numberAttribute(*i,"pan"),numberAttribute(*i,"tuning"),mute!=0,solo!=0,integerAttribute(*i,"choke")};
                     if(version>=5) for(auto& p:soundParameters)
-                        if(version>=6 || !introducedInVersion6(p))
+                        if((version>=6 || !introducedInVersion6(p)) && (version>=7 || p.member!=&SoundParameters::keyOverride))
                             group.instruments.back().controls.sound.*(p.member)=numberAttribute(*i,(juce::String("edit_")+p.key).toRawUTF8());
                     if(version>=5) for(int n=0;n<numMacros;++n)
                     {
                         auto& m=group.instruments.back().controls.macros[(size_t)n]; const auto key="map"+juce::String(n);
                         m={integerAttribute(*i,(key+"target").toRawUTF8()),numberAttribute(*i,(key+"min").toRawUTF8()),numberAttribute(*i,(key+"max").toRawUTF8())};
+                    }
+                    if(version>=7)
+                    {
+                        std::array<bool,3> seen {};
+                        for(auto* e:i->getChildIterator())
+                        {
+                            const int index=integerAttribute(*e,"index");
+                            if(!e->hasTagName("Envelope") || index<0 || index>2 || seen[(size_t)index] || e->getNumChildElements()<2 || e->getNumChildElements()>maxEnvelopePoints)return false;
+                            seen[(size_t)index]=true;auto& shape=group.instruments.back().controls.sound.envelopes[(size_t)index];shape.hold=integerAttribute(*e,"hold");
+                            for(auto* p:e->getChildIterator())
+                            {
+                                if(!p->hasTagName("Point") || p->getNumChildElements()!=0)return false;
+                                shape.points[(size_t)shape.count++]={numberAttribute(*p,"ms"),numberAttribute(*p,"level"),numberAttribute(*p,"bend"),numberAttribute(*p,"pivot")};
+                            }
+                        }
                     }
                 }
             }
