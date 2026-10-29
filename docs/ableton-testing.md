@@ -52,6 +52,17 @@ Automated processor tests cover every editing field's persistence, Gate/Classic 
 
 ## Validation boundary
 
+### Draggable envelope review (0.8)
+
+Version 0.8.0 was installed with Live closed on 29 October 2026. Every installed bundle file matches the tested build; module SHA-256 is `e9beccd0defd8b56af131fc8f2daa15591baa50036aa28bd3e213526ed7cff124`. The previous bundle is backed up under `.local/installed-pre-0.8-20261029-013342/`. CTest passed 2/2 and Steinberg validation passed 47/47. Normal/compact envelope layouts and the filter graph were inspected. Live was left closed; native review remains pending.
+
+1. Open Edit sound > Envelopes & pitch. In Trigger/Gate, the amplitude graph should state it is inactive. Click **Use Classic** to enable it explicitly.
+2. Drag A horizontally, D horizontally/vertically, S vertically and R horizontally. Try dragging the connecting lines too. Numeric values and the Edited waveform should update; audition the result.
+3. Try the graphs' own +/-/Fit controls and fine numeric edits below them. Their axes are independent of the waveform. Sustain is a held-note illustration, not a fixed duration: test actual MIDI note lengths in Classic.
+4. Give the pitch envelope a positive then negative amount and shape its graph. On Filter, enable filtering and a nonzero Filter envelope amount, then shape its curve. Negative amounts should draw downwards from zero.
+5. Map a macro to Amp attack, decay or release. The corresponding point should follow the macro and become locked, while other points remain editable. Removing the mapping should restore direct access to the stored base value.
+6. Resize the window to compact size, save/reopen the Set, and confirm envelope values and playback recall correctly.
+
 ### Mono and attack-layer review (0.7)
 
 Version 0.7.0 was installed with Live closed on 28 October 2026. Every installed bundle file matches the tested build; module SHA-256 is `a2211e5f0e593c3a4579e8d48285019eea23f07bf678a18ee72219044d3fa4f8`. The previous bundle is backed up under `.local/installed-pre-0.7-20261028-231930/`. CTest passed 2/2 and Steinberg validation passed 47/47. Normal/compact attack controls and the mono Sample view were inspected. The following native Live checks remain for review; Live was left closed.

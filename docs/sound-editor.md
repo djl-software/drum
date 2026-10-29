@@ -1,4 +1,4 @@
-# Drum sound editor (0.7)
+# Drum sound editor (0.8)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Kit switching remains available above the editor. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
@@ -44,9 +44,30 @@ Classic mode exposes amplitude Attack, Decay, Sustain and Release. The pitch env
 
 The Edited waveform reflects these controls when active. Amplitude ADSR needs **Playback: Classic ADSR**; Trigger and Gate use Fade in/out instead. The pitch envelope needs a nonzero **Pitch envelope** amount. Editing its ADSR with amount zero leaves the sound unchanged. Source always shows the unprocessed file.
 
+### Shape envelopes by dragging
+
+The **Envelopes & pitch** page shows amplitude and pitch graphs side by side. **Filter** shows its own envelope graph. The sample waveform remains above them, and the existing numeric sliders are below the graphs in the scrolling controls area.
+
+- **A / attack line:** drag horizontally to set the rise time.
+- **D / decay line:** drag horizontally for decay time and vertically for sustain level.
+- **S / sustain line:** drag vertically for the held level. Horizontal movement does not change note length.
+- **R / release line:** drag horizontally for release time after note-off.
+
+Times are displayed in milliseconds/seconds and sustain in percent. Pitch and filter graphs show the signed envelope amount: negative amounts draw downwards from zero. With zero amount, their inactive curve shows the normalised shape for editing. Graphs and sliders stay in sync, and every drag is saved to the selected instrument and updates Edited through the existing preview renderer. No new envelope curves or audio processing modes are introduced: the lines represent Drum's existing linear ADSR stages.
+
+Each graph has **- / + / Fit** time controls, independent of waveform zoom. The scale stays fixed during a drag. Fit resumes automatic fitting after the gesture ends; manual zoom stays fixed until Fit is clicked. For precise changes, focus a point and use Left/Right for 1 ms steps or Up/Down on D/S for one-percent level steps. Hold Shift for 0.1 ms or 0.1 percent. Overlapping zero-length stages have separate grips with short connectors to the actual curve.
+
+The graphs illustrate a note held through attack and decay, then an illustrative 250 ms sustain interval before note-off. That sustain width is not a stored duration. Actual note length comes from MIDI or manual Play; short notes can release before attack/decay finish, and a short sample can end sooner. Trigger ignores note-off. The waveform above shows the actual preview with its one-second gate, so its time axis does not align with these held-note diagrams.
+
+Inactive graphs are grey and state why. **Use Classic** explicitly enables amplitude ADSR; editing its points alone does not switch playback modes. The filter graph offers **Enable filter** when the filter is Off, but still needs a nonzero Filter envelope amount. Pitch needs a nonzero Pitch envelope amount. Those amount sliders remain below the graphs.
+
+When a macro controls an ADSR stage, the graph shows its current effective value and labels the controlled letters. That stage's grip and line are locked; other stages remain editable. Change/remove the macro mapping to edit the stage directly. Base numeric values remain stored separately, as before. Page reset restores base ADSR values and does not remove macro mappings. View zoom is editor-local and is not saved with the kit.
+
 ## Filter
 
 Clean low-pass, high-pass, band-pass and notch filters offer 12/24 dB slopes, cutoff, resonance (Q), drive, filter ADSR, bipolar envelope amount and velocity sensitivity. The sample-gain stage precedes the filter; the amplitude envelope and instrument mixer follow it. Filter/envelope amounts are in octaves. This is Drum's filter implementation, not an emulation of Ableton's licensed circuit models.
+
+![Draggable filter envelope](images/drum-filter-envelope.png)
 
 ## LFO
 

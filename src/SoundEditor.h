@@ -1,6 +1,7 @@
 #pragma once
 #include "PluginProcessor.h"
 #include "SoundPreview.h"
+#include "EnvelopeEditor.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 class SoundEditor final : public juce::Component, public juce::FileDragAndDropTarget,private juce::Timer
@@ -23,6 +24,8 @@ private:
     void change(const drum::SoundParameter&,double);
     void refresh();
     void refreshPreview();
+    void refreshEnvelopes(bool newSelection=false);
+    void changeEnvelope(int envelope,int handle,EnvelopeEditor::Values);
     void setPage(int);
     void timerCallback() override;
     DrumAudioProcessor& processor;
@@ -41,6 +44,7 @@ private:
     juce::Component content;
     std::unique_ptr<Waveform> waveform;
     std::unique_ptr<WaveformDivider> waveformDivider;
+    std::array<std::unique_ptr<EnvelopeEditor>,3> envelopes;
     int waveformHeight=280;
     std::vector<std::unique_ptr<Field>> fields;
     std::vector<std::unique_ptr<MacroField>> macroFields;

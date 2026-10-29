@@ -3,6 +3,11 @@
 namespace
 {
 const juce::Colour bg(0xff10151f),panel(0xff19212e),ink(0xffe5ebf5),muted(0xff8d9bb0),mint(0xff67dfc5);
+using SoundMember=double drum::SoundParameters::*;
+constexpr std::array<std::array<SoundMember,4>,3> envelopeMembers{{
+    {&drum::SoundParameters::ampAttack,&drum::SoundParameters::ampDecay,&drum::SoundParameters::ampSustain,&drum::SoundParameters::ampRelease},
+    {&drum::SoundParameters::pitchAttack,&drum::SoundParameters::pitchDecay,&drum::SoundParameters::pitchSustain,&drum::SoundParameters::pitchRelease},
+    {&drum::SoundParameters::filterAttack,&drum::SoundParameters::filterDecay,&drum::SoundParameters::filterSustain,&drum::SoundParameters::filterRelease}}};
 void text(juce::Graphics& g,const juce::String& value,juce::Rectangle<int> area,float size,juce::Colour colour=ink)
 {
     g.setColour(colour); g.setFont(juce::FontOptions(size)); g.drawFittedText(value,area,juce::Justification::centredLeft,1);
@@ -409,6 +414,16 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
     addAndMakeVisible(*waveform);
     addAndMakeVisible(*waveformDivider);
+    envelopes[0]=std::make_unique<EnvelopeEditor>("envelope-amp","Amplitude",mint);
+    envelopes[1]=std::make_unique<EnvelopeEditor>("envelope-pitch","Pitch (st)",juce::Colour(0xff9bbdff));
+    envelopes[2]=std::make_unique<EnvelopeEditor>("envelope-filter","Filter (oct)",juce::Colour(0xffffc17a));
+    for(int n=0;n<3;++n)
+    {
+        content.addAndMakeVisible(*envelopes[(size_t)n]);
+        envelopes[(size_t)n]->onChange=[this,n](int handle,EnvelopeEditor::Values v){changeEnvelope(n,handle,v);};
+    }
+    envelopes[0]->onActivate=[this]{for(auto& p:drum::soundParameters)if(p.member==&drum::SoundParameters::mode)change(p,2);};
+    envelopes[2]->onActivate=[this]{for(auto& p:drum::soundParameters)if(p.member==&drum::SoundParameters::filterOn)change(p,1);};
     for(auto& parameter:drum::soundParameters) {auto field=std::make_unique<Field>(parameter,*this); content.addAndMakeVisible(*field); fields.push_back(std::move(field));}
     for(int n=0;n<drum::numMacros;++n) {auto field=std::make_unique<MacroField>(*this,n);content.addAndMakeVisible(*field);macroFields.push_back(std::move(field));}
     content.addAndMakeVisible(sliceCount);sliceCount.setComponentID("slice-count");sliceCount.setName("Number of equal slices");
@@ -440,7 +455,55 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
         if(other.controls.solo)selectedControls.mute=true;
     waveform->setSample(selectedSample,changed);
     play.setEnabled(i && processor.getSampleEngine().statusFor(i->id).ready); reset.setEnabled(i!=nullptr);
-    updating=false; refreshPreview();repaint();
+    updating=false; refreshPreview();refreshEnvelopes(changed);repaint();
+}
+void SoundEditor::refreshEnvelopes(bool newSelection)
+{
+    auto effective=sound;
+    auto mapped=[this](SoundMember member) {
+        for(auto& m:selectedControls.macros)if(m.target>3 && drum::macroTargets[(size_t)m.target].member==member)return true;
+        return false;
+    };
+    for(int n=0;n<drum::numMacros;++n)
+    {
+        const auto& m=selectedControls.macros[(size_t)n];
+        if(m.target>3)effective.*(drum::macroTargets[(size_t)m.target].member)=m.minimum+(m.maximum-m.minimum)*processor.macro(n).get();
+    }
+    for(int n=0;n<3;++n)
+    {
+        const auto& members=envelopeMembers[(size_t)n];std::array<bool,4> bindings;
+        for(int h=0;h<4;++h)bindings[(size_t)h]=mapped(members[(size_t)h]);
+        const double amount=n==0?1:n==1?effective.pitchAmount:effective.filterAmount;
+        const bool active=n==0?sound.mode==2:n==1?amount!=0:sound.filterOn!=0 && amount!=0;
+        juce::String status=n==0?(active?"Classic ADSR / sustain held until note-off":"Inactive: Trigger/Gate use Fade in/out")
+            :n==1?(amount==0?"Inactive: set Pitch envelope amount below":"Amount "+juce::String(amount,2)+" st / held-note shape")
+            :sound.filterOn==0?"Inactive: Filter is Off":amount==0?"Inactive: set Filter envelope amount below":"Amount "+juce::String(amount,2)+" oct / held-note shape";
+        juce::String controlled;
+        for(int h=0;h<4;++h)if(bindings[(size_t)h])controlled+=juce::String::charToString("ADSR"[h]);
+        if(controlled.isNotEmpty())status+=" / Macro: "+controlled;
+        auto& graph=*envelopes[(size_t)n];graph.setEnabled(instrumentId.isNotEmpty());
+        graph.update({effective.*members[0],effective.*members[1],effective.*members[2],effective.*members[3]},bindings,amount,n==0?"%":n==1?"st":"oct",active,status,newSelection);
+        graph.setActivation(n==0 && !active?"Use Classic":n==2 && sound.filterOn==0?"Enable filter":"");
+    }
+}
+void SoundEditor::changeEnvelope(int envelope,int handle,EnvelopeEditor::Values v)
+{
+    if(updating || instrumentId.isEmpty())return;
+    auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
+    if(!i || kit->id!=kitId)return;
+    auto controls=i->controls;const auto& members=envelopeMembers[(size_t)envelope];
+    auto set=[&](int field,double value) {
+        for(auto& m:controls.macros)if(m.target>3 && drum::macroTargets[(size_t)m.target].member==members[(size_t)field])return;
+        controls.sound.*members[(size_t)field]=value;
+    };
+    if(handle==0)set(0,v.attack);
+    else if(handle==1) {set(1,v.decay);set(2,v.sustain);}
+    else if(handle==2)set(2,v.sustain);
+    else set(3,v.release);
+    auto result=processor.getLibrary().setControls(kitId,instrumentId,controls);
+    if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+    message=result.ok?"Envelope saved. Sustain lasts while a note is held; release begins at note-off in Gate/Classic.":result.message;
+    refresh();
 }
 void SoundEditor::refreshPreview()
 {
@@ -474,6 +537,7 @@ void SoundEditor::setPage(int value)
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)n].setToggleState(n==page,juce::dontSendNotification);
     for(auto& field:fields) field->setVisible(field->parameter.page==page);
     for(auto& field:macroFields) field->setVisible(page==5);
+    for(int n=0;n<3;++n)envelopes[(size_t)n]->setVisible(page==(n==2?2:1));
     slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5);
     resized(); repaint();
 }
@@ -484,8 +548,8 @@ void SoundEditor::paint(juce::Graphics& g)
     text(g,"MIDI "+juce::String(note)+"  /  "+drum::noteName(note)+"  /  SOUND EDITOR",{18,46,getWidth()-36,22},11,mint);
     static const char* help[]{
         "Choose Source to drag trim markers; Edited previews the sound. Ctrl + wheel zooms; Shift + wheel scrolls.",
-        "Amplitude ADSR needs Classic mode; Trigger/Gate use Fade in/out. Set a nonzero Pitch envelope amount to hear its ADSR.",
-        "Clean resonant filters with optional drive. Positive envelope amounts raise cutoff; negative amounts lower it.",
+        "Drag A/D/S/R points or lines. Sustain length is illustrative; the waveform above shows the actual one-hit preview.",
+        "Drag the filter envelope below. Positive amounts raise cutoff; negative amounts lower it. Scroll for numeric controls.",
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
         "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
@@ -504,7 +568,13 @@ void SoundEditor::resized()
     const int controlsTop=162+height;
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=3,gap=24,cell=(width-gap*2)/columns;
-    const int top=6;
+    int top=6;
+    const int envelopeHeight=juce::jlimit(152,180,viewport.getHeight()-8);
+    if(page==1)
+    {
+        const int half=(width-16)/2;envelopes[0]->setBounds(0,top,half,envelopeHeight);envelopes[1]->setBounds(half+16,top,width-half-16,envelopeHeight);top+=envelopeHeight+12;
+    }
+    if(page==2) {envelopes[2]->setBounds(0,top,width,envelopeHeight);top+=envelopeHeight+12;}
     int n=0; for(auto& field:fields) if(field->parameter.page==page)
     {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*65,cell,56); ++n;}
     int bottom=top+((n+2)/3)*65+6;
@@ -521,6 +591,7 @@ void SoundEditor::timerCallback()
 {
     if(!isVisible()) return;
     refreshPreview();
+    refreshEnvelopes();
     for(int n=0;n<drum::numMacros;++n)
     {
         auto& slider=macroFields[(size_t)n]->value;
