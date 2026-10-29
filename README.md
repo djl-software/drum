@@ -20,7 +20,9 @@ Version 0.9 replaces fixed envelope handles with **2–32 editable points and cu
 
 Version 0.10 adds waveform time graticules, compact single-row controls and a red sample-gain headroom warning. Envelope graphs sit above the larger waveform; quick line drags insert/move points, held drags bend segments, and points can cross neighbours. Audible amplitude edits enable Classic playback, filter edits enable the tone filter, and optional ADSR sliders stay out of the main view. Filter now also offers an eight-band stereo EQ with draggable frequency/gain, Q, eight response types and independent band bypass.
 
-The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.10.0-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
+Version 0.10.1 restores the waveform above all controls, makes every line drag bend the curve without a timing threshold, and extends curvature so the grabbed part follows the pointer across the level range. **Unlink timing** releases envelope timing macro assignments while preserving their current values, allowing locked amplitude graphs to be edited.
+
+The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.10.1-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
 
 ![Editable envelope points and curves](docs/images/drum-envelopes.png)
 

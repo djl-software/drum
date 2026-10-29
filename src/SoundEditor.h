@@ -27,6 +27,7 @@ private:
     void refreshPreview();
     void refreshEnvelopes(bool newSelection=false);
     void changeEnvelope(int,const drum::EnvelopeShape&,bool audibleEdit);
+    void activateEnvelope(int);
     void setPage(int);
     void timerCallback() override;
     DrumAudioProcessor& processor;

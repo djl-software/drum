@@ -1,11 +1,11 @@
 {
   "product": "Drum",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "date": "29 October 2026",
   "platform": "Windows VST3",
   "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
-  "cover_caption": "Version 0.10.0 editing preview  |  Instructions, examples and why",
-  "footer": "Version 0.10.0  |  Windows VST3 editing preview",
+  "cover_caption": "Version 0.10.1 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.10.1  |  Windows VST3 editing preview",
   "logo": "../../assets/DJLLogoWhite.png",
   "cover_image": "assets/curves.png",
   "publisher": "DJL Software",
@@ -15,7 +15,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.10.0 editing preview."
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.10.1 editing preview."
         },
         {
           "type": "p",
@@ -35,7 +35,7 @@
         },
         {
           "type": "p",
-          "text": "Screenshots show the real 0.10.0 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
+          "text": "Screenshots show the real 0.10.1 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
         },
         {
           "type": "p",
@@ -77,7 +77,7 @@
         },
         {
           "type": "p",
-          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.10.0. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.10.1. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
         },
         {
           "type": "p",
@@ -502,7 +502,7 @@
         },
         {
           "type": "p",
-          "text": "Vertical time graticules appear in every waveform view. Labels adapt between milliseconds and seconds as you zoom. Edited timing follows the rendered hit, so pitch and trim can change its duration. The envelope graphs sit above the waveform; each graph has its own envelope-time axis because MIDI determines the held duration."
+          "text": "Vertical time graticules appear in every waveform view. Labels adapt between milliseconds and seconds as you zoom. Edited timing follows the rendered hit, so pitch and trim can change its duration. The envelope graphs sit below the waveform; each graph has its own envelope-time axis because MIDI determines the held duration."
         }
       ]
     },
@@ -659,18 +659,18 @@
           "max_height": 245,
           "crop": [
             646,
-            250,
+            569,
             1238,
-            431
+            750
           ]
         },
         {
           "type": "steps",
           "items": [
-            "Open Envelopes & pitch, or Filter > Filter envelope. Click and release on a connecting line to add a point while preserving its curve. A quick click-drag inserts a point and moves it immediately.",
+            "Open Envelopes & pitch, or Filter > Filter envelope. Click and release on a connecting line to add a point while preserving its curve. Dragging the line bends it; it does not insert a point.",
             "Click and drag a point horizontally for time and vertically for level. Points can move in both directions, within the graph's time/level limits. They can cross neighbours and are reordered in time.",
             "Double-click a point to remove it. A minimum of two points is kept; each graph supports up to 32.",
-            "Press and hold on a line for at least 250 ms, then drag to bend that segment. The bend responds around the place you grabbed; horizontal movement shifts its position and vertical movement adjusts the curve.",
+            "Press on a line and drag to bend that segment. The bend responds around the place you grabbed; horizontal movement shifts its position and vertical movement adjusts the curve.",
             "Right-click a point to mark it S, the level held until note-off. The final point cannot be the hold point."
           ]
         },
@@ -743,7 +743,7 @@
         },
         {
           "type": "p",
-          "text": "If a macro controls amplitude Attack, Decay or Release, the graph displays the effective timing and locks point editing. Remove that timing mapping to reshape it directly. The stored base curve remains available."
+          "text": "If a macro controls amplitude Attack, Decay or Release, the graph follows the effective timing and locks point editing. Click Unlink timing in the graph to keep the current timing and remove only this instrument's envelope timing mappings. Other destinations and macro values stay unchanged. The points are then editable. Removing a mapping from the Macros page instead restores its original base value."
         }
       ]
     },
@@ -904,7 +904,7 @@
         },
         {
           "type": "p",
-          "text": "Moving or bending a filter point automatically enables the tone filter; if its amount is zero and not macro-controlled, Drum starts at -2 octaves. An audible graph edit selects Edited view. The same quick click-drag, held-line bend, free point movement and double-click removal gestures apply to amplitude, pitch and filter."
+          "text": "Moving or bending a filter point automatically enables the tone filter; if its amount is zero and not macro-controlled, Drum starts at -2 octaves. An audible graph edit selects Edited view. The same click-to-add, line-drag bending, free point movement and double-click removal gestures apply to amplitude, pitch and filter."
         }
       ]
     },
@@ -1181,7 +1181,7 @@
         },
         {
           "type": "p",
-          "text": "A mapped target uses the macro's effective value instead of its stored base control. Removing the mapping restores the base value. Reset page does not clear mappings. Custom amplitude timing mappings stretch the relevant curve sections; the graph follows that timing and locks direct point editing while a timing mapping is present."
+          "text": "A mapped target uses the macro's effective value instead of its stored base control. Removing the mapping restores the base value. Reset page does not clear mappings. Custom amplitude timing mappings stretch the relevant curve sections; the graph follows that timing and locks direct point editing while a timing mapping is present. Unlink timing on the envelope graph instead keeps the currently heard timing while releasing only its timing mappings."
         },
         {
           "type": "p",
@@ -1321,7 +1321,7 @@
             ],
             [
               "Line adds a point instead of curving",
-              "Hold for at least 250 ms before moving to bend. An immediate click-drag inserts and moves a point; a click/release inserts without changing the curve."
+              "Drag a line to bend it, with no minimum hold time. Click and release without dragging to insert a point. Drag an existing point to move it."
             ],
             [
               "Cannot add/remove more points",
@@ -1333,7 +1333,7 @@
             ],
             [
               "Graph is locked",
-              "A macro controls its timing. Remove the relevant mapping to edit points; changing only the base slider does not override automation."
+              "A macro controls its timing. Click Unlink timing on the graph to retain the current timing and release those assignments, then drag points or lines."
             ],
             [
               "Control reset has no audible effect",
@@ -1423,7 +1423,7 @@
             ],
             [
               "Bend a segment",
-              "Hold on the line for at least 250 ms and drag; horizontal position influences bend placement."
+              "Drag the line; horizontal position influences bend placement."
             ],
             [
               "Set held level",
@@ -1476,7 +1476,7 @@
           "type": "table",
           "headers": [
             "Facility",
-            "Scope of version 0.10.0"
+            "Scope of version 0.10.1"
           ],
           "rows": [
             [

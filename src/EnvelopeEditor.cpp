@@ -82,11 +82,14 @@ void EnvelopeEditor::update(Values v,const drum::EnvelopeShape& stored,bool isLo
     if(changed){layoutHandles();repaint();}
 }
 void EnvelopeEditor::setActivation(const juce::String& s)
-{if(activate.getButtonText()!=s || activate.isVisible()!=s.isNotEmpty()){activate.setButtonText(s);activate.setVisible(s.isNotEmpty());resized();}}
+{
+    activate.setTooltip(s=="Unlink timing"?"Keep the current envelope timing and remove only this instrument's envelope timing macro assignments. Other mappings and macro values stay unchanged.":"Enable Classic playback so the amplitude envelope shapes this sound.");
+    if(activate.getButtonText()!=s || activate.isVisible()!=s.isNotEmpty()){activate.setButtonText(s);activate.setVisible(s.isNotEmpty());resized();}
+}
 void EnvelopeEditor::resized()
 {
     zoomOut.setBounds(getWidth()-106,7,25,22);zoomIn.setBounds(getWidth()-78,7,25,22);fitButton.setBounds(getWidth()-50,7,40,22);
-    reset.setBounds(getWidth()-198,7,86,22);activate.setBounds(108,7,94,22);depth.setBounds(105,7,std::max(80,getWidth()-310),22);layoutHandles();
+    reset.setBounds(getWidth()-198,7,86,22);activate.setBounds(108,7,110,22);depth.setBounds(105,7,std::max(80,getWidth()-310),22);layoutHandles();
 }
 void EnvelopeEditor::layoutHandles()
 {
@@ -127,7 +130,7 @@ void EnvelopeEditor::paint(juce::Graphics& g)
         if(bending && line>0){const auto& p=shape.points[(size_t)line];const auto& prev=shape.points[(size_t)line-1];const auto grip=position({prev.ms+(p.ms-prev.ms)*p.pivot,drum::envelopeSegment(prev.level,p,p.pivot)});g.setColour(ink);g.drawEllipse(grip.x-4,grip.y-4,8,8,1);}
     }
     for(int n=0;n<shape.count;++n)if(handles[(size_t)n]->isVisible()){g.setColour(c.withAlpha(0.5f));g.drawLine({position(shape.points[(size_t)n]),handles[(size_t)n]->getBounds().getCentre().toFloat()});}
-    label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click-drag: add / hold-drag: curve / double-click: remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
+    label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click line: add / drag line: curve / double-click point: remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
 }
 void EnvelopeEditor::submit(drum::EnvelopeShape value,bool audibleEdit)
 {if(editable() && drum::validEnvelope(value) && onShape)onShape(value,audibleEdit);}
@@ -177,18 +180,11 @@ void EnvelopeEditor::mouseDrag(const juce::MouseEvent& e)
 {
     if(dragging>=0){dragPoint(e.position);return;}
     if(line<=0 || !editable() || (!bending && e.position.getDistanceFrom(dragStart)<3))return;
-    if(!bending && e.getLengthOfMousePress()<250)
-    {
-        auto edited=initial;const int added=line;
-        if(!drum::insertEnvelopePoint(edited,added,grabTime))return;
-        submit(edited,false);dragging=added;line=-1;initial=edited;dragPoint(e.position);return;
-    }
     bending=true;auto edited=initial;auto& right=edited.points[(size_t)line];const auto& left=edited.points[(size_t)line-1];
     const double t=std::clamp((grabTime+(e.position.x-dragStart.x)/plot().getWidth()*span-left.ms)/(right.ms-left.ms),0.02,0.98);
     const double level=std::clamp(grabLevel+(amount<0?1:-1)*(e.position.y-dragStart.y)/plot().getHeight(),0.0,1.0);
-    const double u=drum::envelopeParameter(t,t),v=1-u;
-    const double control=std::clamp((level-v*v*left.level-u*u*right.level)/(2*u*v),0.0,1.0);
-    right.pivot=t;right.bend=control-(left.level+(right.level-left.level)*t);submit(edited);
+    drum::bendEnvelopeSegment(left.level,right,t,level);
+    feedback="Curve: "+juce::String(level*100,1)+"% at "+timeText(left.ms+t*(right.ms-left.ms));submit(edited);
 }
 void EnvelopeEditor::mouseUp(const juce::MouseEvent&)
 {

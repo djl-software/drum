@@ -1,4 +1,4 @@
-# Drum sound editor (0.10)
+# Drum sound editor (0.10.1)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
@@ -46,7 +46,7 @@ The Edited waveform reflects these controls when active. Amplitude ADSR needs **
 
 ### Shape envelopes with points and curves
 
-Amplitude and pitch graphs sit side by side above the waveform; Filter > Filter envelope has its own graph. Click and release on a line to add a point without changing its existing shape. Drag a point in both axes to set time and level; points stay in time order and within 0–100%. Double-click a point to remove it (minimum two, maximum 32). Hold on a line for at least 250 ms and drag to curve that segment around the grabbed position; horizontal movement shifts the bend placement.
+Amplitude and pitch graphs sit side by side below the waveform; Filter > Filter envelope has its own graph. Click and release on a line to add a point without changing its existing shape. Drag a point in both axes to set time and level; points stay in time order and within 0–100%. Double-click a point to remove it (minimum two, maximum 32). Drag a line with no minimum hold time to curve that segment around the grabbed position; horizontal movement shifts the bend placement.
 
 Right-click a non-final point to mark **S**, the held level. The points before S run from note-on; points after S describe release time after note-off. A short MIDI note releases from the actual current level. There is no fixed sustain duration in the graph. A nonzero final level fades briefly to zero. Custom shapes allow up to 80 seconds.
 
@@ -56,7 +56,7 @@ Graphs have separate **- / + / Fit** time controls; wheel movement pans. Fit res
 
 Audible amplitude graph edits switch to Classic automatically. Audible filter graph edits enable Filter and set -2 octaves when the amount is zero and not mapped. A click/release that only inserts a point preserves the current sound. Pitch/filter amount sliders are now visible in the graph headers. Moving, bending or deleting a pitch point with amount zero enables +12 st unless a macro owns the amount; adding a point alone preserves silence. Audible graph edits select **Edited**, so their effect is immediately visible. Numeric ADSR changes at zero pitch amount still leave the sound unchanged.
 
-When a macro controls amplitude timing, the effective curve follows its value and the whole graph locks point editing. Remove the timing mapping to reshape the stored base curve. Amount mappings lock the graph's amount slider. Reset page leaves macro mappings intact.
+When a macro controls amplitude timing, the effective curve follows its value and the whole graph locks point editing. Click **Unlink timing** on the graph to keep the currently displayed timing and remove only its timing macro assignments, then edit the points. Other macro mappings and values are preserved. Removing a mapping from the Macros page instead restores the original base value. Amount mappings lock the graph's amount slider. Reset page leaves macro mappings intact.
 
 ### Trigger, pitch and Camelot
 
@@ -117,12 +117,12 @@ Targets include the instrument mixer, sample gain, cutoff/resonance, envelope ti
 
 ## Compatibility and remaining scope
 
-Schema 8 adds eight EQ bands, bypass and output gain, with EQ off for older states. Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
+Schema 9 adds weighted curves; earlier envelope states retain their previous curvature. Schema 8 adds eight EQ bands, bypass and output gain, with EQ off for older states. Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
 
 The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered chains, hosting arbitrary devices, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.
 
-## Compact editing and level warnings (0.10)
+## Compact editing and level warnings (0.10.1)
 
-Every waveform includes adaptive time graticules. The Edit Sound panel uses more of the window, single-line fields and graphs above the waveform. Envelope time and waveform time are separate: MIDI defines the duration of the S hold.
+Every waveform includes adaptive time graticules. The Edit Sound panel uses more of the window, single-line fields and graphs below the waveform. Envelope time and waveform time are separate: MIDI defines the duration of the S hold.
 
 Sample gain turns red if the selected source region plus normalisation/gain exceeds 0 dBFS before mono/filter/envelope/fader processing. This is a headroom warning, not a hard clip at the gain stage. Edited/Send captions also turn red when their rendered peak reaches full scale. Fade in is disabled in Classic, whose amplitude graph controls the attack; in Trigger/Gate, fade edits select Edited and visibly shape the hit.

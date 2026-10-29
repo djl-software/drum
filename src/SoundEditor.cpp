@@ -454,10 +454,9 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),waveform(std::make_
         addAndMakeVisible(*envelopes[(size_t)n]);
         envelopes[(size_t)n]->onShape=[this,n](const drum::EnvelopeShape& s,bool edit){changeEnvelope(n,s,edit);};
         envelopes[(size_t)n]->onReset=[this,n]{changeEnvelope(n,{},false);};
+        envelopes[(size_t)n]->onActivate=[this,n]{activateEnvelope(n);};
         if(n>0)envelopes[(size_t)n]->onAmount=[this,n](double value){waveform->showEdited();for(auto& p:drum::soundParameters)if(p.member==(n==1?&drum::SoundParameters::pitchAmount:&drum::SoundParameters::filterAmount))change(p,value);};
     }
-    envelopes[0]->onActivate=[this]{for(auto& p:drum::soundParameters)if(p.member==&drum::SoundParameters::mode)change(p,2);};
-    envelopes[2]->onActivate=[this]{for(auto& p:drum::soundParameters)if(p.member==&drum::SoundParameters::filterOn)change(p,1);};
     for(auto& parameter:drum::soundParameters) {auto field=std::make_unique<Field>(parameter,*this); content.addAndMakeVisible(*field); fields.push_back(std::move(field));}
     for(int n=0;n<drum::numMacros;++n) {auto field=std::make_unique<MacroField>(*this,n);content.addAndMakeVisible(*field);macroFields.push_back(std::move(field));}
     content.addAndMakeVisible(sliceCount);sliceCount.setComponentID("slice-count");sliceCount.setName("Number of equal slices");
@@ -534,13 +533,39 @@ void SoundEditor::refreshEnvelopes(bool newSelection)
             :sound.filterOn==0 || amount==0?"Drag to enable tone filter and envelope":"Tone filter shape / S holds until note-off";
         juce::String controlled;
         for(int h=0;h<4;++h)if(bindings[(size_t)h])controlled+=juce::String::charToString("ADSR"[h]);
-        if(controlled.isNotEmpty())status="Macro controls timing: "+controlled+" / remove mapping to edit points";
+        if(controlled.isNotEmpty())status="Macro controls timing: "+controlled+" / Unlink timing keeps this shape and frees editing";
         const bool amountMapped=n>0 && mapped(n==1?&drum::SoundParameters::pitchAmount:&drum::SoundParameters::filterAmount);
         if(amountMapped)status=amount==0?"Inactive: macro sets amount to zero":"Amount controlled by macro";
         auto& graph=*envelopes[(size_t)n];graph.setEnabled(instrumentId.isNotEmpty());
         graph.update({effective.*members[0],effective.*members[1],effective.*members[2],effective.*members[3]},effective.envelopes[(size_t)n],controlled.isNotEmpty(),amount,n==0?"%":n==1?"st":"oct",active,status,newSelection,amountMapped);
-        graph.setActivation(n==0 && !active?"Use Classic":"");
+        graph.setActivation(controlled.isNotEmpty()?"Unlink timing":n==0 && !active?"Use Classic":"");
     }
+}
+void SoundEditor::activateEnvelope(int envelope)
+{
+    auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* instrument=drum::findInstrument(*kit,instrumentId);
+    if(!instrument || kit->id!=kitId)return;
+    auto c=instrument->controls;bool unlinked=false;
+    const auto& members=envelopeMembers[(size_t)envelope];
+    for(int n=0;n<drum::numMacros;++n)
+    {
+        const auto& m=c.macros[(size_t)n];if(m.target<=3)continue;
+        const auto member=drum::macroTargets[(size_t)m.target].member;
+        if(std::find(members.begin(),members.end(),member)!=members.end())
+        {c.sound.*member=m.minimum+(m.maximum-m.minimum)*processor.macro(n).get();unlinked=true;}
+    }
+    // Bake the currently displayed envelope before removing its timing mappings.
+    // Other macro destinations and the host's macro values remain unchanged.
+    drum::resolveEnvelopeMacros(c.sound,c.macros);
+    if(unlinked)
+    {
+        for(auto& m:c.macros)if(m.target>3 && std::find(members.begin(),members.end(),drum::macroTargets[(size_t)m.target].member)!=members.end())m={};
+    }
+    else if(envelope==0)c.sound.mode=2;else if(envelope==2)c.sound.filterOn=1;
+    const auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
+    if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+    message=result.ok?(unlinked?"Timing macros unlinked for this envelope; current timing preserved. Points and lines can now be edited.":"Envelope enabled."):result.message;
+    refresh();
 }
 void SoundEditor::changeEnvelope(int envelope,const drum::EnvelopeShape& shape,bool audibleEdit)
 {
@@ -561,7 +586,7 @@ void SoundEditor::changeEnvelope(int envelope,const drum::EnvelopeShape& shape,b
     if(audibleEdit)waveform->showEdited();
     auto result=processor.getLibrary().setControls(kitId,instrumentId,controls);
     if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
-    message=result.ok?"Shape saved. Click/drag a line to add/move a point; hold 250 ms then drag to curve. S holds until note-off; preview gate is 1 s.":result.message;
+    message=result.ok?"Shape saved. Click a line to add a point; drag a point to move it; drag a line to curve it. S holds until note-off; preview gate is 1 s.":result.message;
     refresh();
 }
 void SoundEditor::refreshPreview()
@@ -628,7 +653,7 @@ void SoundEditor::paint(juce::Graphics& g)
     text(g,name,{18,12,getWidth()-410,30},22);
     static const char* help[]{
         "Choose Source to drag trim markers; Edited previews the sound. Ctrl + wheel zooms; Shift + wheel scrolls.",
-        "Click/drag line: add/move. Hold 250 ms + drag: curve. Double-click point: remove. Right-click: hold at S.",
+        "Click line: add point. Drag point: move. Drag line: curve. Double-click point: remove. Right-click: hold at S.",
         "Stereo EQ plus a separate envelope-controlled tone filter.",
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
         "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
@@ -647,17 +672,18 @@ void SoundEditor::resized()
     eqTab.setBounds(getWidth()-446,116,126,24);filterTab.setBounds(getWidth()-312,116,154,24);
     const int graphHeight=page==1 || page==2?180:0;
     const int graphWidth=getWidth()-36;
-    if(page==1)
-    {
-        const int half=(graphWidth-12)/2;envelopes[0]->setBounds(18,150,half,graphHeight);envelopes[1]->setBounds(30+half,150,graphWidth-half-12,graphHeight);
-    }
-    if(page==2){envelopes[2]->setBounds(18,150,graphWidth,graphHeight);equalizer.setBounds(18,150,graphWidth,graphHeight);}
-    const int waveTop=150+(graphHeight?graphHeight+8:0);
+    const int waveTop=150;
     const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:160;
-    const int height=juce::jlimit(184,juce::jmax(184,getHeight()-waveTop-reserved-49),waveformHeight);
+    const int height=juce::jlimit(184,juce::jmax(184,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),waveformHeight);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
-    const int controlsTop=waveTop+12+height;
+    const int graphTop=waveTop+12+height;
+    if(page==1)
+    {
+        const int half=(graphWidth-12)/2;envelopes[0]->setBounds(18,graphTop,half,graphHeight);envelopes[1]->setBounds(30+half,graphTop,graphWidth-half-12,graphHeight);
+    }
+    if(page==2){envelopes[2]->setBounds(18,graphTop,graphWidth,graphHeight);equalizer.setBounds(18,graphTop,graphWidth,graphHeight);}
+    const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=width>=1000?3:2,gap=16,cell=(width-gap*(columns-1))/columns;
     int top=6;

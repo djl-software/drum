@@ -51,6 +51,22 @@ void settle(juce::Component& root)
 }
 void shapeTests()
 {
+    for(double a:{0.0,0.25,1.0})for(double b:{0.0,0.7,1.0})for(double t:{0.02,0.25,0.5,0.8,0.98})for(double level:{0.0,0.05,0.5,0.95,1.0})
+    {
+        drum::EnvelopePoint right{100,b};drum::bendEnvelopeSegment(a,right,t,level);
+        near(drum::envelopeSegment(a,right,t),level,0.001,"Curve does not follow the grabbed level");
+        drum::EnvelopeShape shape;shape.count=2;shape.points[0]={0,a};shape.points[1]=right;
+        check(drum::validEnvelope(shape),"Weighted curve is invalid");
+        for(double fraction:{0.1,0.43,0.9})
+        {
+            auto split=shape;check(drum::insertEnvelopePoint(split,1,100*fraction),"Cannot insert point into weighted curve");
+            for(int ms=0;ms<=100;++ms)
+            {
+                const auto value=drum::envelopeValue(shape,ms);check(value>=-1e-9 && value<=1+1e-9,"Curve exceeds envelope level limits");
+                near(value,drum::envelopeValue(split,ms),1e-5,"Adding point changes weighted curve");
+            }
+        }
+    }
     for(double pivot:{0.08,0.3,0.5,0.92})for(double bend:{-0.3,0.0,0.4})
     {
         auto s=drum::adsrShape(100,200,0.2,300);s.points[2].pivot=pivot;s.points[2].bend=bend;
@@ -137,7 +153,7 @@ void runEnvelopeTests()
     settle(editor);check(pixels(wave)!=beforeWave,"Pitch shape did not change waveform");
     auto shaped=current().sound.envelopes[1];check(shaped.points[2].ms>180 && shaped.points[2].level>0.6,"Point cannot move freely in both axes");
     line=onLine(pitch,shaped,2,0.35);
-    pitch.mouseDown(event(pitch,line,line));pitch.mouseDrag(event(pitch,line+juce::Point<float>{8,12},line,juce::ModifierKeys::leftButtonModifier,300));pitch.mouseUp(event(pitch,line+juce::Point<float>{8,12},line));
+    pitch.mouseDown(event(pitch,line,line));pitch.mouseDrag(event(pitch,line+juce::Point<float>{8,12},line));pitch.mouseUp(event(pitch,line+juce::Point<float>{8,12},line));
     auto curved=current().sound.envelopes[1];check(curved.count==5 && std::abs(curved.points[2].bend)>0.01,"Drag line did not curve without adding point");
     check(curved.points[2].pivot!=0.5,"Curve ignored clicked position");
     settle(editor);capture(editor,"drum-envelope-curves.png");
@@ -151,7 +167,9 @@ void runEnvelopeTests()
     drag(ampHandle,{10,12});check(current().sound.mode==2 && current().sound.envelopes[0].count==4,"Amplitude drag failed to activate processing");
     auto ampShape=current().sound.envelopes[0];line=onLine(amp,ampShape,2,0.4);
     amp.mouseDown(event(amp,line,line));amp.mouseDrag(event(amp,line+juce::Point<float>{10,-12},line));amp.mouseUp(event(amp,line,line));
-    check(current().sound.envelopes[0].count==5,"Quick line drag did not add and move point");
+    check(current().sound.envelopes[0].count==4 && current().sound.envelopes[0]!=ampShape,"Immediate line drag did not bend amplitude curve");
+    ampShape=current().sound.envelopes[0];line=onLine(amp,ampShape,2,0.4);
+    amp.mouseDown(event(amp,line,line));amp.mouseUp(event(amp,line,line));check(current().sound.envelopes[0].count==5,"Amplitude line click did not add point");
     drag(control<juce::Component>(editor,"envelope-amp-point-1"),{250,0});
     check(current().sound.envelopes[0].points[1].ms>ampShape.points[1].ms,"Point could not cross neighbour");
     const auto saved=library.toXml()->toString();click(editor,"envelope-amp-zoom-in");click(editor,"envelope-amp-zoom-out");click(editor,"envelope-amp-fit");
@@ -170,7 +188,17 @@ void runEnvelopeTests()
     auto& ampA=control<juce::Component>(editor,"envelope-amp-point-1");check(!ampA.isEnabled(),"Macro-mapped handle editable");
     const auto base=current().sound.envelopes[0];auto macroImage=pixels(amp);p.macro(0).setValueNotifyingHost(0.9f);settle(editor);
     check(pixels(amp)!=macroImage,"Host macro did not redraw envelope");drag(ampA,{30,0});check(current().sound.envelopes[0]==base,"Mapped envelope overwritten");
-    c=current();c.macros[0]={};check(library.setControls(kit,id,c).ok,"Envelope mapping removal failed");refresh();
+    auto baked=c.sound;baked.ampAttack=100.0+800.0*p.macro(0).get();drum::resolveEnvelopeMacros(baked,c.macros);
+    click(editor,"envelope-amp-activate");check(current().macros[0].target==0 && current().sound.envelopes[0]==baked.envelopes[0],"Unlink timing failed to preserve effective curve");
+    // Reproduce the user's saved Set: Macro 1 -> amp decay at 50%, with Trigger playback.
+    c=current();c.sound.mode=0;c.sound.envelopes[0]={};c.sound.ampAttack=0;c.sound.ampDecay=100;c.sound.ampSustain=1;c.sound.ampRelease=100;c.macros[0]={8,0,20000};c.macros[1]={1,-20,0};p.macro(0).setValueNotifyingHost(0.5f);
+    check(library.setControls(kit,id,c).ok,"Mapped decay fixture failed");refresh();
+    check(!ampA.isEnabled() && control<juce::TextButton>(editor,"envelope-amp-activate").getButtonText()=="Unlink timing","Mapped amplitude has no clear unlock action");
+    click(editor,"envelope-amp-activate");check(ampA.isEnabled() && current().macros[0].target==0 && current().macros[1]==c.macros[1] && current().sound.ampDecay==10000 && current().sound.mode==0,"Unlink changed unrelated settings or lost current timing");
+    auto source=p.getSampleEngine().waveformFor(id);auto dry=drum::SampleEngine::renderPreview(source,current(),{},120,48000);
+    drag(ampA,{60,20});auto wet=drum::SampleEngine::renderPreview(source,current(),{},120,48000);
+    check(current().sound.mode==2 && current().sound.envelopes[0].count==4 && wet.sample && dry.sample && wet.sample->peak<dry.sample->peak*0.8f,"Unlocked amplitude drag did not shape playback");
+    check(wave.getBottom()<amp.getY(),"Waveform is not above amplitude controls");
     auto down=ampA.getLocalBounds().getCentre().toFloat();ampA.mouseDown(event(ampA,down,down));const auto original=current();
     const auto second=library.addInstrument(kit,group).id;state=library.snapshot();soundEditor.select(kit,drum::findInstrument(*drum::activeKit(state),second));
     ampA.mouseDrag(event(ampA,down+juce::Point<float>{70,0},down));ampA.mouseUp(event(ampA,down,down));
@@ -182,6 +210,11 @@ void runEnvelopeTests()
     auto* envelope=instrument->getFirstChildElement();check(envelope!=nullptr,"Custom envelope not serialized");
     envelope->getFirstChildElement()->setAttribute("pivot",2.0);
     const auto prior=copy.toXml()->toString();check(!copy.restore(*xml) && copy.toXml()->toString()==prior,"Malformed shape was accepted/partially applied");
+    xml=library.toXml();instrument=xml->getFirstChildElement()->getFirstChildElement()->getFirstChildElement();
+    xml->setAttribute("schemaVersion",8);check(copy.restore(*xml),"Version 8 envelope migration failed");
+    state=copy.snapshot();for(const auto& shape:drum::findInstrument(*drum::activeKit(state),id)->controls.sound.envelopes)for(int n=0;n<shape.count;++n)check(shape.points[(size_t)n].weight==1,"Version 8 envelope changed curvature model");
+    xml=library.toXml();instrument=xml->getFirstChildElement()->getFirstChildElement()->getFirstChildElement();
+    instrument->getFirstChildElement()->getFirstChildElement()->setAttribute("weight",0.0);check(!copy.restore(*xml),"Invalid curve weight accepted");
     xml=library.toXml();instrument=xml->getFirstChildElement()->getFirstChildElement()->getFirstChildElement();
     instrument->deleteAllChildElements();xml->setAttribute("schemaVersion",6);check(copy.restore(*xml),"Version 6 migration failed");
     state=copy.snapshot();check(drum::findInstrument(*drum::activeKit(state),id)->controls.sound.envelopes[0].count==0,"Legacy state gained custom envelope");

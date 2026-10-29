@@ -325,7 +325,7 @@ Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String&
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 8); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 9); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
@@ -355,7 +355,7 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
                     for(int point=0;point<shape.count;++point)
                     {
                         const auto& p=shape.points[(size_t)point];auto* node=envelope->createNewChildElement("Point");
-                        node->setAttribute("ms",p.ms);node->setAttribute("level",p.level);node->setAttribute("bend",p.bend);node->setAttribute("pivot",p.pivot);
+                        node->setAttribute("ms",juce::String(p.ms,17,true));node->setAttribute("level",juce::String(p.level,17,true));node->setAttribute("bend",juce::String(p.bend,17,true));node->setAttribute("pivot",juce::String(p.pivot,17,true));node->setAttribute("weight",juce::String(p.weight,17,true));
                     }
                 }
                 for(int n=0;n<numMacros;++n)
@@ -377,7 +377,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); return true;
     }
-    if (version < 2 || version > 8) return false;
+    if (version < 2 || version > 9) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -429,7 +429,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                             for(auto* p:e->getChildIterator())
                             {
                                 if(!p->hasTagName("Point") || p->getNumChildElements()!=0)return false;
-                                shape.points[(size_t)shape.count++]={numberAttribute(*p,"ms"),numberAttribute(*p,"level"),numberAttribute(*p,"bend"),numberAttribute(*p,"pivot")};
+                                shape.points[(size_t)shape.count++]={numberAttribute(*p,"ms"),numberAttribute(*p,"level"),numberAttribute(*p,"bend"),numberAttribute(*p,"pivot"),version>=9?numberAttribute(*p,"weight"):1.0};
                             }
                         }
                     }
