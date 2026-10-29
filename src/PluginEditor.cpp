@@ -54,6 +54,15 @@ public:
         g.setColour(c.withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.35f));
         g.fillRoundedRectangle(b.getLocalBounds().toFloat().reduced(0.5f), 6.0f);
     }
+    void drawButtonText(juce::Graphics& g,juce::TextButton& button,bool hover,bool down) override
+    {
+        if(button.getComponentID().startsWith("kit-") && button.getComponentID().substring(4).containsOnly("0123456789"))
+        {
+            g.setFont(juce::FontOptions(13.0f));g.setColour(button.getToggleState()?background:text);
+            g.drawText(button.getButtonText(),button.getLocalBounds().reduced(10,0),juce::Justification::centred,true);
+        }
+        else juce::LookAndFeel_V4::drawButtonText(g,button,hover,down);
+    }
     juce::Font getTextButtonFont(juce::TextButton&, int) override { return juce::FontOptions(13.0f); }
 };
 class InstrumentGrid final : public juce::Component, public juce::FileDragAndDropTarget
@@ -137,6 +146,7 @@ public:
     std::array<bool,128> active {};
     std::function<void(int,bool)> play;
     int pressedNote=-1;
+    std::array<float,128> depression {};
     bool isBlack(int note) const { int n = note % 12; return n == 1 || n == 3 || n == 6 || n == 8 || n == 10; }
     juce::Rectangle<float> key(int note) const
     {
@@ -155,11 +165,20 @@ public:
         for (bool black : { false, true }) for (int n = drum::firstNote; n < drum::firstNote+88; ++n)
         {
             if (isBlack(n) != black) continue;
-            auto area = key(n); int colour = 0; const auto* i = at(n, colour);
-            const bool playing=active[(size_t)n];
-            if(playing)area=area.withTrimmedTop(3);
-            g.setColour(playing ? accent : black ? juce::Colour(0xff101620) : juce::Colour(0xffc6cfdb));
-            g.fillRoundedRectangle(area, 2.0f);
+            const auto base=key(n);int colour=0;const auto* i=at(n,colour);
+            const bool playing=active[(size_t)n];const float depth=depression[(size_t)n];
+            g.setColour(juce::Colour(0xff080c13));g.fillRoundedRectangle(base,2.0f);
+            const float travel=black?4.5f:7.0f;
+            auto area=base.withTrimmedBottom(travel).translated(0,travel*depth);
+            // The front face gets shorter as the key surface moves down into its bed.
+            auto lip=base.withTop(area.getBottom()-1);
+            g.setColour(black?juce::Colour(0xff303b4d):juce::Colour(0xff8391a3));g.fillRoundedRectangle(lip,2.0f);
+            const auto face=black?juce::Colour(0xff182130):juce::Colour(0xffdce3eb);
+            g.setGradientFill(juce::ColourGradient(face.darker(depth*0.12f),0,area.getY(),face.darker(black?0.35f:0.08f),0,area.getBottom(),false));
+            g.fillRoundedRectangle(area,2.0f);
+            if(playing){g.setColour(accent.withAlpha(black?0.45f:0.25f));g.fillRoundedRectangle(area,2.0f);}
+            g.setColour((black?juce::Colours::white:juce::Colours::black).withAlpha(0.16f));
+            g.drawHorizontalLine((int)area.getBottom()-1,area.getX()+1,area.getRight()-1);
             if (i)
             {
                 g.setColour(groupColour(colour)); g.fillRoundedRectangle(area.withTrimmedTop(area.getHeight()-9).reduced(1,1), 2.0f);
@@ -319,7 +338,7 @@ public:
             g.setColour(background); g.fillRoundedRectangle(source.toFloat(),8);
             label(g,i->samplePath.isEmpty()?"Drop audio here":juce::File(i->samplePath).getFileName(),source.reduced(10,0).withTrimmedTop(8).withHeight(22),13);
             auto info=processor.getSampleEngine().statusFor(i->id);
-            auto detail=info.ready ? juce::String(info.seconds,2)+" s / "+(i->controls.sound.mode==2?"Classic":i->controls.sound.mode==1?"Gate":"Trigger") : info.message.isNotEmpty()?info.message:"WAV, AIFF, FLAC, OGG, MP3";
+            auto detail=info.ready ? juce::String(info.seconds,2)+" s / "+(i->controls.sound.mode==2?"Envelope":i->controls.sound.mode==1?"Gate":"Trigger") : info.message.isNotEmpty()?info.message:"WAV, AIFF, FLAC, OGG, MP3";
             label(g,detail,source.reduced(10,0).withTrimmedTop(35).withHeight(22),11,info.ready?accent:muted);
             label(g,"Volume",{right.getX()+18,right.getY()+264,56,30},11,muted);
             label(g,"Pan",{right.getX()+18,right.getY()+300,56,30},11,muted);
@@ -345,9 +364,21 @@ public:
         const int w=getWidth(), h=getHeight();
         if(w<=0 || h<=0) return;
         example.setBounds(w-194,23,170,31);
-        const int kitWidth=juce::jmin(132,(w-132)/8);
-        for(int n=0;n<8;++n) kitTabs[(size_t)n].setBounds(24+n*(kitWidth+6),88,kitWidth,35);
-        addKit.setBounds(24+(int)view.kits.size()*(kitWidth+6),88,78,35);
+        const int count=(int)view.kits.size(),gap=6,reserved=count<8?84:0;
+        const int available=w-48-reserved-gap*juce::jmax(0,count-1);
+        std::array<int,8> widths {};int total=0;
+        const juce::Font tabFont(juce::FontOptions(13.0f));
+        for(int n=0;n<count;++n)
+        {
+            widths[(size_t)n]=juce::jlimit(66,168,(int)std::ceil(juce::GlyphArrangement::getStringWidth(tabFont,view.kits[(size_t)n].name))+24);
+            total+=widths[(size_t)n];
+        }
+        // Preserve compact short names; shorten the widest names only when full.
+        while(total>available)
+        {auto widest=std::max_element(widths.begin(),widths.begin()+count);--*widest;--total;}
+        int tabX=24;
+        for(int n=0;n<count;++n){kitTabs[(size_t)n].setBounds(tabX,88,widths[(size_t)n],35);tabX+=widths[(size_t)n]+gap;}
+        addKit.setBounds(tabX,88,78,35);
         kitName.setBounds(113,138,juce::jmin(340,w-600),34); copyKit.setBounds(w-242,138,96,34); deleteKit.setBounds(w-136,138,112,34);
         const int bodyTop=192, bodyHeight=h-376;
         left={24,bodyTop,216,bodyHeight}; right={w-312,bodyTop,288,bodyHeight}; centre={252,bodyTop,w-576,bodyHeight}; keyPanel={24,h-166,w-48,128};
@@ -561,7 +592,15 @@ private:
             if(grid.active[index]!=active)changed=true;
             grid.active[index]=keyboard.active[index]=active;
         }
-        if(changed){grid.repaint();keyboard.repaint();}
+        bool moving=false;
+        for(size_t n=0;n<keyboard.depression.size();++n)
+        {
+            const float target=keyboard.active[n]?1.0f:0.0f,previous=keyboard.depression[n];
+            keyboard.depression[n]=juce::jlimit(0.0f,1.0f,previous+(target>previous?0.5f:target<previous?-0.34f:0.0f));
+            moving|=keyboard.depression[n]!=previous;
+        }
+        if(changed)grid.repaint();
+        if(changed || moving)keyboard.repaint();
     }
     void timerCallback() override
     {

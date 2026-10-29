@@ -6,6 +6,46 @@
 namespace drum
 {
 static_assert(std::atomic<Sample*>::is_always_lock_free);
+namespace
+{
+double attackWindow(double elapsed,double duration) noexcept
+{
+    const double t=elapsed/duration;
+    return std::sin(juce::MathConstants<double>::halfPi*juce::jmin(1.0,elapsed/0.0002))
+        *std::exp(-6*t)*(1-t)*(1-t);
+}
+double attackOscillator(int type,double hz,double rate,double coefficient,
+    double& phase,double& filteredNoise,uint32_t& seed) noexcept
+{
+    const double angle=phase*juce::MathConstants<double>::twoPi;double value;
+    if(type==2)
+    {
+        seed=1664525u*seed+1013904223u;
+        filteredNoise+=coefficient*((double)(seed>>8)/8388607.5-1-filteredNoise);value=filteredNoise;
+    }
+    else value=type==0?(std::sin(angle)+0.4*std::sin(2*angle))/1.4:std::sin(angle);
+    phase+=hz/rate;if(phase>=1)phase-=std::floor(phase);
+    return value;
+}
+}
+float SampleEngine::calibratedAttackPeak(const SoundParameters& s,double rate)
+{
+    if(s.attackOn==0)return 1;
+    const auto key=std::tuple{s.attackType,s.attackTone,s.attackDecay,rate};
+    if(auto found=attackPeaks.find(key);found!=attackPeaks.end())return found->second;
+    const double hz=juce::jmin(s.attackTone,rate*(s.attackType==0?0.22:0.44));
+    const double coefficient=1-std::exp(-juce::MathConstants<double>::twoPi*hz/rate),duration=s.attackDecay*0.001;
+    double phase=0,noise=0;uint32_t seed=0x7f4a7c15;float peak=0;
+    for(int frame=0;frame<(int)std::ceil(duration*rate);++frame)
+    {
+        const float value=(float)attackOscillator((int)s.attackType,hz,rate,coefficient,phase,noise,seed)
+            *(float)attackWindow(frame/rate,duration);
+        peak=juce::jmax(peak,std::abs(value));
+    }
+    peak=juce::jmax(peak,1.0e-12f);
+    if(attackPeaks.size()>=1024)attackPeaks.clear();
+    attackPeaks[key]=peak;return peak;
+}
 SampleEngine::SampleEngine(KitLibrary& model, std::function<void()> callback)
     : SampleEngine(model,std::move(callback),true) {}
 SampleEngine::SampleEngine(KitLibrary& model, std::function<void()> callback, bool startLoader)
@@ -58,7 +98,7 @@ bool SampleEngine::waitForLoading(int timeoutMs)
     notify();
     do
     {
-        if(outstanding.load()==0 && completedRevision.load()==library.snapshot().revision) return true;
+        if(outstanding.load()==0 && completedRevision.load()==library.snapshot().revision && completedRate.load()==displayedRate.load()) return true;
         juce::Thread::sleep(2);
     } while(juce::Time::getMillisecondCounterHiRes()<end);
     return false;
@@ -94,7 +134,7 @@ std::shared_ptr<const Sample> SampleEngine::decode(const juce::File& file, juce:
 }
 void SampleEngine::run()
 {
-    uint64_t previous=UINT64_MAX;
+    uint64_t previous=UINT64_MAX;double previousRate=0;
     while(!threadShouldExit())
     {
         std::deque<Request> pending;
@@ -117,9 +157,11 @@ void SampleEngine::run()
             else setStatus(id,{false,false,error,0});
         }
         auto state=library.snapshot();
-        if(state.revision!=previous)
+        const double rate=displayedRate.load();
+        if(state.revision!=previous || rate!=previousRate)
         {
-            updateBank(state); previous=state.revision; completedRevision.store(previous);
+            updateBank(state,rate);previous=state.revision;previousRate=rate;
+            completedRevision.store(previous);completedRate.store(rate);
         }
         outstanding.fetch_sub((int)pending.size());
         reclaim();
@@ -168,6 +210,7 @@ PreviewResult SampleEngine::renderPreview(std::shared_ptr<const Sample> source,I
     // Still render the duration of a muted sound, then show a flat waveform.
     const bool muted=controls.mute;controls.mute=false;
     bank->controls[21]=controlsFor(*source,controls,false);
+    bank->controls[21].attackPeak=engine.calibratedAttackPeak(controls.sound,engine.hostRate);
     engine.current=bank.get();engine.updateRenderControls();
     engine.busChannels.fill(-1);
     if(send>=0 && send<6)engine.busChannels[(size_t)send+16]=0;
@@ -198,9 +241,10 @@ PreviewResult SampleEngine::renderPreview(std::shared_ptr<const Sample> source,I
     result->waveform.build(result->audio);
     return {std::move(result),truncated,{}};
 }
-void SampleEngine::updateBank(const State& state)
+void SampleEngine::updateBank(const State& state,double rate)
 {
     auto next=std::make_unique<Bank>(); const auto* kit=activeKit(state); next->kitId=kit->id; next->kitEpoch=state.kitEpoch;
+    next->rate=rate;
     size_t bytes=0; std::set<const Sample*> counted; double duration=0.0;
     bool hasSolo=false;
     for(auto& group:kit->groups) for(auto& instrument:group.instruments) hasSolo|=instrument.controls.solo;
@@ -228,6 +272,7 @@ void SampleEngine::updateBank(const State& state)
         if(sample)
         {
             render=controlsFor(*sample,c,hasSolo);
+            render.attackPeak=calibratedAttackPeak(c.sound,rate);
             auto& s=c.sound;
             { const juce::ScopedLock guard(statusLock); waveforms[instrument.id]=sample; }
             auto seconds=sample->audio.getNumSamples()/sample->rate; duration=juce::jmax(duration,seconds/render.pitch);
@@ -246,7 +291,7 @@ void SampleEngine::updateBank(const State& state)
     bool same=old && old->kitId==next->kitId && old->kitEpoch==next->kitEpoch && old->ids==next->ids;
     if(same) for(int n=0;n<128;++n) if(old->samples[(size_t)n]!=next->samples[(size_t)n]) { same=false; break; }
     next->sampleGeneration=old ? old->sampleGeneration+(same?0:1) : 0;
-    if(same && old->controls==next->controls) return;
+    if(same && old->controls==next->controls && old->rate==rate) return;
     tail.store(duration);
     auto* pointer=next.get(); banks.push_back(std::move(next)); published.store(pointer);
 }
@@ -260,6 +305,9 @@ void SampleEngine::prepare(double rate)
 {
     hostRate=std::isfinite(rate) && rate>0 ? rate : 44100.0; releaseSamples=juce::jmax(1,(int)(hostRate*0.002)); release();
     displayedRate.store(hostRate);
+    // prepareToPlay is the non-realtime setup phase. Let the worker calibrate
+    // at the new device rate; slow source loads can still finish asynchronously.
+    if(isThreadRunning())waitForLoading(1000);
 }
 void SampleEngine::release()
 {
@@ -504,24 +552,12 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
             if(attackPending && attackFrame>=0 && attackGain>0)
             {
                 const double attackElapsed=attackFrame/hostRate;
-                const double t=attackElapsed/attackDuration;
-                const double window=std::sin(juce::MathConstants<double>::halfPi*juce::jmin(1.0,attackElapsed/0.0002))
-                    *std::exp(-6*t)*(1-t)*(1-t);
-                const double angle=voice.attackPhase*juce::MathConstants<double>::twoPi;
-                double transient;
-                if(s.attackType==2)
-                {
-                    voice.attackRandom=1664525u*voice.attackRandom+1013904223u;
-                    const double noise=(double)(voice.attackRandom>>8)/8388607.5-1;
-                    voice.attackNoise+=attackNoiseCoefficient*(noise-voice.attackNoise);
-                    transient=voice.attackNoise;
-                }
-                else transient=s.attackType==0?(std::sin(angle)+0.4*std::sin(2*angle))/1.4:std::sin(angle);
-                float hitLeft=(float)transient*attackGain,hitRight=hitLeft;
+                const float window=(float)attackWindow(attackElapsed,attackDuration);
+                float hitLeft=(float)attackOscillator((int)s.attackType,attackHz,hostRate,attackNoiseCoefficient,
+                    voice.attackPhase,voice.attackNoise,voice.attackRandom),hitRight=hitLeft;
                 voice.attackEqualizer.process(hitLeft,hitRight);
-                left+=hitLeft*(float)window;right+=hitRight*(float)window;
-                voice.attackPhase+=attackHz/hostRate;
-                if(voice.attackPhase>=1)voice.attackPhase-=std::floor(voice.attackPhase);
+                left+=(hitLeft*window/c.attackPeak)*attackGain;
+                right+=(hitRight*window/c.attackPeak)*attackGain;
             }
             const double pan=juce::jlimit(-1.0,1.0,voice.randomPan*s.randomPan+lfo*s.lfoPan);
             left*=voice.left.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1-pan);
@@ -560,7 +596,7 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     }
     else if(current && macroValues!=previousMacros) {updateRenderControls();updateVoices();}
     output.clear();
-    if(!current || current->kitEpoch!=library.activeKitEpoch()) { stopVoices(); return; }
+    if(!current || current->rate!=hostRate || current->kitEpoch!=library.activeKitEpoch()) { stopVoices(); return; }
     const bool stopped=panic.exchange(false);
     if(stopped)stopVoices();
     {

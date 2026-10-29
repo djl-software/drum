@@ -17,10 +17,10 @@ namespace drum
  X(reverse,"Direction",0,0,1,1,"",0,"Forward|Reverse",1) \
  X(normalise,"Normalise",0,0,1,1,"",0,"Off|On",1) \
  X(snap,"Zero-crossing snap",0,0,1,1,"",0,"Off|On",1) \
- X(mode,"Playback",0,0,2,1,"",0,"Trigger|Gate|Classic ADSR",1) \
+ X(mode,"Playback",0,0,2,1,"",0,"Trigger|Gate|Envelope",1) \
  X(voices,"Voices",128,1,128,1,"",0,"",1) \
  X(retrigger,"Retrigger",0,0,1,1,"",0,"Overlap|Cut previous",1) \
- X(loop,"Loop (Classic)",0,0,1,1,"",0,"Off|On",1) \
+ X(loop,"Loop (Envelope)",0,0,1,1,"",0,"Off|On",1) \
  X(loopStart,"Loop start",0,0,1,0.00001," %",0,"",100) \
  X(loopEnd,"Loop end",1,0,1,0.00001," %",0,"",100) \
  X(loopFade,"Loop crossfade",0,0,500,0.1," ms",0,"",1) \

@@ -110,7 +110,7 @@ void EnvelopeEditor::update(Values v,const drum::EnvelopeShape& stored,bool isLo
 }
 void EnvelopeEditor::setActivation(const juce::String& s)
 {
-    activate.setTooltip(s=="Unlink timing"?"Keep the current envelope timing and remove only this instrument's envelope timing macro assignments. Other mappings and macro values stay unchanged.":"Enable Classic playback so the amplitude envelope shapes this sound.");
+    activate.setTooltip(s=="Unlink timing"?"Keep the current envelope timing and remove only this instrument's envelope timing macro assignments. Other mappings and macro values stay unchanged.":"Enable Envelope playback so the amplitude envelope shapes this sound.");
     if(activate.getButtonText()!=s || activate.isVisible()!=s.isNotEmpty()){activate.setButtonText(s);activate.setVisible(s.isNotEmpty());resized();}
 }
 void EnvelopeEditor::resized()

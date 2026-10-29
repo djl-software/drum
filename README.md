@@ -26,7 +26,9 @@ Version 0.10.2 adds pointer-centred envelope zoom, wheel/middle-drag pan, per-en
 
 Version 0.11.0 makes the instrument pads square and four across. Press a pad or piano key to select and play; both respond visually to mouse input and incoming MIDI, including short-hit flashes. Gate/Classic follows mouse press/release. The attack layer now bypasses sample envelopes/fades, with **Position (0–2,000 ms)** to delay it independently. Red level warnings require a completed processed preview above 0 dBFS; high gain or waveform zoom alone does not warn.
 
-The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.11.0-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
+Version 0.11.1 calibrates **Attack level 0 dB** to a full-scale generated peak before velocity, EQ and mixer controls. Kit tabs fit their names with compact widths, and piano keys visibly depress and rise. **Envelope** replaces the Classic ADSR mode label. **Source** follows Forward/Reverse and its Start/End controls follow playback order, so reverse hits can be trimmed visually. The guide now explicitly includes Drum's own filter and eight-band EQ in the waveform preview.
+
+The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.11.1-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
 
 ![Playable instrument pads, four across](docs/images/drum-pads.png)
 

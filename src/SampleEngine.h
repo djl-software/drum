@@ -9,6 +9,7 @@
 #include <atomic>
 #include <deque>
 #include <map>
+#include <tuple>
 
 namespace drum
 {
@@ -78,6 +79,7 @@ private:
         SoundParameters sound;
         int start=0,end=1,loopStart=0,loopEnd=1;
         double sampleGain=1;
+        float attackPeak=1;
         std::array<float,6> sends {};
         InstrumentControls source;
         bool operator==(const RenderControls&) const = default;
@@ -86,6 +88,7 @@ private:
     {
         juce::String kitId;
         uint64_t kitEpoch = 0;
+        double rate=44100;
         uint64_t sampleGeneration = 0;
         std::array<juce::String,128> ids;
         std::array<std::shared_ptr<const Sample>,128> samples;
@@ -121,7 +124,8 @@ private:
     void run() override;
     std::shared_ptr<const Sample> decode(const juce::File&, juce::String& error);
     void setStatus(const juce::String&, SampleStatus);
-    void updateBank(const State&);
+    void updateBank(const State&,double rate);
+    float calibratedAttackPeak(const SoundParameters&,double rate);
     static RenderControls controlsFor(const Sample&, const InstrumentControls&, bool hasSolo);
     void reclaim();
     void startVoice(int note, int channel, float velocity, bool fromUI=false) noexcept;
@@ -153,7 +157,9 @@ private:
     std::array<KeyboardCommand,128> keyboardCommands;
     std::array<std::atomic<uint64_t>,128> activity {};
     std::atomic<bool> panic { false };
-    std::atomic<double> tail { 0.0 };
+    std::atomic<double> tail { 0.0 }, completedRate {0};
+    // Worker-only cache. Audio voices receive scalar calibration, never scan bursts.
+    std::map<std::tuple<double,double,double,double>,float> attackPeaks;
     Bank* current = nullptr;
     // Fixed sizes after construction; storage is off the processor's stack.
     std::vector<Voice> voices = std::vector<Voice>(128);

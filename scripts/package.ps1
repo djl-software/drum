@@ -21,6 +21,6 @@ Copy-Item -LiteralPath "$PSScriptRoot\..\README.md" -Destination $OutputDirector
 $drumDocsDestination = Join-Path $OutputDirectory 'docs'
 New-Item -ItemType Directory -Force -Path $drumDocsDestination | Out-Null
 Copy-Item -Path "$PSScriptRoot\..\docs\*" -Destination $drumDocsDestination -Recurse -Force
-$drumManual = "$PSScriptRoot\..\output\pdf\DJL-Drum-User-Manual-0.11.0-Windows.pdf"
+$drumManual = "$PSScriptRoot\..\output\pdf\DJL-Drum-User-Manual-0.11.1-Windows.pdf"
 if (Test-Path -LiteralPath $drumManual) { Copy-Item -LiteralPath $drumManual -Destination $OutputDirectory -Force }
 Write-Output "Packaged development build: $OutputDirectory"

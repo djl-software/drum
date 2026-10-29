@@ -4,6 +4,18 @@ namespace
 {
 const juce::Colour bg(0xff10151f),panel(0xff19212e),ink(0xffe5ebf5),muted(0xff8d9bb0),mint(0xff67dfc5);
 using SoundMember=double drum::SoundParameters::*;
+SoundMember oppositeMarker(SoundMember member)
+{
+    using S=drum::SoundParameters;
+    if(member==&S::start)return &S::end;if(member==&S::end)return &S::start;
+    if(member==&S::loopStart)return &S::loopEnd;if(member==&S::loopEnd)return &S::loopStart;
+    return member;
+}
+double markerValue(const drum::SoundParameters& sound,SoundMember member)
+{
+    const auto opposite=oppositeMarker(member);
+    return sound.reverse!=0 && opposite!=member?1-sound.*opposite:sound.*member;
+}
 constexpr std::array<std::array<SoundMember,4>,3> envelopeMembers{{
     {&drum::SoundParameters::ampAttack,&drum::SoundParameters::ampDecay,&drum::SoundParameters::ampSustain,&drum::SoundParameters::ampRelease},
     {&drum::SoundParameters::pitchAttack,&drum::SoundParameters::pitchDecay,&drum::SoundParameters::pitchSustain,&drum::SoundParameters::pitchRelease},
@@ -37,6 +49,8 @@ struct SoundEditor::Field final : juce::Component
             slider.setColour(juce::Slider::trackColourId,mint); slider.setColour(juce::Slider::thumbColourId,mint);
             slider.setColour(juce::Slider::textBoxTextColourId,ink); slider.setColour(juce::Slider::textBoxBackgroundColourId,bg);
             slider.setColour(juce::Slider::textBoxOutlineColourId,juce::Colour(0xff2b3648));
+            if(p.member==&drum::SoundParameters::attackLevel)
+                slider.setTooltip("0 dB = full-scale peak for the generated burst before EQ, velocity, LFO and mixer; -6 dB is about half amplitude. -60 dB is silent.");
             slider.onValueChange=[this,&editor] { editor.change(parameter,slider.getValue()/parameter.scale); };
             for(int n=0;n<3;++n)if(std::find(envelopeMembers[n].begin(),envelopeMembers[n].end(),p.member)!=envelopeMembers[n].end())
             {slider.onDragStart=[&editor,n]{editor.beginEnvelopeGesture(n);};slider.onDragEnd=[&editor,n]{editor.endEnvelopeGesture(n);};}
@@ -137,7 +151,7 @@ public:
         view.addItem("Source",1);view.addItem("Edited",2);
         for(int n=0;n<6;++n)view.addItem("Send "+juce::String::charToString((juce::juce_wchar)('A'+n)),n+3);
         view.setSelectedId(2,juce::dontSendNotification);
-        view.setTooltip("Edited shows one hit after Drum's controls. Source shows the original file with draggable trim markers. Sends show the signal before DAW effects.");
+        view.setTooltip("Edited shows one hit after Drum's controls. Source shows unprocessed audio in the playback direction with draggable trim markers. Sends show the signal before DAW effects.");
         view.onChange=[this]{zoom=1;offset=0;rendered={};setDisplay(sourceMode()?original:nullptr);owner.refreshPreview();};
         addAndMakeVisible(status);status.setComponentID("waveform-status");status.setFont(juce::FontOptions(11));status.setColour(juce::Label::textColourId,muted);
         addAndMakeVisible(verticalZoom);verticalZoom.setComponentID("waveform-vertical-zoom");verticalZoom.setName("Waveform vertical display zoom");
@@ -154,6 +168,9 @@ public:
         channelView.onChange=[this]{cachedWidth=0;repaint();};
     }
     bool sourceMode() const {return view.getSelectedId()==1;}
+    bool reversed() const {return sourceMode() && owner.sound.reverse!=0;}
+    double trimStart() const {return markerValue(owner.sound,&drum::SoundParameters::start);}
+    double trimEnd() const {return markerValue(owner.sound,&drum::SoundParameters::end);}
     void showEdited() {if(view.getSelectedId()!=2)view.setSelectedId(2,juce::sendNotificationSync);}
     int send() const {return view.getSelectedId()-3;}
     void setSample(std::shared_ptr<const drum::Sample> value,bool reset)
@@ -167,7 +184,7 @@ public:
     {
         if(value.sample || value.error.isNotEmpty())rendered=std::move(value);
         if(!sourceMode())setDisplay(rendered.sample);
-        auto caption=sourceMode()?"Original / Start "+juce::String(owner.sound.start*100,2)+"% / End "+juce::String(owner.sound.end*100,2)+"% - drag markers to trim":!original?juce::String("Load a sample to preview"):busy?juce::String("Updating preview..."):rendered.error;
+        auto caption=sourceMode()?juce::String(reversed()?"Source reversed / Start ":"Source / Start ")+juce::String(trimStart()*100,2)+"% / End "+juce::String(trimEnd()*100,2)+"% - drag markers to trim":!original?juce::String("Load a sample to preview"):busy?juce::String("Updating preview..."):rendered.error;
         if(!sourceMode() && original && !busy && caption.isEmpty())
         {
             caption="One hit / velocity 80% / 1 s gate";
@@ -198,7 +215,7 @@ public:
         auto x=[&](double position){return (float)(area.getX()+(position-offset)*zoom*area.getWidth());};
         g.saveState(); g.reduceClipRegion(area);
         g.setColour(mint.withAlpha(0.08f));
-        if(sourceMode())g.fillRect(juce::Rectangle<float>(x(owner.sound.start),(float)area.getY(),x(owner.sound.end)-x(owner.sound.start),(float)area.getHeight()));
+        if(sourceMode())g.fillRect(juce::Rectangle<float>(x(trimStart()),(float)area.getY(),x(trimEnd())-x(trimStart()),(float)area.getHeight()));
         else g.fillRect(area);
         if(source)
         {
@@ -230,7 +247,7 @@ public:
             };
             draw(muted.darker(0.35f));
             g.saveState();
-            if(sourceMode())g.reduceClipRegion(juce::Rectangle<float>(x(owner.sound.start),(float)area.getY(),x(owner.sound.end)-x(owner.sound.start),(float)area.getHeight()).getSmallestIntegerContainer());
+            if(sourceMode())g.reduceClipRegion(juce::Rectangle<float>(x(trimStart()),(float)area.getY(),x(trimEnd())-x(trimStart()),(float)area.getHeight()).getSmallestIntegerContainer());
             draw(mint);g.restoreState();
             if(channels==2)
             {
@@ -244,13 +261,15 @@ public:
         {
             double length=owner.sound.end-owner.sound.start;
             g.setColour(juce::Colour(0xffe9ad70));
-            for(auto position:{owner.sound.start+length*owner.sound.loopStart,owner.sound.start+length*owner.sound.loopEnd}) g.drawVerticalLine((int)x(position),(float)area.getY(),(float)area.getBottom());
+            for(auto position:{trimStart()+length*markerValue(owner.sound,&drum::SoundParameters::loopStart),trimStart()+length*markerValue(owner.sound,&drum::SoundParameters::loopEnd)})g.drawVerticalLine((int)x(position),(float)area.getY(),(float)area.getBottom());
         }
         if(sourceMode())
         {
             g.setColour(mint);
-            g.drawVerticalLine((int)x(owner.sound.start),(float)area.getY(),(float)area.getBottom());
-            g.drawVerticalLine((int)x(owner.sound.end)-1,(float)area.getY(),(float)area.getBottom());
+            g.drawVerticalLine((int)x(trimStart()),(float)area.getY(),(float)area.getBottom());
+            g.drawVerticalLine((int)x(trimEnd())-1,(float)area.getY(),(float)area.getBottom());
+            text(g,"START",{(int)x(trimStart())+4,area.getY()+17,48,16},10,mint);
+            text(g,"END",{(int)x(trimEnd())-30,area.getY()+17,28,16},10,mint);
         }
         g.restoreState();
         text(g,owner.path.isEmpty()?"Drop an audio sample here":juce::File(owner.path).getFileName(),{10,getHeight()-25,getWidth()-620,20},11,muted);
@@ -263,13 +282,13 @@ public:
     {
         marker=-1;
         if(!sourceMode() || !source || !plot().contains(e.position.toInt())) return;
-        double p=position(e.position.x); marker=std::abs(p-owner.sound.start)<std::abs(p-owner.sound.end)?0:1; mouseDrag(e);
+        double p=position(e.position.x); marker=std::abs(p-trimStart())<std::abs(p-trimEnd())?0:1; mouseDrag(e);
     }
     void mouseDrag(const juce::MouseEvent& e) override
     {
         if(marker<0) return;
         double p=position(e.position.x);
-        p=marker==0?juce::jmin(p,owner.sound.end-0.00001):juce::jmax(p,owner.sound.start+0.00001);
+        p=marker==0?juce::jmin(p,trimEnd()-0.00001):juce::jmax(p,trimStart()+0.00001);
         owner.change(drum::soundParameters[(size_t)marker],p);
     }
     void mouseWheelMove(const juce::MouseEvent& e,const juce::MouseWheelDetails& wheel) override
@@ -306,7 +325,7 @@ private:
         float peak=0;
         for(int lane=0;lane<displayChannels();++lane)
         {
-            auto range=source->waveform.range(source->audio,audioChannel(lane),begin,end);
+            auto range=source->waveform.range(source->audio,audioChannel(lane),reversed()?frames-end:begin,reversed()?frames-begin:end);
             peak=juce::jmax(peak,std::abs(range.minimum),std::abs(range.maximum));
         }
         const double reference=sourceMode()?juce::jmax(0.01f,source->peak):1.0f;
@@ -332,8 +351,8 @@ private:
     }
     void rebuildPaths(juce::Rectangle<int> area,int pixels)
     {
-        if(cachedWidth==area.getWidth() && cachedHeight==area.getHeight() && cachedPixels==pixels && cachedZoom==zoom && cachedOffset==offset) return;
-        cachedWidth=area.getWidth();cachedHeight=area.getHeight();cachedPixels=pixels;cachedZoom=zoom;cachedOffset=offset;
+        if(cachedWidth==area.getWidth() && cachedHeight==area.getHeight() && cachedPixels==pixels && cachedZoom==zoom && cachedOffset==offset && cachedReverse==reversed()) return;
+        cachedWidth=area.getWidth();cachedHeight=area.getHeight();cachedPixels=pixels;cachedZoom=zoom;cachedOffset=offset;cachedReverse=reversed();
         const int frames=source->audio.getNumSamples(),channels=displayChannels();
         const double begin=offset*frames,length=frames/zoom;
         sampleTrace=length<=pixels;
@@ -353,7 +372,8 @@ private:
                 for(int n=first;n<=last;++n)
                 {
                     const float xx=(float)(area.getX()+(n-begin)/length*area.getWidth());
-                    const float yy=y(source->audio.getSample(sourceChannel,juce::jmin(n,frames-1)));
+                    const int index=juce::jmin(n,frames-1);
+                    const float yy=y(source->audio.getSample(sourceChannel,reversed()?frames-1-index:index));
                     if(n==first)path.startNewSubPath(xx,yy);else path.lineTo(xx,yy);
                 }
             }
@@ -364,7 +384,7 @@ private:
                 {
                     const int from=juce::jlimit(0,frames-1,(int)std::floor(begin+length*n/pixels));
                     const int to=juce::jlimit(from+1,frames,(int)std::ceil(begin+length*(n+1)/pixels));
-                    columns[(size_t)n]=source->waveform.range(source->audio,sourceChannel,from,to);
+                    columns[(size_t)n]=source->waveform.range(source->audio,sourceChannel,reversed()?frames-to:from,reversed()?frames-from:to);
                     const float xx=(float)(area.getX()+(n+0.5)*area.getWidth()/pixels);
                     const float yy=y(columns[(size_t)n].maximum);
                     if(n==0)path.startNewSubPath((float)area.getX(),yy);
@@ -388,7 +408,7 @@ private:
     int cachedWidth=0,cachedHeight=0,cachedPixels=0;
     double cachedZoom=0,cachedOffset=0;
     double verticalScale=1;
-    bool sampleTrace=false;
+    bool sampleTrace=false,cachedReverse=false;
 };
 class SoundEditor::WaveformDivider final : public juce::Component,public juce::SettableTooltipClient
 {
@@ -486,10 +506,12 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     if(changed) {waveform->zoom=1;waveform->offset=0;message.clear();}
     for(auto& field:fields)
     {
-        field->update(sound.*(field->parameter.member),changed);bool custom=false;
+        field->update(markerValue(sound,field->parameter.member),changed);bool custom=false;
         for(int n=0;n<3;++n)for(auto member:envelopeMembers[(size_t)n])if(field->parameter.member==member)custom=sound.envelopes[(size_t)n].count!=0;
+        if(oppositeMarker(field->parameter.member)!=field->parameter.member)
+            field->slider.setTooltip(sound.reverse!=0?"Position measured from the reversed beginning. Start is where reverse playback begins; the original file is unchanged.":"Position measured from the forward beginning of the source. Loop positions are relative to the trimmed region.");
         field->setEnabled(i!=nullptr && !custom && !(field->parameter.member==&drum::SoundParameters::fadeIn && sound.mode==2));
-        if(field->parameter.member==&drum::SoundParameters::fadeIn)field->slider.setTooltip(sound.mode==2?"Classic playback uses the amplitude graph for its attack. Fade in applies in Trigger/Gate.":"Fade the beginning of a Trigger/Gate hit. View Edited to see the result.");
+        if(field->parameter.member==&drum::SoundParameters::fadeIn)field->slider.setTooltip(sound.mode==2?"Envelope playback uses the amplitude graph for its attack. Fade in applies in Trigger/Gate.":"Fade the beginning of a Trigger/Gate hit. View Edited to see the result.");
     }
     for(int n=0;n<drum::numMacros;++n)
     {
@@ -527,7 +549,7 @@ void SoundEditor::refreshEnvelopes(bool newSelection)
         for(int h=0;h<4;++h)bindings[(size_t)h]=mapped(members[(size_t)h]);
         const double amount=n==0?1:n==1?effective.pitchAmount:effective.filterAmount;
         const bool active=n==0?sound.mode==2:n==1?amount!=0:sound.filterOn!=0 && amount!=0;
-        juce::String status=n==0?(active?"Classic / S holds until note-off; release follows":"Drag to enable amplitude shaping (Classic playback)")
+        juce::String status=n==0?(active?"Envelope / S holds until note-off; release follows":"Drag to enable amplitude shaping (Envelope playback)")
             :n==1?(amount==0?"Zero amount: drag a point to enable +12 st":"Pitch shape / hold at S until note-off")
             :sound.filterOn==0 || amount==0?"Drag to enable tone filter and envelope":"Tone filter shape / S holds until note-off";
         juce::String controlled;
@@ -542,7 +564,7 @@ void SoundEditor::refreshEnvelopes(bool newSelection)
         graph.setTimeLimit(envelopeLimit());
         graph.update({effective.*members[0],effective.*members[1],effective.*members[2],effective.*members[3]},effective.envelopes[(size_t)n],controlled.isNotEmpty(),amount,n==0?"%":n==1?"st":"oct",active,status,newSelection,amountMapped);
         graph.setHistory(!history.undo.empty(),!history.redo.empty());
-        graph.setActivation(controlled.isNotEmpty()?"Unlink timing":n==0 && !active?"Use Classic":"");
+        graph.setActivation(controlled.isNotEmpty()?"Unlink timing":n==0 && !active?"Use Envelope":"");
     }
 }
 void SoundEditor::activateEnvelope(int envelope)
@@ -697,7 +719,10 @@ void SoundEditor::change(const drum::SoundParameter& parameter,double value)
     if(updating) return;
     auto state=processor.getLibrary().snapshot(); auto* kit=drum::activeKit(state); auto* i=drum::findInstrument(*kit,instrumentId);
     if(!i || kit->id!=kitId) return;
-    auto c=i->controls; c.sound.*(parameter.member)=value;
+    auto c=i->controls;
+    const auto opposite=oppositeMarker(parameter.member);
+    if(c.sound.reverse!=0 && opposite!=parameter.member)c.sound.*opposite=1-value;
+    else c.sound.*(parameter.member)=value;
     int envelope=-1;
     for(int n=0;n<3;++n)if(std::find(envelopeMembers[n].begin(),envelopeMembers[n].end(),parameter.member)!=envelopeMembers[n].end()
         || (n==1 && parameter.member==&drum::SoundParameters::pitchAmount) || (n==2 && parameter.member==&drum::SoundParameters::filterAmount))envelope=n;

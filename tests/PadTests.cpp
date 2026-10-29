@@ -53,6 +53,12 @@ void runPadTests()
     check(pixels(grid,area)!=idlePad && pixels(piano,piano.getLocalBounds())!=idlePiano,"MIDI failed to highlight both pad and piano");
     for(int n=0;n<7;++n)tick();check(pixels(grid,area)!=idlePad,"Held MIDI note stopped highlighting");
     capture(editor,"drum-pads-midi.png");
+    const int keyX=(int)(piano.getWidth()/104.0f);
+    auto heldImage=piano.createComponentSnapshot(piano.getLocalBounds());
+    check(heldImage.getPixelAt(keyX,2).getBrightness()<0.2f,"White key top did not move down");
+    midi.addEvent(juce::MidiMessage::noteOn(2,22,(juce::uint8)110),0);processor.processBlock(output,midi);tick();tick();
+    capture(editor,"drum-piano-pressed.png");
+    midi.addEvent(juce::MidiMessage::noteOff(2,22),0);processor.processBlock(output,midi);for(int n=0;n<8;++n)tick();
     midi.addEvent(juce::MidiMessage::noteOn(3,21,(juce::uint8)90),0);midi.addEvent(juce::MidiMessage::noteOff(2,21),64);processor.processBlock(output,midi);tick();
     check((engine.noteActivity(21)&7)==4,"One channel's release cleared another held channel");
     midi.addEvent(juce::MidiMessage::noteOff(3,21),0);processor.processBlock(output,midi);for(int n=0;n<7;++n)tick();
@@ -79,5 +85,22 @@ void runPadTests()
     engine.keyboardNote(21,true);engine.stop();processor.processBlock(output,midi);check(output.getMagnitude(0,256)==0,"Stop replayed queued pad hit");
     midi.addEvent(juce::MidiMessage::noteOn(4,21,(juce::uint8)127),0);processor.processBlock(output,midi);
     midi.addEvent(juce::MidiMessage::allNotesOff(4),0);processor.processBlock(output,midi);check((engine.noteActivity(21)&0x1ffff)==0,"All notes off left held indicator");
+    check(library.rename(kit,"House drums").ok,"Kit rename failed");
+    for(const char* title:{"Acoustic","808","Live percussion","A deliberately long kit name that needs an ellipsis","Breaks","Jungle","Hip hop"})
+    {auto result=library.addKit();check(result.ok && library.rename(result.id,title).ok,"Named kit setup failed");}
+    check(library.activateKit(kit).ok,"Kit reactivation failed");tick();tick();
+    for(auto size:{juce::Point<int>{1280,900},juce::Point<int>{800,600}})
+    {
+        editor.setSize(size.x,size.y);int previousRight=0;
+        for(int n=0;n<8;++n)
+        {
+            auto& button=dynamic_cast<juce::TextButton&>(find(editor,"kit-"+juce::String(n)));
+            check(button.getWidth()<=168 && button.getX()>=previousRight,"Named kit tabs overlap or oversize");
+            check(button.getButtonText().isNotEmpty() && button.getTooltip()==button.getButtonText(),"Kit tab lost its full name");
+            check(button.getRight()<=button.getParentComponent()->getWidth()-24,"Named kit tabs overflow");previousRight=button.getRight();
+        }
+        check(find(editor,"kit-2").getWidth()<find(editor,"kit-0").getWidth(),"Short kit name wastes tab width");
+        capture(editor,size.x==1280?"drum-kit-names.png":"drum-kit-names-compact.png");
+    }
     std::cout<<"Four-across pads, mouse/piano playback, MIDI hold/flash, channel isolation and Stop passed\n";
 }

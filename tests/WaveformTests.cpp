@@ -145,6 +145,25 @@ void runWaveformTests()
     waveform->mouseDown(event(*waveform,0.25f));
     check(std::abs(start()-(0.5-8.0/48000))<0.00001,"Deep zoom still limited to coarse overview");
     reset();
+    editor.setSize(1280,900);click(editor,"waveform-fit");
+    auto* direction=dynamic_cast<juce::ComboBox*>(find(editor,"edit-reverse"));check(direction!=nullptr,"Direction control missing");
+    direction->setSelectedId(2,juce::sendNotificationSync);
+    waveform->mouseDown(event(*waveform,0.2f));
+    auto reversedState=library.snapshot();auto reversedControls=drum::findInstrument(*drum::activeKit(reversedState),added.id)->controls;
+    check(reversedControls.sound.reverse==1 && std::abs(reversedControls.sound.end-0.8)<1e-6 && reversedControls.sound.start==0,"Reverse START marker edits wrong original boundary");
+    auto* startBox=dynamic_cast<juce::Slider*>(find(editor,"edit-start"));auto* endBox=dynamic_cast<juce::Slider*>(find(editor,"edit-end"));
+    check(startBox && endBox && std::abs(startBox->getValue()-20)<1e-5,"Reverse Start numeric field disagrees with marker");
+    endBox->setValue(70,juce::sendNotificationSync);reversedState=library.snapshot();reversedControls=drum::findInstrument(*drum::activeKit(reversedState),added.id)->controls;
+    check(std::abs(reversedControls.sound.start-0.3)<1e-6,"Reverse End numeric field edits wrong boundary");
+    std::array<float,drum::numMacros> macros;macros.fill(0.5f);
+    const auto preview=drum::SampleEngine::renderPreview(source,reversedControls,macros,120,48000);
+    check(preview.sample && std::abs(preview.sample->audio.getSample(0,0)-source->audio.getSample(0,(int)(reversedControls.sound.end*source->audio.getNumSamples())-1)*0.8f)<1e-5,"Reverse marker does not set audible start");
+    capture(editor,"drum-waveform-reverse-trim.png");
+    click(editor,"waveform-zoom-in");click(editor,"waveform-zoom-in");waveform->mouseDown(event(*waveform,0.25f));
+    reversedState=library.snapshot();reversedControls=drum::findInstrument(*drum::activeKit(reversedState),added.id)->controls;
+    check(std::abs(reversedControls.sound.end-0.5625)<1e-6,"Zoomed reverse marker mapping failed");
+    direction->setSelectedId(1,juce::sendNotificationSync);check(std::abs(startBox->getValue()-30)<1e-5,"Direction toggle changed retained source region");
+    reset();click(editor,"waveform-fit");
     // Replacing a sample on the same instrument must reset the old view, while
     // retained UI data stays valid if the worker retires the old playback bank.
     engine.requestLoad(kit,added.id,fixture(777,1));check(engine.waitForLoading(10000),"Waveform replacement timed out");select();

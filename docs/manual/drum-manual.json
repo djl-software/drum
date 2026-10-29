@@ -1,11 +1,11 @@
 {
   "product": "Drum",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "date": "29 October 2026",
   "platform": "Windows VST3",
   "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
-  "cover_caption": "Version 0.11.0 editing preview  |  Instructions, examples and why",
-  "footer": "Version 0.11.0  |  Windows VST3 editing preview",
+  "cover_caption": "Version 0.11.1 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.11.1  |  Windows VST3 editing preview",
   "logo": "../../assets/DJLLogoWhite.png",
   "cover_image": "assets/curves.png",
   "publisher": "DJL Software",
@@ -15,7 +15,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.11.0 editing preview."
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.11.1 editing preview."
         },
         {
           "type": "p",
@@ -35,7 +35,7 @@
         },
         {
           "type": "p",
-          "text": "Screenshots show the real 0.11.0 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
+          "text": "Screenshots show the real 0.11.1 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
         },
         {
           "type": "p",
@@ -77,7 +77,7 @@
         },
         {
           "type": "p",
-          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.11.0. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.11.1. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
         },
         {
           "type": "p",
@@ -93,7 +93,7 @@
           "items": [
             "Open Drum. Rename Kit 1 using the active-kit name box. Press Enter or click away to keep the name; Escape cancels a name edit.",
             "Select Group 1 and rename it Drums. Click + Instrument, select its card, then click Load sample and choose a short WAV or AIFF drum hit. Wait for Ready. Alternatively, drop a sample into the empty card area.",
-            "Click an instrument pad or its assigned piano key to select and play it. Hold the mouse for Gate/Classic and release to end the held note. Play in the right panel remains a one-second audition; Stop ends sounding and pending hits.",
+            "Click an instrument pad or its assigned piano key to select and play it. Hold the mouse for Gate/Envelope and release to end the held note. Play in the right panel remains a one-second audition; Stop ends sounding and pending hits.",
             "Use the Key chooser to assign MIDI 36. Drum calls this C2. In your DAW, draw MIDI note number 36 in a clip, or send that note from a controller.",
             "Play the clip. For a connected MIDI keyboard, enable its input in the DAW and arm the Drum MIDI track or set monitoring to In. The matching pad and piano key light while held; short hits flash briefly. A connection alone does not route MIDI into Drum.",
             "Add a snare and a hat on different free notes. Save the DAW project once playback works."
@@ -105,7 +105,7 @@
         },
         {
           "type": "p",
-          "text": "Play auditions at 80% velocity. Gate and Classic audition use a one-second held note before release. A MIDI clip can use a different velocity or note length, so its result can sound different from the audition."
+          "text": "Play auditions at 80% velocity. Gate and Envelope audition use a one-second held note before release. A MIDI clip can use a different velocity or note length, so its result can sound different from the audition."
         },
         {
           "type": "sub",
@@ -127,7 +127,7 @@
         {
           "type": "image",
           "path": "assets/workspace.png",
-          "caption": "Four square pads per row, selected-instrument controls on the right and the playable 88-key piano below. A MIDI hit highlights the matching pad and key.",
+          "caption": "Eight compact named kit tabs, four square pads per row and the playable 88-key piano. Longer kit names use an ellipsis; hover to read the full name.",
           "max_height": 250
         },
         {
@@ -139,7 +139,7 @@
           "rows": [
             [
               "Kit tabs",
-              "Select the active kit. + Kit creates another; Copy kit duplicates the selected kit."
+              "Compact tabs show kit names. Long names shorten with an ellipsis; hover for the full name. Select a tab to activate its kit; + Kit adds one."
             ],
             [
               "Groups",
@@ -147,7 +147,7 @@
             ],
             [
               "Instrument pads",
-              "Four across. Press to select and play at 80% velocity; release ends a Gate/Classic note. Scroll for more pads. Use the right panel to name, assign, load, mix or edit."
+              "Four across. Press to select and play at 80% velocity; release ends a Gate/Envelope note. Scroll for more pads. Use the right panel to name, assign, load, mix or edit."
             ],
             [
               "Piano",
@@ -165,7 +165,7 @@
         },
         {
           "type": "why",
-          "text": "Selection and performance are separate: the selected pad keeps its outline, while playing adds a bright fill and depresses the piano key. Incoming MIDI leaves your editing selection alone. A brief flash catches notes shorter than a screen refresh; it indicates note input, not an audio level meter. Muted or empty pads can still light."
+          "text": "The selected pad keeps its outline. Playing adds a bright fill and physically depresses the piano key; release lifts it. Incoming MIDI leaves your editing selection alone. Short hits remain visible briefly. This indicates note input, not audio level: muted or empty slots can still light."
         },
         {
           "type": "p",
@@ -472,11 +472,11 @@
           "rows": [
             [
               "Edited",
-              "One simulated hit through current Drum processing, at 80% velocity and a one-second Gate/Classic note. Updates after edits and macro changes."
+              "One simulated hit through current Drum processing, at 80% velocity and a one-second Gate/Envelope note. Updates after edits and macro changes."
             ],
             [
               "Source",
-              "Original decoded audio, with draggable trim boundaries. Source is scaled for visibility and does not show processing changes."
+              "Unprocessed audio in the chosen playback direction, with draggable Start/End markers. Reverse flips the picture; Start is the audible beginning. Scaled for visibility."
             ],
             [
               "Send A-F",
@@ -539,7 +539,7 @@
         },
         {
           "type": "p",
-          "text": "Edited includes Drum's gain, trim/reverse, tuning, envelopes, filter, LFO, attack layer, mixer and macros. It does not include EQ, compression or reverb added later in Live. An amplitude envelope changes height; a pitch envelope changes cycle spacing and often duration; a filter changes spectral detail. They need not create the same visual change."
+          "text": "Edited includes Drum's own eight-band EQ and tone filter, plus gain, trim/reverse, tuning, envelopes, LFO, attack layer, mixer and macros. A filter is a form of frequency shaping: Drum's tone filter offers one modulated response, while its EQ provides eight bands. Effects placed later on Ableton tracks, such as EQ Eight, Compressor or Reverb, are outside Drum and are not drawn in this preview."
         },
         {
           "type": "p",
@@ -553,9 +553,9 @@
         {
           "type": "steps",
           "items": [
-            "Choose Source in the waveform view. Drag Start and End to isolate the part you want, or enter their percentage values on Sample. Start must precede End.",
+            "Choose Forward or Reverse on Sample, then choose Source in the waveform view. Source reads left to right in that playback direction. Drag START to the desired audible beginning and END to the desired finish, or enter their numeric percentages.",
             "Enable Zero-crossing snap when a trim boundary clicks. It nudges a boundary towards a nearby zero crossing.",
-            "Choose Reverse for backward playback of the trimmed section. Trigger a new hit after changing trim or direction.",
+            "In Reverse, the waveform flips and START trims from the original file's end. Existing trim boundaries stay on the same source region when you switch direction. Trigger a new hit to hear edits.",
             "Adjust Sample gain, Normalise and Fade in/out, then compare in Edited and audition."
           ]
         },
@@ -568,7 +568,7 @@
           "rows": [
             [
               "Start / End",
-              "0-100% of the original file. Removing silence at the beginning improves timing without moving MIDI notes."
+              "0-100% of the full file in the selected direction. Reverse measures from the original end. Loop percentages follow the direction within the trimmed region. The source file is unchanged."
             ],
             [
               "Sample gain",
@@ -580,11 +580,11 @@
             ],
             [
               "Fade in",
-              "0-10,000 ms. Softens the sample in Trigger/Gate. Disabled in Classic, whose amplitude graph shapes the sample. The separate attack layer bypasses both."
+              "0-10,000 ms. Softens the sample in Trigger/Gate. Disabled in Envelope, whose amplitude graph shapes the sample. The separate attack layer bypasses both."
             ],
             [
               "Fade out / Gate release",
-              "0-10,000 ms. Controls end fading and Gate release; a minimum end ramp suppresses abrupt discontinuities."
+              "Smooths the physical sample end in all modes and sets Gate release. In Envelope mode, Release controls MIDI note-off; the end fade remains separate to prevent edge clicks."
             ]
           ],
           "widths": [
@@ -625,7 +625,7 @@
               "MIDI note-off begins the release set by Fade out. Useful when note length should shorten a hit."
             ],
             [
-              "Classic ADSR",
+              "Envelope",
               "Amplitude follows its ADSR or custom point envelope. Can sustain a loop while held, then release on note-off."
             ]
           ],
@@ -637,7 +637,7 @@
         {
           "type": "steps",
           "items": [
-            "For a sustained sound, choose Classic ADSR on Sample and turn Loop On.",
+            "For a sustained sound, choose Envelope on Sample and turn Loop On.",
             "Set Loop start/end inside the trimmed section. These percentages are relative to the trimmed region, not the entire original file.",
             "Raise Loop crossfade a little if the repeated join is abrupt. The effective crossfade is limited to half the loop length.",
             "Play a held MIDI note, then release it. Adjust the amplitude release and listen to the tail. Also test short notes."
@@ -645,15 +645,15 @@
         },
         {
           "type": "why",
-          "text": "Trigger makes a kick's length independent of how long you hold a keyboard key. Gate makes note length useful for articulation. Classic adds a shaped amplitude contour and looping for sustained sounds. A short non-looping source still ends when its audio runs out."
+          "text": "Trigger makes a kick's length independent of how long you hold a keyboard key. Gate makes note length useful for articulation. Envelope adds a shaped amplitude contour and looping for sustained sounds. A short non-looping source still ends when its audio runs out."
         },
         {
           "type": "p",
-          "text": "Manual Play holds Gate/Classic for one second. It will not demonstrate a ten-second sustain. Test sustained loops from MIDI. Forward and reverse loops are supported; Drum does not time-stretch them to the song tempo."
+          "text": "Envelope is the new name for Classic ADSR; saved sounds keep their mode. It supports drawn shapes and numeric ADSR. Manual Play holds Gate/Envelope for one second. A mouse pad or MIDI note follows your actual press/release. Looping supports both directions; Drum does not time-stretch to song tempo."
         },
         {
           "type": "p",
-          "text": "Pitch and filter envelopes can act in all three modes, but Trigger ignores note-off. Their release sections need Gate/Classic note-off to be heard. Amplitude ADSR/custom points affect Classic only; the graph states when it is inactive."
+          "text": "Pitch and filter envelopes can act in all three modes, but Trigger ignores note-off. Their release sections need Gate/Envelope note-off to be heard. Amplitude ADSR/custom points affect Envelope only; the graph states when it is inactive."
         }
       ]
     },
@@ -706,7 +706,7 @@
         {
           "type": "steps",
           "items": [
-            "Moving, bending or removing an amplitude point automatically selects Classic playback and Edited view. You can also choose Classic ADSR on Sample or click Use Classic. Simply adding a point preserves the current sound and mode.",
+            "Moving, bending or removing an amplitude point automatically selects Envelope playback and Edited view. You can also choose Envelope on Sample or click Use Envelope. Simply adding a point preserves the current sound and mode.",
             "For a short drum tail, start with zero Attack, a short Decay, low Sustain and a short Release. Play a MIDI note long enough to hear the decay.",
             "For custom editing, move the peak near the start, place S at the desired held level and shape points after S for the release.",
             "Test both a held note and a note released during the initial rise. The release starts from the actual current level rather than jumping to the drawn S level."
@@ -926,8 +926,14 @@
         {
           "type": "image",
           "path": "assets/equalizer.png",
-          "caption": "Filter > 8-band EQ. Demonstration low-cut setting; the curve shows the combined stereo response.",
-          "max_height": 245
+          "caption": "Eight-band EQ close-up. Demonstration low-cut setting; the curve shows the combined stereo response.",
+          "max_height": 245,
+          "crop": [
+            42,
+            600,
+            1238,
+            782
+          ]
         },
         {
           "type": "steps",
@@ -1024,7 +1030,7 @@
           "type": "image",
           "path": "assets/attack.png",
           "caption": "Demonstration: a louder, longer click positioned 150 ms after note-on. Use the gentler starting recipe below for a subtle front click.",
-          "max_height": 215
+          "max_height": 190
         },
         {
           "type": "steps",
@@ -1042,7 +1048,7 @@
         },
         {
           "type": "p",
-          "text": "Click includes a harmonic for a sharper edge. Pulse is tonal. Noise is a repeatable filtered burst. Attack level ranges from -60 dB (silent) to 0 dB; Tone is 30 Hz-16 kHz, limited as needed by the sample rate."
+          "text": "Click adds a harmonic, Pulse is tonal, and Noise is a repeatable filtered burst. Attack level now sets the burst peak: 0 dB is full scale before EQ, velocity, LFO and mixer; -6 dB is roughly half amplitude. -60 dB is silent. Tone is 30 Hz-16 kHz, limited by sample rate."
         },
         {
           "type": "p",
@@ -1050,7 +1056,7 @@
         },
         {
           "type": "p",
-          "text": "Attack Tone sets its pitch independently. The eight-band EQ, velocity response, LFO volume, instrument volume/pan and sends still affect it. Edited and Send include its timing and level; Source does not. The layer and sample can add above full scale. Position is saved per instrument, copied with kits/slices and defaults to 0 ms for older projects."
+          "text": "Tone sets pitch independently. EQ, velocity, LFO volume and the mixer still affect the result: Play/Edited use 80% velocity, so an isolated 0 dB attack normally previews at -1.9 dBFS. Adding the sample can exceed full scale. Edited/Send show the layer; Source does not. Position is saved per instrument and defaults to 0 ms in older projects."
         }
       ]
     },
@@ -1080,7 +1086,7 @@
         },
         {
           "type": "p",
-          "text": "Each slice shares the source file and inherits sound controls, including custom envelopes, outputs and macros, but starts in Trigger with looping off. A copied amplitude envelope is therefore inactive until you choose Classic. Copies reference the audio rather than creating new audio files."
+          "text": "Each slice shares the source file and inherits sound controls, including custom envelopes, outputs and macros, but starts in Trigger with looping off. A copied amplitude envelope is therefore inactive until you choose Envelope. Copies reference the audio rather than creating new audio files."
         }
       ]
     },
@@ -1098,7 +1104,7 @@
         },
         {
           "type": "why",
-          "text": "Drum supplies the separate audio; Live owns the effect devices. Sounds sharing one output share that effect chain. A shared send is useful when several instruments should sound as though they occupy the same space."
+          "text": "Use a dedicated output for a private effect chain: Kick on Out 2 can have Compressor, while Snare on Out 3 can have EQ Eight and Saturator. Sounds sharing an output share its chain. A send adds a parallel copy for shared effects such as room reverb. Drum supplies the audio; Live owns the devices."
         },
         {
           "type": "table",
@@ -1131,7 +1137,7 @@
         },
         {
           "type": "p",
-          "text": "Native Live effects cannot be dropped into Drum. This build also does not host third-party VST3 effects internally. The separate-track approach offers sixteen instrument-output destinations, not 88 independent chains. Organisational groups do not automatically create buses."
+          "text": "Live owns native devices, so they cannot be dropped into Drum. Third-party effects can also run on the receiving Live tracks; this build does not host VST3 effects internally. There are sixteen instrument-output destinations, not 88 private chains. Organisational groups do not create buses."
         },
         {
           "type": "p",
@@ -1228,7 +1234,7 @@
         },
         {
           "type": "p",
-          "text": "Choose Classic, keep the amplitude attack fast, lower Sustain and shorten Decay. Test with a long MIDI note so note-off does not mask the decay setting. Then set Release to avoid an abrupt cutoff on short notes. If the original sample is already short, lengthening an envelope cannot recover missing audio."
+          "text": "Choose Envelope, keep the amplitude attack fast, lower Sustain and shorten Decay. Test with a long MIDI note so note-off does not mask the decay setting. Then set Release to avoid an abrupt cutoff on short notes. If the original sample is already short, lengthening an envelope cannot recover missing audio."
         },
         {
           "type": "sub",
@@ -1292,7 +1298,7 @@
             ],
             [
               "Amplitude graph is grey",
-              "Choose Classic ADSR or Use Classic. Trigger/Gate use fade controls."
+              "Choose Envelope or Use Envelope. Trigger/Gate use fade controls."
             ],
             [
               "Filter/LFO makes no difference",
@@ -1501,7 +1507,7 @@
           "type": "table",
           "headers": [
             "Facility",
-            "Scope of version 0.11.0"
+            "Scope of version 0.11.1"
           ],
           "rows": [
             [

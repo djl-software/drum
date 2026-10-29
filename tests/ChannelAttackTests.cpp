@@ -61,6 +61,20 @@ void runChannelAttackTests()
 
     // A silent source isolates the independent attack from every sample envelope.
     sample=source();sample->audio.clear();sample->peak=0;sample->waveform.build(sample->audio);
+    // 0 dB is a peak reference for the shaped burst, across types, tones,
+    // short/long decays and device rates. Velocity/mixer remain downstream.
+    for(double rate:{8000.0,44100.0,48000.0,96000.0,192000.0,384000.0})
+        for(int type=0;type<3;++type)for(double tone:{30.0,1800.0,16000.0})for(double decay:{1.0,8.0,100.0})
+    {
+        controls={};controls.sound.attackOn=1;controls.sound.attackLevel=0;controls.sound.attackType=type;
+        controls.sound.attackTone=tone;controls.sound.attackDecay=decay;controls.sound.velocityVolume=0;
+        auto full=render(rate);check(full->peak==1.0f,"Attack 0 dB is not exactly full scale");
+        controls.sound.attackLevel=-6;near(render(rate)->peak,juce::Decibels::decibelsToGain(-6.0f),"Attack dB does not scale its peak");
+        controls.sound.attackLevel=-18;near(render(rate)->peak,juce::Decibels::decibelsToGain(-18.0f),"Quiet attack dB is not calibrated");
+    }
+    controls={};controls.sound.attackOn=1;controls.sound.attackLevel=0;
+    near(render()->peak,0.8f,"Attack bypassed velocity response");
+    controls.volumeDb=-6.020599913;near(render()->peak,0.4f,"Attack bypassed instrument fader");
     controls={};controls.sound.attackOn=1;controls.sound.attackLevel=-3;controls.sound.attackDecay=40;
     for(double rate:{8000.0,44100.0,48000.0,96000.0})
     {
@@ -142,6 +156,16 @@ void runChannelAttackTests()
         else if(cancel==1)midi.addEvent(juce::MidiMessage::allSoundOff(1),0);
         else {controls.mute=true;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Mute update failed");}
         for(int block=1;block<19;++block){engine.process(audio,midi);midi.clear();if(block>1)check(audio.getMagnitude(0,512)==0,"Cancelled delayed attack still sounded");}
+    }
+    controls={};controls.sound.attackOn=1;controls.sound.attackType=2;controls.sound.attackTone=30;
+    controls.sound.attackDecay=1;controls.sound.attackPosition=150;controls.sound.attackLevel=0;controls.sound.velocityVolume=0;
+    check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Rate calibration setup failed");
+    for(double rate:{8000.0,48000.0,96000.0,44100.0})
+    {
+        engine.prepare(rate);midi.clear();midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);
+        float peak=0;for(int block=0;block<(int)std::ceil(rate*0.18/512);++block)
+        {engine.process(audio,midi);midi.clear();if(block*512>=rate*0.11)peak=juce::jmax(peak,audio.getMagnitude(0,512));}
+        check(peak==1.0f,"Host-rate change left attack calibration stale");
     }
     std::cout<<"Mono playback, attack layers, sends, smoothing, recall and schema migration passed\n";
 }
