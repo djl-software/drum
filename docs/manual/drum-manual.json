@@ -1,11 +1,11 @@
 {
   "product": "Drum",
-  "version": "0.10.2",
+  "version": "0.11.0",
   "date": "29 October 2026",
   "platform": "Windows VST3",
   "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
-  "cover_caption": "Version 0.10.2 editing preview  |  Instructions, examples and why",
-  "footer": "Version 0.10.2  |  Windows VST3 editing preview",
+  "cover_caption": "Version 0.11.0 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.11.0  |  Windows VST3 editing preview",
   "logo": "../../assets/DJLLogoWhite.png",
   "cover_image": "assets/curves.png",
   "publisher": "DJL Software",
@@ -15,7 +15,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.10.2 editing preview."
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.11.0 editing preview."
         },
         {
           "type": "p",
@@ -35,7 +35,7 @@
         },
         {
           "type": "p",
-          "text": "Screenshots show the real 0.10.2 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
+          "text": "Screenshots show the real 0.11.0 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
         },
         {
           "type": "p",
@@ -77,7 +77,7 @@
         },
         {
           "type": "p",
-          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.10.2. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.11.0. New point envelopes and key labels need this version or later; an older build is not expected to understand them. Reopen the Set and confirm sample status, output routing and playback before continuing."
         },
         {
           "type": "p",
@@ -93,9 +93,9 @@
           "items": [
             "Open Drum. Rename Kit 1 using the active-kit name box. Press Enter or click away to keep the name; Escape cancels a name edit.",
             "Select Group 1 and rename it Drums. Click + Instrument, select its card, then click Load sample and choose a short WAV or AIFF drum hit. Wait for Ready. Alternatively, drop a sample into the empty card area.",
-            "Click Play in the instrument panel. You should hear one hit. Click Stop to end sounding voices.",
+            "Click an instrument pad or its assigned piano key to select and play it. Hold the mouse for Gate/Classic and release to end the held note. Play in the right panel remains a one-second audition; Stop ends sounding and pending hits.",
             "Use the Key chooser to assign MIDI 36. Drum calls this C2. In your DAW, draw MIDI note number 36 in a clip, or send that note from a controller.",
-            "Play the clip. For live keyboard input, arm the MIDI track or choose the appropriate input-monitoring setting in the DAW.",
+            "Play the clip. For a connected MIDI keyboard, enable its input in the DAW and arm the Drum MIDI track or set monitoring to In. The matching pad and piano key light while held; short hits flash briefly. A connection alone does not route MIDI into Drum.",
             "Add a snare and a hat on different free notes. Save the DAW project once playback works."
           ]
         },
@@ -127,8 +127,8 @@
         {
           "type": "image",
           "path": "assets/workspace.png",
-          "caption": "The kit workspace: kit tabs above, groups left, instrument cards in the centre, selected-instrument controls right, and the 88-key map below.",
-          "max_height": 300
+          "caption": "Four square pads per row, selected-instrument controls on the right and the playable 88-key piano below. A MIDI hit highlights the matching pad and key.",
+          "max_height": 250
         },
         {
           "type": "table",
@@ -146,12 +146,12 @@
               "Select a group to show its cards. Rename, copy, move Up/Down or remove it."
             ],
             [
-              "Instrument cards",
-              "Click a card to select it. Use the right panel to name, assign, load, mix or edit its sound."
+              "Instrument pads",
+              "Four across. Press to select and play at 80% velocity; release ends a Gate/Classic note. Scroll for more pads. Use the right panel to name, assign, load, mix or edit."
             ],
             [
-              "Key map",
-              "Coloured keys show assignments. Click an assigned key to select its instrument; this map is a selection overview."
+              "Piano",
+              "Coloured strips show assignments. Press a key to select/play its instrument. Mouse or incoming MIDI highlights both key and pad; unassigned keys show input but make no sound."
             ],
             [
               "Edit sound",
@@ -162,6 +162,10 @@
             0.3,
             0.7
           ]
+        },
+        {
+          "type": "why",
+          "text": "Selection and performance are separate: the selected pad keeps its outline, while playing adds a bright fill and depresses the piano key. Incoming MIDI leaves your editing selection alone. A brief flash catches notes shorter than a screen refresh; it indicates note input, not an audio level meter. Muted or empty pads can still light."
         },
         {
           "type": "p",
@@ -576,7 +580,7 @@
             ],
             [
               "Fade in",
-              "0-10,000 ms. Softens a Trigger/Gate start, including the attack layer. Disabled in Classic because its amplitude graph controls the attack."
+              "0-10,000 ms. Softens the sample in Trigger/Gate. Disabled in Classic, whose amplitude graph shapes the sample. The separate attack layer bypasses both."
             ],
             [
               "Fade out / Gate release",
@@ -598,7 +602,7 @@
         },
         {
           "type": "p",
-          "text": "The Sample gain dB box turns red when the selected source region plus gain exceeds 0 dBFS before filtering, envelopes and the instrument fader. This is a headroom warning: Drum retains floating-point values rather than hard-clipping this stage. The Edited preview caption also turns red when its processed peak reaches full scale. A lower instrument fader or envelope can reduce the final peak. Source never shows fades; use Edited."
+          "text": "The Sample gain box turns red only when the completed processed preview exceeds 0 dBFS. A peak exactly at full scale, a high gain setting by itself, or display magnification does not trigger it. The preview includes envelopes, mixer level and the attack layer, at 80% velocity and a one-second gate. Edited/Send captions use the same limit; Source remains unprocessed. This is one preview hit, not a live meter of the summed kit or external effects. Floating-point values are retained; the warning does not mean Drum hard-clips them."
         }
       ]
     },
@@ -973,7 +977,7 @@
         },
         {
           "type": "p",
-          "text": "Try a bell around 300 Hz at -3 dB and Q 1 to reduce a boxy snare. Move the frequency while listening rather than assuming that value fits every sample. EQ follows the attack layer and precedes amplitude/mixing, so it affects an added front click too. The waveform uses the same EQ processing as playback."
+          "text": "Try a bell around 300 Hz at -3 dB and Q 1 to reduce a boxy snare. Move the frequency while listening rather than assuming that value fits every sample. The same EQ bands process both the sample and the independent attack layer before their separate envelopes and final mixing. The waveform uses the same EQ processing as playback."
         },
         {
           "type": "p",
@@ -1019,8 +1023,8 @@
         {
           "type": "image",
           "path": "assets/attack.png",
-          "caption": "Attack layer adds a generated transient to the loaded sample. The illustration retains demonstration settings; use the recipe below as a starting point.",
-          "max_height": 240
+          "caption": "Demonstration: a louder, longer click positioned 150 ms after note-on. Use the gentler starting recipe below for a subtle front click.",
+          "max_height": 215
         },
         {
           "type": "steps",
@@ -1028,6 +1032,7 @@
             "Load a kick sample and open Attack layer. Turn Attack layer On and choose Click.",
             "Start with Level -18 dB, Tone 1.8 kHz and Decay 8 ms. Audition, then compare Off/On at a similar overall level.",
             "Raise Tone for a brighter tick or lower it for more knock. Adjust Decay between 1 and 100 ms to change the transient's length.",
+            "Set Position to 0 ms for the front of the note. Try 5-15 ms for a slightly later knock, or 50-150 ms for an obvious second hit. The range is 0-2,000 ms. Trigger a new note after changing Position.",
             "Try Pulse for a short sine burst, or Noise for a rougher front edge. Zoom Edited into the first few milliseconds to see the addition."
           ]
         },
@@ -1041,11 +1046,11 @@
         },
         {
           "type": "p",
-          "text": "The layer starts once per note and does not repeat at a loop boundary. It requires a loaded sample and ends with that voice. It is mixed after sample gain/filtering but before amplitude shaping, velocity, LFO volume and the instrument mixer. A long Fade in or amplitude attack therefore softens it too."
+          "text": "The layer has its own short decay window and bypasses the sample amplitude, pitch and filter envelopes, fades and trim. It fires once per note at Position, even if the sample or its amplitude envelope has already ended. Normal note-off does not cancel it. Stop, mute, choke, retrigger and voice stealing can still cut it. It requires a loaded sample and does not repeat at loop boundaries."
         },
         {
           "type": "p",
-          "text": "Attack Tone controls the layer's pitch independently of sample tuning. Sample and transient can add above full scale; reduce levels if needed. Source view never includes this generated layer."
+          "text": "Attack Tone sets its pitch independently. The eight-band EQ, velocity response, LFO volume, instrument volume/pan and sends still affect it. Edited and Send include its timing and level; Source does not. The layer and sample can add above full scale. Position is saved per instrument, copied with kits/slices and defaults to 0 ms for older projects."
         }
       ]
     },
@@ -1208,7 +1213,7 @@
           "type": "steps",
           "items": [
             "Keep the initial sample transient when trimming. Try Mono if the stereo source loses focus, then compare in context.",
-            "Add Click at -18 dB, 1.8 kHz and 8 ms. Increase only until the attack becomes clear.",
+            "Add Click at -18 dB, 1.8 kHz, 8 ms and Position 0 ms. Increase only until it is clear; try Position 5 ms to separate the click slightly from the sample.",
             "Try a +12 st pitch envelope with zero attack, around 40 ms decay and zero sustain. Use a curved decay if the pitch sweep sounds too obvious.",
             "Balance final Volume and compare with bass and hats playing."
           ]
@@ -1268,6 +1273,10 @@
             [
               "Play works but MIDI does not",
               "Compare MIDI numbers rather than octave names. Check the DAW track's input, arm/monitor state and clip notes."
+            ],
+            [
+              "Pads light but no sound",
+              "Highlights show note input even for muted/empty slots. Check the loaded sample, active kit, mute/solo, output routing and track monitoring."
             ],
             [
               "A hit disappears after routing",
@@ -1482,17 +1491,17 @@
       "blocks": [
         {
           "type": "p",
-          "text": "For each hit, Drum reads the sample region with direction, loop and pitch settings. Source gain/normalisation and Mono/Stereo feed the tone filter/drive. The attack layer is added after that filter, then the eight-band stereo EQ processes the combined sound. Amplitude, velocity, LFO volume and the instrument mixer shape the output; post-fader sends feed their separate buses."
+          "text": "The sample region passes through pitch/loop playback, source gain/normalisation, Mono/Stereo, tone filter/drive and eight-band EQ, then its amplitude envelope/fades. The attack layer uses a separate clock, its own EQ state with the same band settings and its own decay window. The two signals then combine before shared velocity response, LFO volume and the instrument mixer. Post-fader sends feed their separate buses."
         },
         {
           "type": "why",
-          "text": "Position in the signal path explains why two similar controls differ. Increasing Sample gain can push Drive harder; decreasing final Volume turns the processed result down. The attack layer bypasses the sample filter but still follows the amplitude contour. The eight-band EQ affects both sample and attack layer."
+          "text": "Raising Sample gain can push Drive harder; decreasing final Volume turns the processed result down. The attack layer keeps its click even when the sample has a long fade or a quiet envelope. The eight-band EQ affects both paths. To soften the layer itself, adjust its Level, Tone or Decay."
         },
         {
           "type": "table",
           "headers": [
             "Facility",
-            "Scope of version 0.10.2"
+            "Scope of version 0.11.0"
           ],
           "rows": [
             [

@@ -76,6 +76,7 @@ namespace drum
  X(attackLevel,"Attack level",-18,-60,0,0.1," dB",6,"",1) \
  X(attackTone,"Attack tone",1800,30,16000,1," Hz",6,"",1) \
  X(attackDecay,"Attack decay",8,1,100,0.1," ms",6,"",1) \
+ X(attackPosition,"Position",0,0,2000,0.1," ms",6,"",1) \
  X(keyOverride,"Key label (manual override)",0,0,24,1,"",1,"Auto detect|C major|C# major|D major|D# major|E major|F major|F# major|G major|G# major|A major|A# major|B major|C minor|C# minor|D minor|D# minor|E minor|F minor|F# minor|G minor|G# minor|A minor|A# minor|B minor",1)
 
 struct SoundParameters

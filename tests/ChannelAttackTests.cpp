@@ -59,10 +59,31 @@ void runChannelAttackTests()
     controls.mute=true;check(render()->peak==0,"Mute left attack audible");controls.mute=false;
     controls.sound.attackLevel=-60;auto silent=render();near(silent->audio.getSample(0,31),stereo->audio.getSample(0,31),"Attack minimum is not silent");
 
+    // A silent source isolates the independent attack from every sample envelope.
+    sample=source();sample->audio.clear();sample->peak=0;sample->waveform.build(sample->audio);
+    controls={};controls.sound.attackOn=1;controls.sound.attackLevel=-3;controls.sound.attackDecay=40;
+    for(double rate:{8000.0,44100.0,48000.0,96000.0})
+    {
+        controls.sound.attackPosition=0;auto immediate=render(rate);
+        controls.sound.attackPosition=150.3;controls.sound.mode=2;controls.sound.ampAttack=1000;
+        controls.sound.ampSustain=0;controls.sound.fadeIn=100;controls.sound.fadeOut=100;
+        controls.sound.pitchAmount=48;controls.sound.filterOn=1;controls.sound.cutoff=30;
+        auto delayed=render(rate);const int shift=(int)std::llround(rate*0.1503),length=(int)std::ceil(rate*0.04);
+        check(delayed->audio.getNumSamples()>=shift+length,"Delayed attack ended with the sample");
+        check(delayed->audio.getMagnitude(0,shift)==0,"Attack sounded before Position");
+        for(int n=0;n<length;++n)near(delayed->audio.getSample(0,n+shift),immediate->audio.getSample(0,n),"Sample envelope or pitch changed attack timing/shape");
+        controls.sound.mode=0;controls.sound.fadeIn=0;controls.sound.fadeOut=2;controls.sound.filterOn=0;controls.sound.pitchAmount=0;
+    }
+    // A zero custom amplitude still permits the whole independent transient.
+    controls.sound.mode=2;controls.sound.attackPosition=20;
+    auto& shape=controls.sound.envelopes[0];shape.count=3;shape.hold=1;shape.points[0]={0,0};shape.points[1]={1,0};shape.points[2]={2,0};
+    check(render()->peak>0.05f,"Zero custom amplitude silenced the attack");
+    sample=source();
+
     // Recall, migration and copies must retain each instrument's independent settings.
     DrumAudioProcessor processor;auto& library=processor.getLibrary();auto state=library.snapshot();auto kit=state.activeKit,group=drum::activeKit(state)->groups.front().id;
     auto id=library.addInstrument(kit,group).id;auto second=library.addInstrument(kit,group).id;
-    controls={};controls.sound.mono=1;controls.sound.attackOn=1;controls.sound.attackType=2;controls.sound.attackLevel=-7;controls.sound.attackTone=3000;controls.sound.attackDecay=25;controls.sound.cutoff=900;
+    controls={};controls.sound.mono=1;controls.sound.attackOn=1;controls.sound.attackType=2;controls.sound.attackLevel=-7;controls.sound.attackTone=3000;controls.sound.attackDecay=25;controls.sound.attackPosition=150.3;controls.sound.cutoff=900;
     check(library.setControls(kit,id,controls).ok,"New sound controls rejected");
     juce::MemoryBlock saved;processor.getStateInformation(saved);DrumAudioProcessor restored;restored.setStateInformation(saved.getData(),(int)saved.getSize());state=restored.getLibrary().snapshot();
     check(drum::findInstrument(*drum::activeKit(state),id)->controls==controls,"Mono/attack recall lost fields");
@@ -71,7 +92,7 @@ void runChannelAttackTests()
     check(drum::findInstrument(*drum::activeKit(state),copy.id)->controls==controls,"Copy omitted mono/attack");
     auto xml=library.toXml();auto* instrument=xml->getChildByName("Kit")->getChildByName("Group")->getChildByName("Instrument");
     const auto before=restored.getLibrary().toXml()->toString();
-    for(auto key:{"edit_mono","edit_attackOn","edit_attackType","edit_attackDecay"})
+    for(auto key:{"edit_mono","edit_attackOn","edit_attackType","edit_attackDecay","edit_attackPosition"})
     {
         const auto value=instrument->getStringAttribute(key);instrument->setAttribute(key,"nan");
         check(!restored.getLibrary().restore(*xml),"Invalid mono/attack accepted");instrument->removeAttribute(key);
@@ -79,6 +100,12 @@ void runChannelAttackTests()
     }
     instrument->setAttribute("edit_mono",0.5);check(!restored.getLibrary().restore(*xml),"Fractional channel choice accepted");
     check(before==restored.getLibrary().toXml()->toString(),"Rejected restore replaced current kit");
+    instrument->setAttribute("edit_mono",1.0);
+    for(double invalid:{-0.1,2000.1}){instrument->setAttribute("edit_attackPosition",invalid);check(!restored.getLibrary().restore(*xml),"Out-of-range attack position accepted");}
+    xml=library.toXml();xml->setAttribute("schemaVersion",9);
+    for(auto* k:xml->getChildIterator())for(auto* g:k->getChildIterator())for(auto* i:g->getChildIterator())i->removeAttribute("edit_attackPosition");
+    check(restored.getLibrary().restore(*xml),"Schema 9 migration failed");state=restored.getLibrary().snapshot();
+    check(drum::findInstrument(*drum::activeKit(state),id)->controls.sound.attackPosition==0,"Old attack was delayed on migration");
     xml=library.toXml();xml->setAttribute("schemaVersion",5);
     for(auto* k:xml->getChildIterator())for(auto* g:k->getChildIterator())for(auto* i:g->getChildIterator())
         for(auto& p:drum::soundParameters)if(drum::introducedInVersion6(p))i->removeAttribute(juce::String("edit_")+p.key);
@@ -98,5 +125,23 @@ void runChannelAttackTests()
     near(audio.getSample(0,300),0.375f,"Sounding voice did not become mono");
     check(std::abs(audio.getSample(0,0)-0.25f)<0.001f,"Channel switch is abrupt");
     for(int n=1;n<240;++n)check(std::abs(audio.getSample(0,n)-audio.getSample(0,n-1))<0.001f,"Channel ramp has discontinuities");
+    controls={};controls.sound.mode=1;controls.sound.sampleGain=-24;controls.sound.attackOn=1;
+    controls.sound.attackLevel=0;controls.sound.attackPosition=150;controls.sound.attackDecay=40;
+    check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Delayed playback setup failed");
+    check(engine.tailSeconds()>=0.19,"Host tail omitted delayed attack");
+    engine.prepare(48000);audio.setSize(2,512);midi.clear();midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);midi.addEvent(juce::MidiMessage::noteOff(1,21),48);engine.process(audio,midi);midi.clear();
+    controls.sound.attackPosition=0;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Live Position edit failed");
+    float delayedPeak=0;for(int block=1;block<19;++block){engine.process(audio,midi);if(block>=14)delayedPeak=juce::jmax(delayedPeak,audio.getMagnitude(0,512));else if(block>=2)check(audio.getMagnitude(0,512)==0,"Position moved an already scheduled hit");}
+    check(delayedPeak>0.1f,"Note-off or sample end cancelled delayed attack");
+    controls.sound.attackPosition=150;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Restore Position failed");
+    for(int cancel=0;cancel<3;++cancel)
+    {
+        controls.mute=false;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Cancel test setup failed");
+        engine.prepare(48000);midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);engine.process(audio,midi);midi.clear();
+        if(cancel==0)engine.stop();
+        else if(cancel==1)midi.addEvent(juce::MidiMessage::allSoundOff(1),0);
+        else {controls.mute=true;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Mute update failed");}
+        for(int block=1;block<19;++block){engine.process(audio,midi);midi.clear();if(block>1)check(audio.getMagnitude(0,512)==0,"Cancelled delayed attack still sounded");}
+    }
     std::cout<<"Mono playback, attack layers, sends, smoothing, recall and schema migration passed\n";
 }

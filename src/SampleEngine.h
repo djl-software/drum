@@ -59,7 +59,12 @@ public:
     void setTempo(double bpm) noexcept { tempo = juce::jlimit(20.0,999.0,bpm); displayedTempo.store(tempo); }
     void setMacros(const std::array<float,numMacros>& values) noexcept { macroValues=values; }
     void setOutputChannels(const std::array<int,22>& channels, int mainChannels) noexcept { busChannels=channels; mainWidth=mainChannels; }
-    void audition(int note) { previewNote.store(note); }
+    void audition(int note) { if(note>=0 && note<128)previewNote.store(note); }
+    // Message-thread pad/piano presses, consumed without locks by the audio thread.
+    void keyboardNote(int note, bool down);
+    // Low 17 bits: held MIDI channels + mouse. High 32 bits: note-on serial,
+    // retained even when a short MIDI hit begins and ends in a single block.
+    uint64_t noteActivity(int note) const { return note>=0 && note<128?activity[(size_t)note].load():0; }
     void stop() { previewNote.store(-1); panic.store(true); }
     double tailSeconds() const { return tail.load(); }
 private:
@@ -99,10 +104,11 @@ private:
         double attackPhase=0,attackNoise=0;
         uint32_t attackRandom=0x7f4a7c15;
         float randomPan=0,randomLfo=0;
-        bool held=true,preview=false;
+        bool held=true,preview=false,fromUI=false,sampleFinished=false,attackFinished=false;
+        int64_t elapsedFrames=0,attackStartFrame=0;
         SoundParameters sound;
         VoiceEnvelope amp,filterEnvelope,pitchEnvelope;
-        VoiceEqualizer equalizer;
+        VoiceEqualizer equalizer,attackEqualizer;
         // Two cascaded TPT state-variable sections, with independent stereo state.
         std::array<std::array<double,2>,2> filter1 {},filter2 {};
         int filterCounter=0;
@@ -118,8 +124,9 @@ private:
     void updateBank(const State&);
     static RenderControls controlsFor(const Sample&, const InstrumentControls&, bool hasSolo);
     void reclaim();
-    void startVoice(int note, int channel, float velocity) noexcept;
-    void releaseNote(int note, int channel) noexcept;
+    void startVoice(int note, int channel, float velocity, bool fromUI=false) noexcept;
+    void releaseNote(int note, int channel, bool fromUI=false) noexcept;
+    void indicateNote(int note,int channel,bool down,bool fromUI=false) noexcept;
     void configureEnvelopes(Voice&) noexcept;
     void stopVoices(int channel = 0) noexcept;
     void fadeVoice(Voice&) noexcept;
@@ -141,6 +148,10 @@ private:
     std::atomic<Bank*> published { nullptr }, hazard { nullptr };
     std::atomic<uint64_t> statusEpoch { 0 }, completedRevision { UINT64_MAX };
     std::atomic<int> outstanding { 0 }, previewNote { -1 };
+    struct KeyboardCommand { int note=0; bool down=false; uint64_t kitEpoch=0; };
+    juce::AbstractFifo keyboardQueue {128};
+    std::array<KeyboardCommand,128> keyboardCommands;
+    std::array<std::atomic<uint64_t>,128> activity {};
     std::atomic<bool> panic { false };
     std::atomic<double> tail { 0.0 };
     Bank* current = nullptr;

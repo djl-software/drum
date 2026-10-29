@@ -77,12 +77,16 @@ public:
         }
         if(drop) drop(files,{});
     }
-    int columns() const { return juce::jmax(1, (getWidth() + 12) / 170); }
-    int contentHeight() const { return juce::jmax(220, ((int)instruments.size() + columns() - 1) / columns() * 112); }
+    std::array<bool,128> active {};
+    std::function<void(int,bool)> play;
+    int pressedNote=-1;
+    int columns() const { return 4; }
+    int cellSize() const { return (getWidth()-36)/4; }
+    int contentHeight() const { return juce::jmax(220, ((int)instruments.size() + columns() - 1) / columns() * (cellSize()+12)); }
     juce::Rectangle<int> cell(int n) const
     {
         const int width = (getWidth() - (columns() - 1) * 12) / columns();
-        return { (n % columns()) * (width + 12), (n / columns()) * 112, width, 100 };
+        return { (n % columns()) * (width + 12), (n / columns()) * (width+12), width, width };
     }
     void paint(juce::Graphics& g) override
     {
@@ -96,22 +100,33 @@ public:
         for (int n = 0; n < (int)instruments.size(); ++n)
         {
             const auto& i = instruments[(size_t)n]; const auto area = cell(n); const bool chosen = i.id == selected;
-            g.setColour(chosen ? groupColour(colour).withAlpha(0.13f) : juce::Colour(0xff202a39));
+            const bool playing=active[(size_t)i.note];
+            g.setColour(playing ? groupColour(colour).withAlpha(0.65f) : chosen ? groupColour(colour).withAlpha(0.13f) : juce::Colour(0xff202a39));
             g.fillRoundedRectangle(area.toFloat(), 9.0f);
-            g.setColour(chosen ? groupColour(colour) : border);
+            g.setColour(playing ? accent : chosen ? groupColour(colour) : border);
             g.drawRoundedRectangle(area.toFloat().reduced(0.7f), 9.0f, chosen ? 1.6f : 1.0f);
-            label(g, drum::noteName(i.note), { area.getX()+12, area.getY()+10, 56, 19 }, 12, groupColour(colour));
-            label(g, "MIDI " + juce::String(i.note), { area.getX()+68, area.getY()+10, area.getWidth()-80, 19 }, 11, muted, juce::Justification::centredRight);
-            label(g, i.name, area.withTrimmedTop(37).withHeight(24).reduced(12,0), 16.0f);
+            label(g, drum::noteName(i.note), { area.getX()+10, area.getY()+8, 50, 19 }, 12, playing?text:groupColour(colour));
+            label(g, juce::String(i.note), { area.getRight()-40, area.getY()+8, 30, 19 }, 11, playing?text:muted, juce::Justification::centredRight);
+            g.setColour(text);g.setFont(juce::FontOptions(15.0f));
+            g.drawFittedText(i.name,area.reduced(10,0).withTrimmedTop(30).withTrimmedBottom(42),juce::Justification::centred,2);
             juce::String flags=i.controls.mute?"MUTE  ":i.controls.solo?"SOLO  ":"";
-            if(i.controls.choke>0) flags+="CH "+juce::String(i.controls.choke)+"  ";
-            label(g, flags+(i.samplePath.isEmpty() ? "No sample" : juce::File(i.samplePath).getFileName()), area.withTrimmedTop(71).withHeight(18).reduced(12,0), 11, i.controls.mute?juce::Colour(0xfff2a3a3):muted);
+            if(i.controls.choke>0)flags+="CH "+juce::String(i.controls.choke);
+            label(g,flags,area.reduced(10,0).withY(area.getBottom()-40).withHeight(16),10,i.controls.mute?juce::Colour(0xfff2a3a3):text);
+            label(g,i.samplePath.isEmpty()?"No sample":juce::File(i.samplePath).getFileName(),area.reduced(10,0).withY(area.getBottom()-23).withHeight(16),10,playing?text:muted);
+
         }
     }
     void mouseDown(const juce::MouseEvent& event) override
     {
-        for (int n = 0; n < (int)instruments.size(); ++n) if (cell(n).contains(event.getPosition())) { if (select) select(instruments[(size_t)n].id); break; }
+        if(!event.mods.isLeftButtonDown())return;
+        for(int n=0;n<(int)instruments.size();++n)if(cell(n).contains(event.getPosition()))
+        {
+            const auto id=instruments[(size_t)n].id;pressedNote=instruments[(size_t)n].note;
+            if(select)select(id);if(play)play(pressedNote,true);break;
+        }
     }
+    void mouseUp(const juce::MouseEvent&) override { releaseKey(); }
+    void releaseKey(){if(pressedNote>=0 && play)play(pressedNote,false);pressedNote=-1;}
 };
 class KeyMap final : public juce::Component, public juce::SettableTooltipClient
 {
@@ -119,6 +134,9 @@ public:
     drum::Kit kit;
     juce::String selected;
     std::function<void(juce::String)> select;
+    std::array<bool,128> active {};
+    std::function<void(int,bool)> play;
+    int pressedNote=-1;
     bool isBlack(int note) const { int n = note % 12; return n == 1 || n == 3 || n == 6 || n == 8 || n == 10; }
     juce::Rectangle<float> key(int note) const
     {
@@ -138,7 +156,9 @@ public:
         {
             if (isBlack(n) != black) continue;
             auto area = key(n); int colour = 0; const auto* i = at(n, colour);
-            g.setColour(black ? juce::Colour(0xff101620) : juce::Colour(0xffc6cfdb));
+            const bool playing=active[(size_t)n];
+            if(playing)area=area.withTrimmedTop(3);
+            g.setColour(playing ? accent : black ? juce::Colour(0xff101620) : juce::Colour(0xffc6cfdb));
             g.fillRoundedRectangle(area, 2.0f);
             if (i)
             {
@@ -162,8 +182,13 @@ public:
     }
     void mouseDown(const juce::MouseEvent& event) override
     {
-        int colour = 0; if (auto* i = at(hit(event.position), colour)) if (select) select(i->id);
+        if(!event.mods.isLeftButtonDown())return;
+        pressedNote=hit(event.position);int colour=0;
+        if(auto* i=at(pressedNote,colour)){const auto id=i->id;if(select)select(id);}
+        if(pressedNote>=0 && play)play(pressedNote,true);
     }
+    void mouseUp(const juce::MouseEvent&) override { releaseKey(); }
+    void releaseKey(){if(pressedNote>=0 && play)play(pressedNote,false);pressedNote=-1;}
 };
 }
 
@@ -244,6 +269,9 @@ public:
         grid.drop=[this](const juce::StringArray& files,juce::String id) { handleDrop(files,id); };
         grid.setComponentID("instrument-grid");
         viewport.setScrollBarThickness(8); grid.select = [this](juce::String id) { importStatus=false; instrumentId=id; refresh(); };
+        grid.play=[this](int n,bool down){playKey(n,down);};
+        keyboard.play=grid.play;
+        keyboard.setComponentID("piano-keyboard");
         addAndMakeVisible(keyboard); keyboard.select = [this](juce::String id) {
             for(auto& g:kit().groups) for(auto& i:g.instruments) if(i.id==id) { groupId=g.id; instrumentId=id; refresh(); scrollToSelected(); return; }
         };
@@ -262,9 +290,10 @@ public:
         editSound.onClick=[this] { soundEditor.select(view.activeKit,instrument()); soundEditor.setVisible(true); soundEditor.toFront(false); };
         soundEditor.close=[this] { soundEditor.setVisible(false); refresh(); };
         status="Arrange your kit. Changes are saved with the DAW project.";
-        refresh(); startTimerHz(10);
+        for(int n=0;n<128;++n)noteSerials[(size_t)n]=processor.getSampleEngine().noteActivity(n)>>32;
+        refresh(); startTimerHz(30);
     }
-    ~Workspace() override { stopTimer(); groups.setModel(nullptr); viewport.setViewedComponent(nullptr,false); setLookAndFeel(nullptr); }
+    ~Workspace() override { grid.releaseKey();keyboard.releaseKey();stopTimer(); groups.setModel(nullptr); viewport.setViewedComponent(nullptr,false); setLookAndFeel(nullptr); }
     void paint(juce::Graphics& g) override
     {
         g.fillAll(background);
@@ -514,8 +543,30 @@ private:
         if(refreshing || row<0 || row>=(int)kit().groups.size()) return;
         groupId=kit().groups[(size_t)row].id; instrumentId.clear(); viewport.setViewPosition(0,0); refresh();
     }
+    void playKey(int n,bool down)
+    {
+        processor.getSampleEngine().keyboardNote(n,down);
+        if(down)flashes[(size_t)n]=5;
+        localHeld[(size_t)n]=down;updateActivity();
+    }
+    void updateActivity()
+    {
+        bool changed=false;
+        for(int n=0;n<128;++n)
+        {
+            auto index=(size_t)n;const auto activity=processor.getSampleEngine().noteActivity(n);
+            const auto serial=activity>>32;
+            if(serial!=noteSerials[index]){noteSerials[index]=serial;flashes[index]=5;}
+            const bool active=(activity&0x1ffff)!=0 || localHeld[index] || flashes[index]>0;
+            if(grid.active[index]!=active)changed=true;
+            grid.active[index]=keyboard.active[index]=active;
+        }
+        if(changed){grid.repaint();keyboard.repaint();}
+    }
     void timerCallback() override
     {
+        for(auto& flash:flashes)if(flash>0)--flash;
+        updateActivity();
         auto epoch=processor.getSampleEngine().statusRevision();
         if(library.snapshot().revision!=view.revision || epoch!=sampleEpoch)
         {
@@ -548,6 +599,9 @@ private:
     ResetSlider volume,pan,tuning;
     std::unique_ptr<juce::FileChooser> chooser;
     uint64_t sampleEpoch = 0;
+    std::array<uint64_t,128> noteSerials {};
+    std::array<int,128> flashes {};
+    std::array<bool,128> localHeld {};
     juce::TextEditor kitName,groupName,instrumentName;
     juce::ComboBox note,destination,choke;
     juce::ListBox groups;

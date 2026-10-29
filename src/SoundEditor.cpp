@@ -176,7 +176,7 @@ public:
         }
         status.setText(caption,juce::dontSendNotification);
         status.setTooltip(caption);
-        status.setColour(juce::Label::backgroundColourId,!busy && source && !sourceMode() && source->peak>=1?juce::Colour(0xff8f2638):juce::Colours::transparentBlack);
+        status.setColour(juce::Label::backgroundColourId,!busy && source && !sourceMode() && source->peak>1?juce::Colour(0xff8f2638):juce::Colours::transparentBlack);
         repaint();
     }
     double zoom=1,offset=0;
@@ -501,18 +501,6 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     selectedSample=nextSample;
     selectedControls=i?i->controls:drum::InstrumentControls{};
     equalizer.setEnabled(i!=nullptr);equalizer.update(sound.equalizer,processor.getSampleEngine().previewSampleRate());
-    double peak=0;
-    if(selectedSample)
-    {
-        const int length=selectedSample->audio.getNumSamples(),begin=(int)(sound.start*length),end=juce::jmax(begin+1,(int)(sound.end*length));
-        for(int c=0;c<selectedSample->audio.getNumChannels();++c){auto range=selectedSample->waveform.range(selectedSample->audio,c,begin,end);peak=juce::jmax(peak,(double)juce::jmax(std::abs(range.minimum),std::abs(range.maximum)));}
-        peak*=std::pow(10.0,sound.sampleGain/20)*(sound.normalise!=0 && selectedSample->peak>0?1.0/selectedSample->peak:1.0);
-    }
-    for(auto& field:fields)if(field->parameter.member==&drum::SoundParameters::sampleGain)
-    {
-        field->slider.setColour(juce::Slider::textBoxBackgroundColourId,peak>=1.00001?juce::Colour(0xff8f2638):bg);
-        field->slider.setTooltip("Red warns when the selected source region plus sample gain exceeds 0 dBFS before filtering, envelopes and the instrument fader. Floating-point audio is not hard-clipped here.");
-    }
     auto libraryState=processor.getLibrary().snapshot();
     if(i && !i->controls.solo)for(auto& group:drum::activeKit(libraryState)->groups)for(auto& other:group.instruments)
         if(other.controls.solo)selectedControls.mute=true;
@@ -678,6 +666,12 @@ void SoundEditor::refreshPreview()
     for(int n=0;n<drum::numMacros;++n)input.macros[(size_t)n]=processor.macro(n).get();
     input.bpm=processor.getSampleEngine().previewTempo();input.rate=processor.getSampleEngine().previewSampleRate();
     preview.request(std::move(input));const auto result=preview.latest();const bool busy=preview.pending();waveform->setPreview(result,busy);
+    for(auto& field:fields)if(field->parameter.member==&drum::SoundParameters::sampleGain)
+    {
+        const bool clips=!busy && result.sample && result.sample->peak>1.0f;
+        field->slider.setColour(juce::Slider::textBoxBackgroundColourId,clips?juce::Colour(0xff8f2638):bg);
+        field->slider.setTooltip("Red only when the processed preview exceeds 0 dBFS (80% velocity, 1 s gate). Gain and display zoom alone do not indicate clipping.");
+    }
     juce::String description="Trigger: "+drum::noteName(note)+" / MIDI "+juce::String(note)+"     Preview: ";
     const auto& analysis=result.analysis;
     if(!selectedSample)description+="load a sample";
@@ -743,7 +737,7 @@ void SoundEditor::paint(juce::Graphics& g)
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
         "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
-        "Add a short Click, Pulse or Noise at the start of each hit. Mixed after the sample filter, before amplitude and pan."};
+        "Add Click, Pulse or Noise independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note."};
     text(g,help[page],{18,116,getWidth()-(page==2?470:page==1?170:36),24},12,muted);
     text(g,message.isEmpty()?"Non-destructive edits. The original audio file is preserved.":message,{18,getHeight()-29,getWidth()-36,23},11,muted);
 }

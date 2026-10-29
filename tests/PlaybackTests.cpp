@@ -188,7 +188,7 @@ void runVst3PlaybackTest(const juce::String& path)
     firstMacro->setValueNotifyingHost(1);midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0);plugin->processBlock(output,midi);
     near(output.getSample(2,0),0.25f,"Compiled VST3 did not respond to host macro automation");plugin->releaseResources();
     editing={};editing.sound.mono=1;editing.sound.attackOn=1;editing.sound.attackType=2;
-    editing.sound.attackLevel=-6;editing.sound.attackDecay=50;editing.sound.velocityVolume=0;editing.sound.output=1;editing.sound.sendA=-6.020599913;
+    editing.sound.attackLevel=-6;editing.sound.attackDecay=50;editing.sound.attackPosition=2;editing.sound.velocityVolume=0;editing.sound.output=1;editing.sound.sendA=-6.020599913;
     editing.sound.mode=2;editing.sound.envelopes[0]=drum::adsrShape(0,2,0.4,100);editing.sound.envelopes[0].points[2].bend=0.2;
     editing.sound.pitchAmount=12;editing.sound.envelopes[1]=drum::adsrShape(0,3,0,100);editing.sound.envelopes[1].points[2].bend=-0.2;editing.sound.keyOverride=23;
     check(setup.processor.getLibrary().setControls(setup.kit,setup.instrument,editing).ok,"Hosted attack setup failed");

@@ -236,6 +236,7 @@ void SampleEngine::updateBank(const State& state)
                 const auto& e=s.envelopes[0];const double release=e.count?e.points[(size_t)e.count-1].ms-e.points[(size_t)e.hold].ms+2:s.ampRelease;
                 duration=juce::jmax(duration,30.0+release/1000.0);
             }
+            if(s.attackOn!=0 && s.attackLevel>-60)duration=juce::jmax(duration,(s.attackPosition+s.attackDecay)*0.001);
             setStatus(instrument.id,{false,true,"Ready",seconds});
         }
         else { setStatus(instrument.id,{false,false,error,0}); const juce::ScopedLock guard(statusLock); waveforms.erase(instrument.id); }
@@ -265,11 +266,28 @@ void SampleEngine::release()
     stopVoices(); current=nullptr; sampleGeneration=UINT64_MAX; hazard.store(nullptr); previewNote.store(-1);
     pitchBend.fill(0); freePhase=0;
 }
+void SampleEngine::keyboardNote(int note,bool down)
+{
+    if(note<0 || note>127)return;
+    if(auto slot=keyboardQueue.write(1);slot.blockSize1>0)
+        keyboardCommands[(size_t)slot.startIndex1]={note,down,library.activeKitEpoch()};
+    else panic.store(true); // A saturated queue must never leave a stuck gate.
+}
+void SampleEngine::indicateNote(int note,int channel,bool down,bool fromUI) noexcept
+{
+    if(note<0 || note>127)return;
+    const uint64_t bit=uint64_t(1)<<(fromUI?16:channel-1);
+    auto& state=activity[(size_t)note];
+    if(down){state.fetch_or(bit);state.fetch_add(uint64_t(1)<<32);}
+    else state.fetch_and(~bit);
+}
 void SampleEngine::stopVoices(int channel) noexcept
 {
-    for(auto& voice:voices) if(channel==0 || voice.channel==channel) voice.sample=nullptr;
+    for(auto& voice:voices) if(channel==0 || (!voice.fromUI && voice.channel==channel)) voice.sample=nullptr;
+    const uint64_t clear=channel==0?0x1ffffULL:uint64_t(1)<<(channel-1);
+    for(auto& state:activity)state.fetch_and(~clear);
 }
-void SampleEngine::startVoice(int note,int channel,float velocity) noexcept
+void SampleEngine::startVoice(int note,int channel,float velocity,bool fromUI) noexcept
 {
     if(!current || note<0 || note>127 || !current->samples[(size_t)note]) return;
     const auto& c=renderControls[(size_t)note]; if(!c.audible) return;
@@ -294,7 +312,7 @@ void SampleEngine::startVoice(int note,int channel,float velocity) noexcept
         if(candidate.age<voice->age) voice=&candidate;
     }
     voice->sample=current->samples[(size_t)note].get(); voice->velocity=velocity;
-    voice->channel=channel; voice->age=++clock; voice->note=note; voice->choke=c.choke; voice->releaseRemaining=-1;
+    voice->fromUI=fromUI;voice->channel=channel; voice->age=++clock; voice->note=note; voice->choke=c.choke; voice->releaseRemaining=-1;
     voice->sound=c.sound; voice->start=c.start; voice->end=c.end; voice->loopStart=c.loopStart; voice->loopEnd=c.loopEnd;
     voice->position=c.sound.reverse!=0?c.end-1:c.start; voice->elapsed=0; voice->held=true; voice->preview=false;
     const double lfoRate=c.sound.lfoSync!=0?tempo/60.0/std::pow(2.0,c.sound.lfoDivision-4):c.sound.lfoRate;
@@ -303,6 +321,9 @@ void SampleEngine::startVoice(int note,int channel,float velocity) noexcept
     for(auto* env:{&voice->amp,&voice->filterEnvelope,&voice->pitchEnvelope}) { env->reset(); env->setSampleRate(hostRate); }
     configureEnvelopes(*voice);
     voice->equalizer.reset(c.sound.equalizer,hostRate);
+    voice->attackEqualizer.reset(c.sound.equalizer,hostRate);
+    voice->sampleFinished=false;voice->attackFinished=false;voice->elapsedFrames=0;
+    voice->attackStartFrame=(int64_t)std::llround(c.sound.attackPosition*0.001*hostRate);
     voice->amp.noteOn(); voice->filterEnvelope.noteOn(); voice->pitchEnvelope.noteOn();
     voice->left.reset(hostRate,0.005); voice->right.reset(hostRate,0.005); voice->step.reset(hostRate,0.005);
     voice->left.setCurrentAndTargetValue(c.left); voice->right.setCurrentAndTargetValue(c.right);
@@ -321,9 +342,9 @@ void SampleEngine::configureEnvelopes(Voice& v) noexcept
     v.amp.setShape(s.mode==2?s.envelopes[0]:EnvelopeShape{});
     v.pitchEnvelope.setShape(s.envelopes[1]);v.filterEnvelope.setShape(s.envelopes[2]);
 }
-void SampleEngine::releaseNote(int note,int channel) noexcept
+void SampleEngine::releaseNote(int note,int channel,bool fromUI) noexcept
 {
-    for(auto& v:voices) if(v.sample && v.note==note && v.channel==channel && v.held && v.sound.mode!=0)
+    for(auto& v:voices) if(v.sample && v.note==note && v.channel==channel && v.fromUI==fromUI && v.held && v.sound.mode!=0)
     { v.held=false; v.amp.noteOff(); v.filterEnvelope.noteOff(); v.pitchEnvelope.noteOff(); }
 }
 void SampleEngine::fadeVoice(Voice& voice) noexcept
@@ -344,6 +365,7 @@ void SampleEngine::updateVoices() noexcept
         voice.sound.reverse=previous.reverse; voice.sound.loop=previous.loop; voice.sound.mode=previous.mode;
         configureEnvelopes(voice);
         voice.equalizer.update(c.sound.equalizer,hostRate);
+        voice.attackEqualizer.update(c.sound.equalizer,hostRate);
         voice.left.setTargetValue(c.left); voice.right.setTargetValue(c.right);
         voice.monoMix.setTargetValue((float)c.sound.mono);
         voice.attackGain.setTargetValue(c.sound.attackOn!=0 && c.sound.attackLevel>-60?juce::Decibels::decibelsToGain((float)c.sound.attackLevel):0.0f);
@@ -393,7 +415,12 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
         };
         for(int frame=start;frame<end;++frame)
         {
-            if(voice.position>=voice.end || voice.position<voice.start || voice.releaseRemaining==0 || !voice.amp.isActive()) { voice.sample=nullptr; break; }
+            if(voice.position>=voice.end || voice.position<voice.start || !voice.amp.isActive())voice.sampleFinished=true;
+            const auto attackFrame=voice.elapsedFrames-voice.attackStartFrame;
+            const double attackDuration=s.attackDecay*0.001;
+            if(attackFrame>=(int64_t)std::ceil(attackDuration*hostRate))voice.attackFinished=true;
+            const bool attackPending=!voice.attackFinished && (voice.attackGain.getCurrentValue()>0 || voice.attackGain.getTargetValue()>0);
+            if(voice.releaseRemaining==0 || (voice.sampleFinished && !attackPending)) { voice.sample=nullptr; break; }
             // Preview has a bounded gate even when Classic looping is selected.
             if(voice.preview && voice.held && voice.elapsed>=1.0 && s.mode!=0)
             { voice.held=false; voice.amp.noteOff(); voice.filterEnvelope.noteOff(); voice.pitchEnvelope.noteOff(); }
@@ -423,8 +450,9 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
             const double remaining=reverse?voice.position-voice.start+1:voice.end-voice.position;
             const double fadeFrames=juce::jmax(sample.rate*0.002,s.fadeOut*0.001*hostRate*step);
             const float fade=looping?1.0f:(float)juce::jmin(1.0,remaining/fadeFrames);
-            const float amplitude=voice.amp.getNextSample()*(float)(1-s.velocityVolume+s.velocityVolume*voice.velocity)
-                *(float)(s.lfoOn!=0?1-s.lfoVolume*(1-lfo)*0.5:1)*fade;
+            const float sampleAmplitude=voice.sampleFinished?0:voice.amp.getNextSample()*fade;
+            const float amplitude=(float)(1-s.velocityVolume+s.velocityVolume*voice.velocity)
+                *(float)(s.lfoOn!=0?1-s.lfoVolume*(1-lfo)*0.5:1);
             auto value=[&](int channel) {
                 float v=read(channel,voice.position);
                 const double crossfade=juce::jmin(s.loopFade*sample.rate/1000.0,(voice.loopEnd-voice.loopStart)*0.5);
@@ -441,7 +469,7 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
                 return (float)(v*c.sampleGain);
             };
             const auto release=voice.releaseRemaining<0 ? 1.0f : (float)voice.releaseRemaining--/releaseSamples;
-            float left=value(0),right=value(sample.audio.getNumChannels()==2?1:0);
+            float left=voice.sampleFinished?0:value(0),right=voice.sampleFinished?0:value(sample.audio.getNumChannels()==2?1:0);
             const float mono=(left+right)*0.5f,monoMix=voice.monoMix.getNextValue();
             if(monoMix>=1)left=right=mono;
             else if(monoMix>0) {left+=monoMix*(mono-left);right+=monoMix*(mono-right);}
@@ -468,14 +496,16 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
                 };
                 left=filter(left,0); right=filter(right,1);
             }
-            // A centred transient after the sample filter, before the common
-            // envelope, velocity/LFO volume, instrument mixer and sends.
+            voice.equalizer.process(left,right);
+            left*=sampleAmplitude;right*=sampleAmplitude;
+            // The attack has its own clock, EQ state and short decay window.
+            // Sample envelopes, fades, pitch and sample end cannot silence it.
             const float attackGain=voice.attackGain.getNextValue();
-            const double attackDuration=s.attackDecay*0.001;
-            if(attackGain>0 && voice.elapsed<attackDuration)
+            if(attackPending && attackFrame>=0 && attackGain>0)
             {
-                const double t=voice.elapsed/attackDuration;
-                const double window=std::sin(juce::MathConstants<double>::halfPi*juce::jmin(1.0,voice.elapsed/0.0002))
+                const double attackElapsed=attackFrame/hostRate;
+                const double t=attackElapsed/attackDuration;
+                const double window=std::sin(juce::MathConstants<double>::halfPi*juce::jmin(1.0,attackElapsed/0.0002))
                     *std::exp(-6*t)*(1-t)*(1-t);
                 const double angle=voice.attackPhase*juce::MathConstants<double>::twoPi;
                 double transient;
@@ -487,12 +517,12 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
                     transient=voice.attackNoise;
                 }
                 else transient=s.attackType==0?(std::sin(angle)+0.4*std::sin(2*angle))/1.4:std::sin(angle);
-                const float hit=(float)(transient*window)*attackGain;
-                left+=hit;right+=hit;
+                float hitLeft=(float)transient*attackGain,hitRight=hitLeft;
+                voice.attackEqualizer.process(hitLeft,hitRight);
+                left+=hitLeft*(float)window;right+=hitRight*(float)window;
                 voice.attackPhase+=attackHz/hostRate;
                 if(voice.attackPhase>=1)voice.attackPhase-=std::floor(voice.attackPhase);
             }
-            voice.equalizer.process(left,right);
             const double pan=juce::jlimit(-1.0,1.0,voice.randomPan*s.randomPan+lfo*s.lfoPan);
             left*=voice.left.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1-pan);
             right*=voice.right.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1+pan);
@@ -514,7 +544,7 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
                 if(!reverse && voice.position>=voice.loopEnd) voice.position=voice.loopStart+crossfade+std::fmod(voice.position-voice.loopEnd,loopLength);
                 if(reverse && voice.position<voice.loopStart) voice.position=voice.loopEnd-1-crossfade-std::fmod(voice.loopStart-voice.position,loopLength);
             }
-            voice.elapsed+=1.0/hostRate;
+            voice.elapsed=++voice.elapsedFrames/hostRate;
         }
     }
 }
@@ -531,10 +561,22 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     else if(current && macroValues!=previousMacros) {updateRenderControls();updateVoices();}
     output.clear();
     if(!current || current->kitEpoch!=library.activeKitEpoch()) { stopVoices(); return; }
-    if(panic.exchange(false)) stopVoices();
+    const bool stopped=panic.exchange(false);
+    if(stopped)stopVoices();
+    {
+        auto commands=keyboardQueue.read(keyboardQueue.getNumReady());
+        commands.forEach([&](int index) {
+            const auto& command=keyboardCommands[(size_t)index];
+            if(stopped || command.kitEpoch!=current->kitEpoch)return;
+            indicateNote(command.note,1,command.down,true);
+            if(command.down)startVoice(command.note,1,0.8f,true);
+            else releaseNote(command.note,1,true);
+        });
+    }
     if(auto note=previewNote.exchange(-1);note>=0)
     {
         const auto previousClock=clock;
+        activity[(size_t)note].fetch_add(uint64_t(1)<<32);
         startVoice(note,1,0.8f);
         if(clock!=previousClock) for(auto& v:voices) if(v.sample && v.age==clock) v.preview=true;
     }
@@ -546,8 +588,8 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
         // Inspect raw MIDI without allocating a MidiMessage for variable-length SysEx.
         if(metadata.numBytes<1) continue;
         const auto* data=metadata.data; const int command=data[0]&0xf0,channel=(data[0]&0x0f)+1;
-        if(command==0x90 && metadata.numBytes>=3 && data[2]>0) startVoice(data[1],channel,data[2]/127.0f);
-        else if((command==0x80 || command==0x90) && metadata.numBytes>=3) releaseNote(data[1],channel);
+        if(command==0x90 && metadata.numBytes>=3 && data[2]>0) {indicateNote(data[1],channel,true);startVoice(data[1],channel,data[2]/127.0f);}
+        else if((command==0x80 || command==0x90) && metadata.numBytes>=3) {indicateNote(data[1],channel,false);releaseNote(data[1],channel);}
         else if(command==0xe0 && metadata.numBytes>=3) pitchBend[(size_t)(channel-1)]=((data[2]*128+data[1])-8192)/8192.0;
         else if(command==0xb0 && metadata.numBytes>=3 && (data[1]==120 || data[1]==123)) stopVoices(channel);
     }

@@ -146,7 +146,9 @@ void runPreviewTests()
     click(editor,"edit-tab-6");initial=pixels(editor);control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(2,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-attackLevel").setValue(-3,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-attackDecay").setValue(40,juce::sendNotificationSync);settle(editor);
-    check(pixels(editor)!=initial,"Attack controls did not update waveform");capture(editor,"drum-attack-layer.png");
+    check(pixels(editor)!=initial,"Attack controls did not update waveform");initial=pixels(editor);
+    control<juce::Slider>(editor,"edit-attackPosition").setValue(150,juce::sendNotificationSync);settle(editor);
+    check(pixels(editor)!=initial,"Attack Position did not move the edited waveform");capture(editor,"drum-attack-layer.png");
     editor.setSize(800,600);capture(editor,"drum-attack-compact.png");editor.setSize(1280,900);
     control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(1,juce::sendNotificationSync);settle(editor);
     click(editor,"edit-tab-3");settle(editor);initial=pixels(editor);control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(2,juce::sendNotificationSync);

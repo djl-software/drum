@@ -1,4 +1,4 @@
-# Drum sound editor (0.10.2)
+# Drum sound editor (0.11.0)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has seven pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
@@ -70,7 +70,7 @@ The header separately labels the assigned MIDI trigger, estimated processed-audi
 
 ## Filter
 
-**8-band EQ** provides eight independently enabled stereo bands with low cuts (12/48 dB/oct), low shelf, bell, notch, high shelf and high cuts (12/48 dB/oct). Drag a dot horizontally for frequency, vertically for gain (Q for cuts/notch). Alt-drag or wheel changes Q; double-click a dot toggles its band. Numeric frequency (20 Hz–20 kHz), gain (±24 dB), Q (0.1–18) and output gain (±24 dB) are also available. Dragging enables the band and EQ. The combined response curve uses the same coefficients as playback; Edited includes the EQ. EQ is after the attack layer and before amplitude/mixing.
+**8-band EQ** provides eight independently enabled stereo bands with low cuts (12/48 dB/oct), low shelf, bell, notch, high shelf and high cuts (12/48 dB/oct). Drag a dot horizontally for frequency, vertically for gain (Q for cuts/notch). Alt-drag or wheel changes Q; double-click a dot toggles its band. Numeric frequency (20 Hz–20 kHz), gain (±24 dB), Q (0.1–18) and output gain (±24 dB) are also available. Dragging enables the band and EQ. The combined response curve uses the same coefficients as playback; Edited includes the EQ. The same EQ settings process the sample and attack in separate paths before their independent envelopes, then they are mixed.
 
 The EQ uses one linked stereo curve. Spectrum analysis, independent L/R or M/S, band audition and adaptive Q are not included. It takes interaction cues from [EQ Eight](https://www.ableton.com/en/live-manual/12/live-audio-effect-reference/#eq-eight); it does not load or emulate the native device. **Filter envelope** selects the separate modulated tone filter described below.
 
@@ -88,7 +88,7 @@ To hear modulation and see it in Edited, choose **LFO: On** and raise at least o
 
 ## Attack layer
 
-Turn **Attack layer** On to add a centred transient at the start of each sample hit:
+Turn **Attack layer** On to add a centred transient independently of the sample envelopes:
 
 - **Click:** a short tonal click with an extra harmonic for a sharper front edge.
 - **Pulse:** a short sine burst; lower tone adds a knock, higher tone adds a tick.
@@ -96,8 +96,11 @@ Turn **Attack layer** On to add a centred transient at the start of each sample 
 - **Attack level:** -60 dB (silent) to 0 dB, default -18 dB.
 - **Attack tone:** 30 Hz–16 kHz, controlling oscillator pitch or noise brightness. High settings are limited for the current host sample rate.
 - **Attack decay:** 1–100 ms, default 8 ms, controlling the transient's maximum duration.
+- **Position:** 0–2,000 ms after MIDI note-on, default 0. Position is latched per note; it does not move an already scheduled hit.
 
-Start with Click, -18 dB, 1.8 kHz and 8 ms, then audition and adjust. The layer is added after sample gain/tone filtering, then passes through the eight-band EQ before the amplitude envelope, velocity response, LFO volume, instrument volume/pan, mute/solo, choke and sends. A long amplitude attack or Fade in softens it too. It starts once per note, does not repeat at loop boundaries, and ends if the sample voice ends. It requires a loaded sample. It does not follow sample tuning or pitch modulation; Attack tone controls its pitch separately. The sample and layer can sum above full scale, so adjust their levels as needed.
+Start with Click, -18 dB, 1.8 kHz, 8 ms and Position 0 ms. Try 5–15 ms for a later knock, or 50–150 ms for a distinct second hit. The layer bypasses sample gain, filter/drive, amplitude/pitch/filter envelopes and sample fades. It uses its own decay window. The instrument EQ applies to both paths; velocity response, LFO volume, instrument volume/pan and sends apply after they are mixed. Sample tuning and pitch modulation do not change Attack tone or Position.
+
+The layer fires once per note, even if the sample or amplitude envelope has already ended, and does not repeat at loop boundaries. A loaded sample is required. Normal note-off leaves the independent transient scheduled; Stop, mute, choke, retrigger and voice stealing still cancel it. Both signals can sum above full scale, so adjust their levels as needed.
 
 Edited and Send waveforms include the attack layer; Source does not. Zoom into the first few milliseconds to inspect its shape. These controls are saved per instrument and inherited by copies/slices. Reset page restores Off and the default settings.
 
@@ -121,12 +124,12 @@ Targets include the instrument mixer, sample gain, cutoff/resonance, envelope ti
 
 ## Compatibility and remaining scope
 
-Schema 9 adds weighted curves; earlier envelope states retain their previous curvature. Schema 8 adds eight EQ bands, bypass and output gain, with EQ off for older states. Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
+Schema 10 adds attack Position, defaulting to 0 ms for older projects. The attack now bypasses the sample envelopes for all projects, including existing Attack On presets. Schema 9 adds weighted curves; earlier envelope states retain their previous curvature. Schema 8 adds eight EQ bands, bypass and output gain, with EQ off for older states. Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1–4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
 
 The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered chains, hosting arbitrary devices, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21–108.
 
-## Compact editing and level warnings (0.10.2)
+## Compact editing and level warnings (0.11.0)
 
 Every waveform includes adaptive time graticules. The Edit Sound panel uses more of the window, single-line fields and graphs below the waveform. Envelope time and waveform time are separate: MIDI defines the duration of the S hold.
 
-Sample gain turns red if the selected source region plus normalisation/gain exceeds 0 dBFS before mono/filter/envelope/fader processing. This is a headroom warning, not a hard clip at the gain stage. Edited/Send captions also turn red when their rendered peak reaches full scale. Fade in is disabled in Classic, whose amplitude graph controls the attack; in Trigger/Gate, fade edits select Edited and visibly shape the hit.
+Sample gain turns red only when the completed processed preview exceeds 0 dBFS. Exactly full scale, a high gain setting alone and display zoom do not cause a red warning. The preview includes the amplitude envelope, EQ, attack layer and mixer level, at 80% velocity and a one-second gate; Send views use the selected send. Pending/stale previews clear the warning until a current result arrives. Edited/Send captions use the same strict limit. This is one rendered hit, not a live meter of overlapping notes or external effects. Floating-point audio is retained rather than hard-clipped. Fade in is disabled in Classic, whose amplitude graph shapes the sample; Trigger/Gate use fades. Neither affects the independent attack layer.

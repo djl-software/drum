@@ -325,7 +325,7 @@ Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String&
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 9); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 10); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
@@ -377,7 +377,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); return true;
     }
-    if (version < 2 || version > 9) return false;
+    if (version < 2 || version > 10) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -411,7 +411,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                         }
                     }
                     if(version>=5) for(auto& p:soundParameters)
-                        if((version>=6 || !introducedInVersion6(p)) && (version>=7 || p.member!=&SoundParameters::keyOverride))
+                        if((version>=6 || !introducedInVersion6(p)) && (version>=7 || p.member!=&SoundParameters::keyOverride) && (version>=10 || p.member!=&SoundParameters::attackPosition))
                             group.instruments.back().controls.sound.*(p.member)=numberAttribute(*i,(juce::String("edit_")+p.key).toRawUTF8());
                     if(version>=5) for(int n=0;n<numMacros;++n)
                     {

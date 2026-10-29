@@ -68,7 +68,26 @@ void runEqualizerTests()
     for(int n=0;n<40;++n){juce::Thread::sleep(10);juce::Timer::callPendingTimersSynchronously();}
     capture(editor,"drum-eight-band-eq.png");editor.setSize(800,600);capture(editor,"drum-eight-band-eq-compact.png");editor.setSize(1280,900);
     click(editor,"edit-tab-0");auto& sampleGain=control<juce::Slider>(editor,"edit-sampleGain");sampleGain.setValue(24,juce::sendNotificationSync);
+    auto settle=[&] {for(int n=0;n<1000;++n){juce::Thread::sleep(10);juce::Timer::callPendingTimersSynchronously();if(n>20 && control<juce::Label>(editor,"waveform-status").getText().startsWith("One hit"))return;}throw std::runtime_error("Clipping preview timed out");};
+    settle();
     check(sampleGain.findColour(juce::Slider::textBoxBackgroundColourId)==juce::Colour(0xff8f2638),"High sample gain does not warn red");capture(editor,"drum-sample-clipping.png");
     sampleGain.setValue(-24,juce::sendNotificationSync);check(sampleGain.findColour(juce::Slider::textBoxBackgroundColourId)!=juce::Colour(0xff8f2638),"Clipping warning did not clear");
+    settle();
+    sampleGain.setValue(24,juce::sendNotificationSync);
+    control<juce::Slider>(editor,"instrument-volume").setValue(-60,juce::sendNotificationSync);settle();
+    check(sampleGain.findColour(juce::Slider::textBoxBackgroundColourId)!=juce::Colour(0xff8f2638),"High gain falsely warned despite silent processed output");
+    control<juce::Slider>(editor,"instrument-volume").setValue(-24,juce::sendNotificationSync);settle();
+    check(sampleGain.findColour(juce::Slider::textBoxBackgroundColourId)!=juce::Colour(0xff8f2638),"High gain falsely warned despite fader headroom");
+    // Exactly full scale is not an overload; a little above it is.
+    auto fullFile=juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Full scale boundary.wav");fullFile.deleteFile();
+    auto stream=fullFile.createOutputStream();juce::WavAudioFormat format;std::unique_ptr<juce::AudioFormatWriter> writer(format.createWriterFor(stream.release(),48000,1,24,{},0));check(writer!=nullptr,"Full scale writer failed");
+    juce::AudioBuffer<float> constant(1,4800);for(int n=0;n<4800;++n)constant.setSample(0,n,0.5f);writer->writeFromAudioSampleBuffer(constant,0,4800);writer.reset();
+    c={};c.sound.normalise=1;c.sound.velocityVolume=0;check(library.setControls(kit,id,c).ok,"Full scale controls failed");
+    processor.getSampleEngine().requestLoad(kit,id,fullFile);check(processor.getSampleEngine().waitForLoading(10000),"Full scale sample failed");settle();
+    auto full=drum::SampleEngine::renderPreview(processor.getSampleEngine().waveformFor(id),c,{},120,48000);
+    check(full.sample && full.sample->peak==1.0f,"Full scale fixture is not exactly 0 dBFS");
+    check(sampleGain.findColour(juce::Slider::textBoxBackgroundColourId)!=juce::Colour(0xff8f2638),"Exactly full scale falsely warns red");
+    sampleGain.setValue(0.1,juce::sendNotificationSync);settle();
+    check(sampleGain.findColour(juce::Slider::textBoxBackgroundColourId)==juce::Colour(0xff8f2638),"Above full scale did not warn red");
     std::cout<<"Eight-band EQ response/audio agreement, stereo, live edits, recall, migration, UI hit testing and gain warning passed\n";
 }
