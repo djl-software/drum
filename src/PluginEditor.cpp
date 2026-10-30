@@ -328,7 +328,7 @@ public:
         addAndMakeVisible(keyboard); keyboard.select = [this](juce::String id) {
             for(auto& g:kit().groups) for(auto& i:g.instruments) if(i.id==id) { groupId=g.id; instrumentId=id; refresh(); scrollToSelected(); return; }
         };
-        addAndMakeVisible(note); note.setComponentID("instrument-note"); note.setName("Instrument MIDI note"); note.onChange = [this] { if(!refreshing) complete(library.assignNote(view.activeKit,instrumentId,note.getSelectedId()-1)); };
+        addAndMakeVisible(note);note.setComponentID("instrument-note");note.setName("Instrument keyboard key");note.setColour(juce::Label::textColourId,text);note.setTooltip("Assigned by kit order. Move this instrument or its group to change its keyboard position.");
         addAndMakeVisible(destination); destination.setComponentID("instrument-group"); destination.setName("Instrument group"); destination.onChange = [this] {
             int n=destination.getSelectedId()-1;
             if(!refreshing && n>=0 && n<(int)kit().groups.size())
@@ -551,7 +551,7 @@ private:
         auto* i=instrument();
         for(auto* c:std::initializer_list<juce::Component*>{&instrumentName,&note,&destination,&copyInstrument,&deleteInstrument,&instrumentUp,&instrumentDown,&loadSample,&volume,&pan,&tuning,&mute,&solo,&choke,&editSound}) c->setVisible(i!=nullptr);
         soundEditor.select(view.activeKit,i);
-        note.clear(juce::dontSendNotification); destination.clear(juce::dontSendNotification);
+        note.setText({},juce::dontSendNotification); destination.clear(juce::dontSendNotification);
         if(i)
         {
             const bool controlsSelectionChanged=controlsInstrumentId!=i->id;
@@ -567,12 +567,7 @@ private:
             if(controlsSelectionChanged || (!tuning.isMouseButtonDown() && !tuning.hasKeyboardFocus(true))) tuning.setValue(i->controls.tuning,juce::dontSendNotification);
             mute.setToggleState(i->controls.mute,juce::dontSendNotification); solo.setToggleState(i->controls.solo,juce::dontSendNotification);
             choke.setSelectedId(i->controls.choke+1,juce::dontSendNotification);
-            for(int n=21;n<=108;++n)
-            {
-                note.addItem("MIDI "+juce::String(n)+"  /  "+drum::noteName(n),n+1);
-                for(auto& g:kit().groups) for(auto& other:g.instruments) if(other.note==n && other.id!=i->id) note.setItemEnabled(n+1,false);
-            }
-            note.setSelectedId(i->note+1,juce::dontSendNotification);
+            note.setText(drum::noteName(i->note)+" / MIDI "+juce::String(i->note),juce::dontSendNotification);
             int index=1; for(auto& g:kit().groups) { destination.addItem(g.name,index); if(g.id==groupId) destination.setSelectedId(index,juce::dontSendNotification); ++index; }
             copyInstrument.setEnabled(drum::instrumentCount(kit())<88);
             instrumentUp.setEnabled(group().instruments.front().id!=instrumentId); instrumentDown.setEnabled(group().instruments.back().id!=instrumentId);
@@ -688,7 +683,8 @@ private:
     std::array<int,128> flashes {};
     std::array<bool,128> localHeld {};
     juce::TextEditor kitName,groupName,instrumentName;
-    juce::ComboBox note,destination,choke;
+    juce::Label note;
+    juce::ComboBox destination,choke;
     juce::ListBox groups;
     InstrumentGrid grid;
     juce::Viewport viewport;

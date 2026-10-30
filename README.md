@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.13.4 maps kit instruments to consecutive keyboard keys from A0 (MIDI 21), following group and pad order. Adding, copying, slicing, moving or deleting sounds closes gaps and shifts later keys. Sidechain sources follow their instruments. Existing libraries are reordered on load.
+
 Version 0.13.3 quadruples EQ spectrum resolution to 8,192 samples and removes the separate drop strip and groups Add effect, Load VST3 and Presets together. Browser drops still use the temporary full-window surface and only prompt for ambiguous matches. Shutdown now services UI replies while the browser worker exits to avoid a circular wait.
 
 Version 0.13.2 smooths EQ spectra, colours individual EQ bands, adds green/yellow/red tile meters and a live stereo Saturation waveform, and simplifies effect labels and panels.
@@ -107,7 +109,7 @@ See [development notes](docs/development.md) and [third-party notes](docs/third-
 
 ![Drum kit workspace](docs/images/drum-workspace.png)
 
-The editor shows kit tabs, a group list, instrument cards, an instrument details panel and an 88-key overview. Resize from its bottom-right corner; the layout scales down to 800×600 so the host browser can remain visible. The initial size adapts to the primary display's work area. Rename by pressing Enter or clicking away; Escape cancels the edit. Press an assigned key to select and play its instrument; pad and piano highlights follow mouse and incoming MIDI. Already assigned keys are disabled in another instrument's note selector. Remove actions ask for confirmation; at least one kit and one group per kit are retained.
+The editor shows kit tabs, a group list, instrument cards, an instrument details panel and an 88-key overview. Resize from its bottom-right corner; the layout scales down to 800×600 so the host browser can remain visible. The initial size adapts to the primary display's work area. Rename by pressing Enter or clicking away; Escape cancels the edit. Press an assigned key to select and play its instrument; pad and piano highlights follow mouse and incoming MIDI. The key readout follows kit order automatically; move an instrument or group to change its position. Remove actions ask for confirmation; at least one kit and one group per kit are retained.
 
 Build the optional review app with `./scripts/build.ps1 -Standalone`, then open `build/DJLDrum_artefacts/Release/Standalone/DJL Drum.exe`. This is a development harness for interface review. The VST3 remains the product target.
 

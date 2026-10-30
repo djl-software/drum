@@ -31,7 +31,7 @@ struct Setup
     {
         auto s=processor.getLibrary().snapshot(); kit=s.activeKit; group=drum::activeKit(s)->groups.front().id;
         auto added=processor.getLibrary().addInstrument(kit,group); check(added.ok,"Instrument setup failed"); instrument=added.id;
-        check(processor.getLibrary().assignNote(kit,instrument,36).ok,"Note setup failed");
+        check(processor.getLibrary().assignNote(kit,instrument,21).ok,"Note setup failed");
         processor.setRateAndBufferSizeDetails(48000,128); processor.prepareToPlay(48000,128);
     }
     void load(const juce::File& file)
@@ -53,9 +53,9 @@ void runPlaybackTests()
     Setup setup; setup.load(mono);
     auto& p=setup.processor; check(p.getSampleEngine().statusFor(setup.instrument).ready,"Valid sample did not load");
     juce::AudioBuffer<float> output(2,128); juce::MidiBuffer midi;
-    midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)64),23);
-    midi.addEvent(juce::MidiMessage::noteOff(1,36),30);
-    midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)64),40);
+    midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)64),23);
+    midi.addEvent(juce::MidiMessage::noteOff(1,21),30);
+    midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)64),40);
     midi.addEvent(juce::MidiMessage::allSoundOff(1),80);
     p.processBlock(output,midi);
     near(output.getSample(0,22),0,"Note started early");
@@ -64,28 +64,28 @@ void runPlaybackTests()
     near(output.getSample(0,40),0.5f*64/127,"Repeated hits did not overlap");
     near(output.getSample(0,80),0,"MIDI panic ignored");
     // Zero-velocity note-on does not retrigger.
-    midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)0),0); p.processBlock(output,midi);
+    midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)0),0); p.processBlock(output,midi);
     near(output.getMagnitude(0,128),0,"Zero velocity triggered a hit");
     // The 0.1-second file must play for 4800 host samples at 48 kHz.
     p.prepareToPlay(48000,128); output.setSize(2,5000);
-    midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0); p.processBlock(output,midi);
+    midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0); p.processBlock(output,midi);
     check(output.getSample(0,4790)>0 && output.getSample(0,4801)==0,"Sample-rate conversion changed duration");
     p.prepareToPlay(44100,128); output.setSize(2,4500);
-    midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0); p.processBlock(output,midi);
+    midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0); p.processBlock(output,midi);
     check(output.getSample(0,4400)>0 && output.getSample(0,4411)==0,"Native sample rate duration incorrect");
     setup.load(stereo); p.prepareToPlay(48000,128); output.setSize(2,128);
-    midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0); p.processBlock(output,midi);
+    midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0); p.processBlock(output,midi);
     near(output.getSample(0,1),0.25f,"Stereo left incorrect"); near(output.getSample(1,1),0.5f,"Stereo right incorrect");
     p.getSampleEngine().stop(); p.processBlock(output,midi); near(output.getMagnitude(0,128),0,"UI stop failed");
-    p.getSampleEngine().audition(36); p.processBlock(output,midi); near(output.getSample(0,0),0.2f,"Audition failed");
+    p.getSampleEngine().audition(21); p.processBlock(output,midi); near(output.getSample(0,0),0.2f,"Audition failed");
     auto layout=p.getBusesLayout(); layout.outputBuses.set(0,juce::AudioChannelSet::mono()); check(p.setBusesLayout(layout),"Mono layout failed");
-    p.prepareToPlay(48000,128); output.setSize(1,128); midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0); p.processBlock(output,midi);
+    p.prepareToPlay(48000,128); output.setSize(1,128); midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0); p.processBlock(output,midi);
     near(output.getSample(0,0),0.375f,"Stereo-to-mono mix incorrect");
     auto previous=p.getLibrary().toXml()->toString();
     setup.load(mono.getSiblingFile("does-not-exist.wav"));
     check(p.getLibrary().toXml()->toString()==previous,"Failed replacement changed sample reference");
     check(!p.getSampleEngine().statusFor(setup.instrument).ready,"Missing file reported as loaded");
-    p.prepareToPlay(48000,128); midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0); p.processBlock(output,midi);
+    p.prepareToPlay(48000,128); midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0); p.processBlock(output,midi);
     near(output.getSample(0,0),0.375f,"Failed replacement lost previous audio");
     auto invalid=mono.getSiblingFile("not-audio.wav"); invalid.replaceWithText("invalid audio"); setup.load(invalid);
     check(p.getLibrary().toXml()->toString()==previous,"Corrupt replacement changed assignment");
@@ -94,10 +94,10 @@ void runPlaybackTests()
     juce::MemoryBlock state; p.getStateInformation(state);
     DrumAudioProcessor recalled; recalled.setStateInformation(state.getData(),(int)state.getSize());
     check(recalled.getSampleEngine().waitForLoading(10000),"Recall loader timed out");
-    recalled.prepareToPlay(48000,128); output.setSize(2,128); midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0); recalled.processBlock(output,midi);
+    recalled.prepareToPlay(48000,128); output.setSize(2,128); midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0); recalled.processBlock(output,midi);
     near(output.getSample(1,0),0.5f,"Saved sample did not play after recall");
     auto newKit=p.getLibrary().addKit(); check(newKit.ok,"New kit failed");
-    midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0); p.processBlock(output,midi);
+    midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0); p.processBlock(output,midi);
     near(output.getMagnitude(0,128),0,"Old kit triggered while new kit was loading");
     check(p.getSampleEngine().waitForLoading(10000),"Kit switch timed out");
     p.processBlock(output,midi); near(output.getMagnitude(0,128),0,"Old voices survived kit switch");
@@ -109,7 +109,7 @@ void runPlaybackTests()
     setup.load(stereo); check(p.getSampleEngine().statusFor(setup.instrument).ready,"Relink failed");
     layout.outputBuses.set(0,juce::AudioChannelSet::stereo()); check(p.setBusesLayout(layout),"Stereo layout restore failed");
     p.prepareToPlay(48000,128); output.setSize(2,128);
-    for(int n=0;n<256;++n) midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0);
+    for(int n=0;n<256;++n) midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);
     p.processBlock(output,midi); near(output.getSample(0,0),32.0f,"Voice pool not bounded at 128");
     p.getSampleEngine().stop(); p.processBlock(output,midi);
     p.getLibrary().rename(setup.instrument,"Stereo test hit");
@@ -119,7 +119,7 @@ void runPlaybackTests()
     Setup audition;audition.load(fixture("audition.wav",1,48000,480));
     auto& engine=audition.processor.getSampleEngine();juce::MidiBuffer noMidi;
     juce::AudioBuffer<float> loopAudio(2,48001);
-    engine.setAuditionBpm(120);engine.setAuditionLoop(36);
+    engine.setAuditionBpm(120);engine.setAuditionLoop(21);
     audition.processor.processBlock(loopAudio,noMidi);
     near(loopAudio.getSample(0,0),0.2f,"Audition loop first beat missing");
     near(loopAudio.getSample(0,23999),0,"Audition beat early");
@@ -135,10 +135,10 @@ void runPlaybackTests()
     check(engine.auditionTempo()==120,"Manual audition tempo override was lost");
     engine.pauseAudition();audition.processor.processBlock(loopAudio,noMidi);
     near(loopAudio.getSample(0,24000),0,"Paused audition retriggered");
-    auto serial=engine.noteActivity(36)>>32;
-    engine.audition(36);audition.processor.processBlock(loopAudio,noMidi);
-    check((engine.noteActivity(36)>>32)==serial+1,"Single shot repeated");
-    engine.setAuditionBpm(60);engine.setAuditionLoop(36);
+    auto serial=engine.noteActivity(21)>>32;
+    engine.audition(21);audition.processor.processBlock(loopAudio,noMidi);
+    check((engine.noteActivity(21)>>32)==serial+1,"Single shot repeated");
+    engine.setAuditionBpm(60);engine.setAuditionLoop(21);
     audition.processor.processBlock(loopAudio,noMidi);
     near(loopAudio.getSample(0,24000),0,"60 BPM audition was too fast");
     near(loopAudio.getSample(0,48000),0.2f,"Changed audition BPM ignored");
@@ -157,8 +157,8 @@ void runPlaybackTests()
     for(int tab=0;tab<8;++tab) {
         button("edit-tab-"+juce::String(tab))->onClick();
         check(play->isVisible() && play->isEnabled() && play->getBounds()==position,"Edit tab moved or disabled audition controls");
-        serial=engine.noteActivity(36)>>32;play->onClick();audition.processor.processBlock(loopAudio,noMidi);
-        check((engine.noteActivity(36)>>32)==serial+1,"Edit tab Play failed");
+        serial=engine.noteActivity(21)>>32;play->onClick();audition.processor.processBlock(loopAudio,noMidi);
+        check((engine.noteActivity(21)>>32)==serial+1,"Edit tab Play failed");
     }
     repeat->setToggleState(true,juce::dontSendNotification);repeat->onClick();play->onClick();
     check(play->getButtonText()=="Pause" && engine.auditionLoopRunning(),"Loop Play did not become Pause");
@@ -187,7 +187,7 @@ void runVst3PlaybackTest(const juce::String& path)
         {
             midi.clear();
             midi.addEvent(juce::MidiMessage::allSoundOff(1),0);
-            midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),31);
+            midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),31);
             instance.processBlock(output,midi);
             if(output.getSample(1,31)>0.2f) { played=true; break; }
             juce::Thread::sleep(10);
@@ -221,7 +221,7 @@ void runVst3PlaybackTest(const juce::String& path)
     bool editedPlayed=false;
     for(int attempt=0;attempt<500;++attempt)
     {
-        midi.clear();midi.addEvent(juce::MidiMessage::allSoundOff(1),0);midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0);midi.addEvent(juce::MidiMessage::noteOff(1,36),64);
+        midi.clear();midi.addEvent(juce::MidiMessage::allSoundOff(1),0);midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);midi.addEvent(juce::MidiMessage::noteOff(1,21),64);
         plugin->processBlock(output,midi);if(output.getSample(2,0)>0.1f){editedPlayed=true;break;}juce::Thread::sleep(10);
     }
     check(editedPlayed,"Compiled VST3 edited sound silent");near(output.getSample(0,0),0,"Compiled VST3 routing leaked to Main");
@@ -233,7 +233,7 @@ void runVst3PlaybackTest(const juce::String& path)
         for(auto* parameter:plugin->getParameters()) if(parameter->getName(64)=="Macro "+juce::String(n)) found=parameter;
         check(found!=nullptr,"Compiled VST3 missing macro automation parameter");if(n==1)firstMacro=found;
     }
-    firstMacro->setValueNotifyingHost(1);midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0);plugin->processBlock(output,midi);
+    firstMacro->setValueNotifyingHost(1);midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);plugin->processBlock(output,midi);
     near(output.getSample(2,0),0.25f,"Compiled VST3 did not respond to host macro automation");plugin->releaseResources();
     editing={};editing.sound.mono=1;editing.sound.attackOn=1;editing.sound.attackType=2;
     editing.sound.attackLevel=-6;editing.sound.attackDecay=50;editing.sound.attackPosition=2;editing.sound.velocityVolume=0;editing.sound.output=1;editing.sound.sendA=-6.020599913;
@@ -251,7 +251,7 @@ void runVst3PlaybackTest(const juce::String& path)
         check(plugin->setBusesLayout(routing),"Hosted attack routing failed");plugin->prepareToPlay(48000,256);bool played=false;
         for(int attempt=0;attempt<500;++attempt)
         {
-            midi.clear();midi.addEvent(juce::MidiMessage::allSoundOff(1),0);midi.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)127),0);
+            midi.clear();midi.addEvent(juce::MidiMessage::allSoundOff(1),0);midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);
             plugin->processBlock(output,midi);if(output.getSample(2,0)>0.3f){played=true;break;}juce::Thread::sleep(10);
         }
         check(played,"Compiled VST3 mono/attack did not play");

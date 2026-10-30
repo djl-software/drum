@@ -34,7 +34,7 @@ struct Rig
         auto s=p.getLibrary().snapshot(); kit=s.activeKit; group=drum::activeKit(s)->groups.front().id;
         a=p.getLibrary().addInstrument(kit,group).id;
         auto secondGroup=p.getLibrary().addGroup(kit).id; b=p.getLibrary().addInstrument(kit,secondGroup).id;
-        check(p.getLibrary().assignNote(kit,a,36).ok && p.getLibrary().assignNote(kit,b,37).ok,"Control note setup failed");
+        check(p.getLibrary().assignNote(kit,a,21).ok && p.getLibrary().assignNote(kit,b,22).ok,"Control note setup failed");
         p.getSampleEngine().requestLoad(kit,a,file); p.getSampleEngine().requestLoad(kit,b,file); wait(); reset();
     }
     void wait() { check(p.getSampleEngine().waitForLoading(10000),"Controls bank timed out"); }
@@ -47,37 +47,37 @@ struct Rig
 void runControlTests()
 {
     Rig r; drum::InstrumentControls c;
-    c.volumeDb=-6.020599913; r.set(r.a,c); r.hit(36); r.render();
+    c.volumeDb=-6.020599913; r.set(r.a,c); r.hit(21); r.render();
     near(r.audio.getSample(0,0),0.125f,"Instrument volume incorrect");
     c.volumeDb=0; r.set(r.a,c); r.render();
     check(r.audio.getSample(0,0)>0.125f && r.audio.getSample(0,0)<0.13f,"Volume update restarted or cut sounding voice");
     near(r.audio.getSample(0,400),0.25f,"Smoothed volume did not reach target");
     c.pan=1; r.set(r.a,c); r.render();
     near(r.audio.getSample(0,400),0,"Hard right pan left channel"); near(r.audio.getSample(1,400),0.25f,"Hard right pan right channel");
-    c.pan=-1; r.set(r.a,c); r.reset(); r.hit(36); r.render();
+    c.pan=-1; r.set(r.a,c); r.reset(); r.hit(21); r.render();
     near(r.audio.getSample(0,0),0.25f,"Hard left pan left channel"); near(r.audio.getSample(1,0),0,"Hard left pan right channel");
-    c={}; c.volumeDb=-60; r.set(r.a,c); r.reset(); r.hit(36); r.render(); near(r.audio.getMagnitude(0,512),0,"Minimum volume not silent");
-    c={}; c.tuning=12; r.set(r.a,c); r.reset(5000); r.hit(36); r.render();
+    c={}; c.volumeDb=-60; r.set(r.a,c); r.reset(); r.hit(21); r.render(); near(r.audio.getMagnitude(0,512),0,"Minimum volume not silent");
+    c={}; c.tuning=12; r.set(r.a,c); r.reset(5000); r.hit(21); r.render();
     check(r.audio.getSample(0,2390)>0 && r.audio.getSample(0,2401)==0,"Octave-up tuning duration incorrect");
-    c.tuning=-12; r.set(r.a,c); r.reset(10000); r.hit(36); r.render();
+    c.tuning=-12; r.set(r.a,c); r.reset(10000); r.hit(21); r.render();
     check(r.audio.getSample(0,9590)>0 && r.audio.getSample(0,9601)==0,"Octave-down tuning duration incorrect");
-    c={}; r.set(r.a,c); r.reset(); r.hit(36); r.render(); c.mute=true; r.set(r.a,c); r.render();
+    c={}; r.set(r.a,c); r.reset(); r.hit(21); r.render(); c.mute=true; r.set(r.a,c); r.render();
     near(r.audio.getSample(0,200),0,"Mute did not stop sounding voice");
     c.mute=false; r.set(r.a,c); r.render(); near(r.audio.getMagnitude(0,512),0,"Unmute resurrected old voice");
-    drum::InstrumentControls b; b.solo=true; r.set(r.b,b); r.reset(); r.hit(36); r.render();
+    drum::InstrumentControls b; b.solo=true; r.set(r.b,b); r.reset(); r.hit(21); r.render();
     near(r.audio.getMagnitude(0,512),0,"Solo did not silence other organisational group");
-    r.hit(37); r.render(); near(r.audio.getSample(0,0),0.25f,"Soloed instrument silent");
-    c.solo=true; r.set(r.a,c); r.reset(); r.hit(36); r.hit(37); r.render(); near(r.audio.getSample(0,0),0.5f,"Multiple solo not additive");
-    b.mute=true; r.set(r.b,b); r.reset(); r.hit(37); r.render(); near(r.audio.getMagnitude(0,512),0,"Mute did not take precedence over solo");
+    r.hit(22); r.render(); near(r.audio.getSample(0,0),0.25f,"Soloed instrument silent");
+    c.solo=true; r.set(r.a,c); r.reset(); r.hit(21); r.hit(22); r.render(); near(r.audio.getSample(0,0),0.5f,"Multiple solo not additive");
+    b.mute=true; r.set(r.b,b); r.reset(); r.hit(22); r.render(); near(r.audio.getMagnitude(0,512),0,"Mute did not take precedence over solo");
     c={}; b={}; c.choke=b.choke=1; r.set(r.a,c); r.set(r.b,b);
-    r.reset(); r.hit(36); r.hit(37,100,2); r.render();
+    r.reset(); r.hit(21); r.hit(22,100,2); r.render();
     near(r.audio.getSample(0,99),0.25f,"Choke happened before MIDI event");
     near(r.audio.getSample(0,100),0.5f,"Choke release did not start with new hit");
     near(r.audio.getSample(0,197),0.25f,"Choke did not cross MIDI channels and organisational groups");
-    r.reset(); r.hit(36); r.hit(36,100); r.render(); near(r.audio.getSample(0,197),0.25f,"Choke did not stop earlier hit of same instrument");
-    b.choke=2; r.set(r.b,b); r.reset(); r.hit(36); r.hit(37,100); r.render(); near(r.audio.getSample(0,197),0.5f,"Different choke groups cut each other");
-    c.choke=0; r.set(r.a,c); r.reset(); r.hit(36); r.hit(36,100); r.render(); near(r.audio.getSample(0,197),0.5f,"Choke Off did not allow overlap");
-    c.choke=1; b.choke=1; b.mute=true; r.set(r.a,c); r.set(r.b,b); r.reset(); r.hit(36); r.hit(37,100); r.render();
+    r.reset(); r.hit(21); r.hit(21,100); r.render(); near(r.audio.getSample(0,197),0.25f,"Choke did not stop earlier hit of same instrument");
+    b.choke=2; r.set(r.b,b); r.reset(); r.hit(21); r.hit(22,100); r.render(); near(r.audio.getSample(0,197),0.5f,"Different choke groups cut each other");
+    c.choke=0; r.set(r.a,c); r.reset(); r.hit(21); r.hit(21,100); r.render(); near(r.audio.getSample(0,197),0.5f,"Choke Off did not allow overlap");
+    c.choke=1; b.choke=1; b.mute=true; r.set(r.a,c); r.set(r.b,b); r.reset(); r.hit(21); r.hit(22,100); r.render();
     near(r.audio.getSample(0,197),0.25f,"Muted hit choked audible instrument");
 
     c={-9.5,-0.25,3.25,true,true,16}; r.set(r.a,c);

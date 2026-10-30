@@ -202,3 +202,12 @@ Browser drops with one matching VST3 now load directly. Multiple matches and kno
 Browser shutdown now services synchronous UI/COM replies while its lookup worker exits, avoiding a circular wait during editor destruction. Clicks inside Drum do not start browser identity lookups. This addresses a shutdown deadlock path; host-close behaviour still needs verification in Live.
 
 Implementation reference: [Microsoft UI Automation threading guidance](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-threading) and [COM-aware waits](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cowaitformultiplehandles).
+
+
+## Contiguous keyboard order (0.13.4)
+
+A kit is an ordered sound library mapped to consecutive keyboard keys. The first sound uses A0 (MIDI 21), then A#0, B0, C1 and so on, up to C8 (MIDI 108) for all 88 sounds. Group order comes first; pad order within each group comes second. Both black and white keys count. Add a sound to an earlier group and later sounds shift up. Delete a sound and later sounds shift down. Moving/copying groups or sounds, loading samples as new instruments and slicing follow the same rule.
+
+Use the instrument/group move controls to change order. The instrument details show the assigned key instead of allowing independent note assignments. Clicking a pad, playing its keyboard key and audition Play still trigger that sound. Sample pitch/tuning is unaffected by this reassignment.
+
+Sidechain routing follows the source instrument as its key shifts; deleting its source sets No Input and clears source mute. Chains, samples, names and editing settings stay with the instrument. Existing libraries are compacted into their saved group/pad order on load (schema 12). During a layout change, old held/audition notes are cleared so an earlier key cannot continue playing a different sound. New key presses use the updated layout. External MIDI clips, if used, are not rewritten by Drum.

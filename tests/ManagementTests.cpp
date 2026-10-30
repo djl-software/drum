@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "BuiltinEffects.h"
 #include <set>
 #include <stdexcept>
 #include <iostream>
@@ -28,6 +29,32 @@ void screenshot(juce::Component& editor, const char* name)
 }
 void runManagementTests()
 {
+    {
+        drum::KitLibrary ordered;auto initial=ordered.snapshot();auto k=initial.activeKit,g=drum::activeKit(initial)->groups[0].id;
+        auto h=ordered.addGroup(k).id,a=ordered.addInstrument(k,g).id,b=ordered.addInstrument(k,h).id,c=ordered.addInstrument(k,h).id;
+        auto item=[&](const juce::String& id){auto state=ordered.snapshot();return *drum::findInstrument(*drum::activeKit(state),id);};
+        auto contiguous=[&]{auto state=ordered.snapshot();int expected=drum::firstNote;for(const auto& group:drum::activeKit(state)->groups)for(const auto& instrument:group.instruments)check(instrument.note==expected++,"Keyboard has a gap or differs from kit order");};
+        auto description=drum::builtinDescription(drum::BuiltinKind::utility);
+        drum::EffectSlot effect{juce::Uuid().toString(),description.createXml()->toString(),{},false};effect.sidechainNote=item(b).note;effect.sidechainMute=true;
+        good(ordered.setEffects(k,c,{effect}));auto x=ordered.addInstrument(k,g).id;contiguous();
+        check(item(x).note==22 && item(b).note==23 && item(c).effects[0].sidechainNote==23,"Insert did not shift later group or sidechain");
+        auto epoch=ordered.activeKitEpoch();good(ordered.reorderInstrument(k,c,-1));contiguous();check(ordered.activeKitEpoch()>epoch && item(c).effects[0].sidechainNote==item(b).note,"Reorder failed to invalidate old keys or preserve sidechain identity");
+        good(ordered.moveInstrument(k,x,h));contiguous();check(item(x).note==24,"Group move did not map to destination position");
+        auto copy=ordered.duplicateInstrument(k,a);good(copy);contiguous();check(item(copy.id).note==22,"Copy not placed at its group position");
+        good(ordered.removeInstrument(k,a));contiguous();good(ordered.reorderGroup(k,h,-1));contiguous();check(item(c).note==21 && item(copy.id).note==24,"Group reorder did not move keyboard block");
+        good(ordered.removeInstrument(k,b));contiguous();check(item(c).effects[0].sidechainNote==-1 && !item(c).effects[0].sidechainMute,"Deleted sidechain source retargeted another sound");
+        auto sample=ordered.addSampleInstrument(k,h,juce::File::getCurrentWorkingDirectory().getChildFile("ordered-sample.wav").getFullPathName());good(sample);contiguous();check(item(sample.id).note==23 && item(copy.id).note==24,"Sample insertion did not shift later group");
+        good(ordered.sliceInstrument(k,sample.id,2));contiguous();good(ordered.duplicateGroup(k,g));contiguous();
+        effect.sidechainNote=item(x).note;good(ordered.setEffects(k,c,{effect}));auto legacy=ordered.toXml();legacy->setAttribute("schemaVersion",11);
+        for(auto* kit:legacy->getChildIterator())for(auto* group:kit->getChildIterator())for(auto* instrument:group->getChildIterator()){
+            instrument->setAttribute("note",instrument->getIntAttribute("note")+30);
+            for(auto* slot:instrument->getChildIterator())if(slot->hasTagName("Effect") && slot->getIntAttribute("sidechainNote",-1)>=0)slot->setAttribute("sidechainNote",slot->getIntAttribute("sidechainNote")+30);
+        }
+        check(ordered.restore(*legacy),"Legacy keyboard order migration failed");contiguous();check(item(c).effects[0].sidechainNote==item(x).note,"Migration changed sidechain source identity");
+        auto saved=ordered.toXml()->toString();auto invalid=ordered.toXml();auto* group=invalid->getFirstChildElement()->getFirstChildElement();group->getChildElement(1)->setAttribute("note",group->getChildElement(0)->getIntAttribute("note"));check(!ordered.restore(*invalid) && ordered.toXml()->toString()==saved,"Duplicate note input was silently repaired or partially restored");
+        good(ordered.removeGroup(k,h));contiguous();
+    }
+
     drum::KitLibrary library;
     auto original=library.snapshot(); auto kit=original.activeKit; auto group=drum::activeKit(original)->groups.front().id;
     check(original.kits.size()==1,"Missing initial kit");
@@ -37,7 +64,7 @@ void runManagementTests()
     check(!library.rename(group,juce::String::repeatedString("x",65)).ok,"Long name accepted");
     auto first=library.addInstrument(kit,group); good(first);
     auto second=library.addInstrument(kit,group); good(second);
-    good(library.assignNote(kit,first.id,60));
+    check(!library.assignNote(kit,first.id,60).ok,"Manual note broke contiguous mapping");
     check(!library.assignNote(kit,second.id,60).ok,"Note collision accepted");
     check(!library.assignNote(kit,second.id,109).ok,"Invalid note accepted");
     auto group2=library.addGroup(kit); good(group2);
@@ -46,11 +73,11 @@ void runManagementTests()
     good(library.reorderGroup(kit,group2.id,-1));
     auto s=library.snapshot();
     check(drum::findGroup(*drum::activeKit(s),group2.id)->instruments.front().id==first.id,"Move changed instrument identity");
-    check(drum::findInstrument(*drum::activeKit(s),first.id)->note==60,"Organisation changed MIDI note");
+    check(drum::findInstrument(*drum::activeKit(s),first.id)->note==21,"Organisation did not update MIDI note");
     good(library.removeInstrument(kit,second.id));
     auto duplicate=library.duplicateInstrument(kit,first.id); good(duplicate);
     s=library.snapshot(); check(duplicate.id!=first.id,"Duplicate reused instrument ID");
-    check(drum::findInstrument(*drum::activeKit(s),duplicate.id)->note!=60,"Duplicate reused MIDI note");
+    check(drum::findInstrument(*drum::activeKit(s),duplicate.id)->note==22,"Duplicate not assigned next MIDI note");
     auto copyGroup=library.duplicateGroup(kit,group2.id); good(copyGroup);
     auto copyKit=library.duplicateKit(kit); good(copyKit);
     auto xml=library.toXml(); drum::KitLibrary restored;
@@ -114,9 +141,7 @@ void runManagementTests()
     auto before=processor.getLibrary().snapshot(); auto* active=drum::activeKit(before);
     check(active->groups.back().name=="UI test group" && active->groups.back().instruments.size()==1,"Group/instrument UI actions not wired");
     auto instId=active->groups.back().instruments.front().id;
-    auto* keys=dynamic_cast<juce::ComboBox*>(control(editor,"instrument-note")); check(keys!=nullptr,"Missing note selector");
-    keys->setSelectedId(101,juce::dontSendNotification); keys->onChange();
-    auto assigned=processor.getLibrary().snapshot(); check(drum::findInstrument(*drum::activeKit(assigned),instId)->note==100,"UI note selection not applied");
+    auto* keys=dynamic_cast<juce::Label*>(control(editor,"instrument-note"));check(keys && keys->getText().contains("MIDI 33"),"Computed keyboard key missing from instrument details");
     auto* dest=dynamic_cast<juce::ComboBox*>(control(editor,"instrument-group")); check(dest!=nullptr,"Missing group selector");
     dest->setSelectedId(1,juce::dontSendNotification); dest->onChange();
     auto moved=processor.getLibrary().snapshot(); check(drum::findGroup(*drum::activeKit(moved),active->groups.front().id)->instruments.back().id==instId,"UI group move not applied");
