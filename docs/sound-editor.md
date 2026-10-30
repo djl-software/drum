@@ -168,10 +168,19 @@ Limiter is a stereo-linked, instantaneous-attack sample-peak limiter with Input,
 
 Open panels display input/output peak and gain-reduction readings. Reset restores that effect's parameters; double-click a numeric control to restore its default. The waveform preview remains before chain processing, so the effect meters and listening are the checks for chain changes.
 
-New instruments begin with **Saturation → Limiter, both bypassed**, preserving the source sound. Existing saved instruments are not migrated or altered. Under **Chain presets / defaults**, choose a factory preset, copy/paste a whole chain, save/load a `.drumchain` file, or save the current chain as the default for new instruments. Applying a preset or pasting replaces the selected instrument's chain; copying first preserves the previous chain for later paste. Kick punch and Snare snap are starting points, not automatic level matching. Sidechain source notes and source mute are reset when copying/applying presets so a new instrument cannot accidentally mute another source.
+From 0.13.1, the factory chain for new instruments is empty. Existing saved instruments and personal saved defaults are retained. Under **Chain presets / defaults**, choose a factory preset, copy/paste a whole chain, save/load a `.drumchain` file, or save the current chain as the default for new instruments. Applying a preset or pasting replaces the selected instrument's chain; copying first preserves the previous chain for later paste. Kick punch and Snare snap are starting points, not automatic level matching. Sidechain source notes and source mute are reset when copying/applying presets so a new instrument cannot accidentally mute another source.
 
 ## Browser identity and unsupported devices
 
 Live's browser exposes a name to Drum's drag reader, not a proven VST3 device identity. Browser drops therefore show a confirmation listing the actual installed VST3 vendor/name/path before loading. This prevents silently substituting a same-named effect. Direct `.vst3` file drops and Load VST3 identify the file explicitly. Native Live devices and synth instruments cannot be inserted into this audio-effects chain; an unsupported browser drop displays an explanation. Drum does not change Live's browser filters.
 
 The 30 October 2026 installed-plugin audit found one collision against known native Live audio-effect names: Ableton **Limiter** versus Mastering the Mix **LIMITER**. No other duplicate installed VST3 effect names were found after the installation cleanup. The confirmation rule applies to all names, including future installations, rather than relying on that audit as a permanent allow-list.
+
+
+## Graphs and output analysis (0.13.1)
+
+Both EQ views have a solid spectrum shaded into the background, behind the EQ response curve and band handles. Play a hit or enable audition Loop to see it. The sound-editor spectrum shows the selected instrument after sound processing and before its chain; each chain EQ shows its own processed output. The spectrum uses a separate -90 to 0 dBFS scale, not the response curve's +/-24 dB scale. Cuts and boosts change the spectrum when audio is playing. Stereo power is combined without phase cancellation. The analyser is visual only: it does not normalise or alter the sound. FFT analysis runs at 15 updates per second on the UI thread while the EQ is shown.
+
+Compact chain tiles leave more space for the waveform. Their two thin output meters show left/right sample peaks with a short decay; red indicates above full scale. They reuse the existing audio validation pass and do not run FFTs. Bypassed tiles have no active output reading.
+
+Open Compressor, Gate or Limiter to see an input/output transfer graph and a measured peak point. Drag in the graph to set the threshold (Limiter: ceiling). Saturation and Clipper show their transfer curves. Transient and Utility show recent input/output peaks. These graphs help explain where processing changes level; the meters and listening show the result on actual hits. Mix is the rightmost knob wherever available. Parameter identities and saved settings remain unchanged.

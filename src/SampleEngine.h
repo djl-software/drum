@@ -3,6 +3,7 @@
 #include "WaveformData.h"
 #include "VoiceEnvelope.h"
 #include "TonalAnalysis.h"
+#include "SpectrumAnalyzer.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -39,6 +40,8 @@ struct PreviewResult
 class SampleEngine final : private juce::Thread
 {
 public:
+    SpectrumTap eqSpectrum;
+    std::atomic<int> analyserNote{-1};
     explicit SampleEngine(KitLibrary&, std::function<void()> onAssignment = {});
     void shutdown();
     ~SampleEngine() override;

@@ -309,6 +309,7 @@ void SampleEngine::prepare(double rate,int blockSize)
     effectBlockSize=juce::jmax(1,blockSize);
     if(effects)instrumentAudio.setSize(EffectRack::channels,effectBlockSize);
     displayedRate.store(hostRate);
+    eqSpectrum.rate.store(hostRate);
     // prepareToPlay is the non-realtime setup phase. Let the worker calibrate
     // at the new device rate; slow source loads can still finish asynchronously.
     if(isThreadRunning())waitForLoading(1000);
@@ -675,7 +676,10 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     {
         startAuditionVoice(note);
     }
-    renderingInstruments=effects && (effects->active() || current->hasEffects);
+    const bool captureSpectrum=effects && eqSpectrum.enabled.load(std::memory_order_relaxed);
+    const int spectrumNote=analyserNote.load(std::memory_order_relaxed);
+    const bool chainActive=effects && (effects->active() || current->hasEffects);
+    renderingInstruments=chainActive || captureSpectrum;
     if(stopped && effects)effects->reset();
     const int frames=output.getNumSamples();
     for(int base=0;base<frames || base==0;base+=juce::jmax(1,renderingInstruments?effectBlockSize:frames))
@@ -698,7 +702,9 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
             else if(command==0xb0 && metadata.numBytes>=3 && (data[1]==120 || data[1]==123))stopVoices(channel);
         }
         render(target,position,count);
-        if(renderingInstruments && count>0){effects->process(instrumentAudio,current->kitEpoch,playHead,nonRealtime);mixEffects(output,base,count);}
+        if(renderingInstruments && count>0){
+            if(captureSpectrum && spectrumNote>=firstNote && spectrumNote<firstNote+maxInstruments){const int channel=(spectrumNote-firstNote)*2;for(int n=0;n<count;++n)eqSpectrum.push(instrumentAudio.getSample(channel,n),instrumentAudio.getSample(channel+1,n));}
+            if(chainActive)effects->process(instrumentAudio,current->kitEpoch,playHead,nonRealtime);mixEffects(output,base,count);}
     }
     freePhase+=output.getNumSamples()/hostRate;
 }

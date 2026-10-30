@@ -27,7 +27,7 @@ public:
         for(const auto& group:kit->groups)for(const auto& i:group.instruments)source.addItem(i.name+" ("+drum::noteName(i.note)+")",i.note+2);
         source.setSelectedId(slot.sidechainNote<0?1:slot.sidechainNote+2,juce::dontSendNotification);
         source.setTooltip("Sidechain source: another instrument, before its effects. No Input supplies silence to the external sidechain.");
-        for(auto* slider:{&gain,&mix}){addAndMakeVisible(*slider);slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,78,20);}
+        for(auto* slider:{&gain,&mix}){addAndMakeVisible(*slider);slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,64,20);}
         gain.setRange(-60,24,0.1);gain.setTextValueSuffix(" dB");gain.setValue(slot.sidechainGain);gain.setDoubleClickReturnValue(true,0);
         mix.setRange(0,100,0.1);mix.setTextValueSuffix(" %");mix.setValue(slot.sidechainMix*100);mix.setDoubleClickReturnValue(true,100);
         gain.setComponentID("chain-sidechain-gain-"+juce::String(position));mix.setComponentID("chain-sidechain-mix-"+juce::String(position));
@@ -52,16 +52,18 @@ public:
     {
         g.setColour(panel);g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(1),7);
         g.setColour(slot.bypassed?muted:mint);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1),7,1);
-        g.setFont(juce::FontOptions(14,juce::Font::bold));g.drawText(juce::String(position+1)+". "+title,10,8,getWidth()-20,25,juce::Justification::centredLeft,true);
+        g.setFont(juce::FontOptions(12,juce::Font::bold));g.drawText(juce::String(position+1)+". "+title,8,3,getWidth()-22,23,juce::Justification::centredLeft,true);
         g.setFont(juce::FontOptions(11));g.setColour(muted);
-        if(source.isVisible()){g.drawText("Sidechain",10,61,170,16,juce::Justification::left);g.drawText("Gain",10,105,78,16,juce::Justification::centred);g.drawText("Mix",100,105,78,16,juce::Justification::centred);}
-        else g.drawFittedText(info+"\nUse Open for plugin controls",10,95,170,65,juce::Justification::centred,3);
+        if(source.isVisible()){g.drawText("Gain",8,74,64,15,juce::Justification::centred);g.drawText("Mix",86,74,64,15,juce::Justification::centred);}
+        else g.drawFittedText(info+"\nUse Open for plugin controls",8,63,144,80,juce::Justification::centred,3);
+        const auto peaks=owner.effects.peaks(slot.id);
+        for(int c=0;c<2;++c){juce::Rectangle<float> bar((float)getWidth()-14+c*5,31,3,127);g.setColour(bg);g.fillRect(bar);float level=juce::jlimit(0.f,1.f,(juce::Decibels::gainToDecibels(peaks[(size_t)c],-60.f)+60)/60);g.setColour(peaks[(size_t)c]>1?juce::Colours::red:mint);g.fillRect(bar.removeFromBottom(bar.getHeight()*level));}
     }
     void resized() override
     {
-        edit.setBounds(10,34,72,23);bypass.setBounds(88,34,92,23);source.setBounds(10,79,170,23);
-        gain.setBounds(10,121,78,67);mix.setBounds(100,121,78,67);mute.setBounds(10,192,170,22);
-        earlier.setBounds(10,220,32,24);later.setBounds(47,220,32,24);remove.setBounds(88,220,92,24);retry.setBounds(10,63,170,25);
+        edit.setBounds(8,29,64,21);bypass.setBounds(78,29,76,21);source.setBounds(8,53,146,21);
+        gain.setBounds(8,89,64,48);mix.setBounds(86,89,64,48);mute.setBounds(8,140,146,20);
+        earlier.setBounds(8,164,24,20);later.setBounds(36,164,24,20);remove.setBounds(66,164,88,20);retry.setBounds(8,54,146,22);
     }
     void mouseDrag(const juce::MouseEvent& e) override {if(e.getDistanceFromDragStart()>5 && e.getMouseDownY()<33 && !owner.isDragAndDropActive())owner.startDragging("slot:"+slot.id,this);}
 private:
@@ -125,13 +127,13 @@ void ChainEditor::resized()
 {
     builtin.setBounds(0,24,140,25);presets.setBounds(148,24,190,25);load.setBounds(getWidth()-126,24,126,25);
     viewport.setBounds(0,84,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-117));
-    const int height=juce::jmax(254,viewport.getHeight()-16);flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*206+100),height);
-    for(size_t i=0;i<cards.size();++i)cards[i]->setBounds((int)i*206,0,192,height);
+    const int height=190;flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*188+40),height);
+    for(size_t i=0;i<cards.size();++i)cards[i]->setBounds((int)i*188,0,176,height);
     status.setBounds(0,getHeight()-29,getWidth(),27);
 }
 int ChainEditor::insertionAt(juce::Point<int> point) const
 {
-    return juce::jlimit(0,(int)slots.size(),(flow.getLocalPoint(this,point).x+100)/206);
+    return juce::jlimit(0,(int)slots.size(),(flow.getLocalPoint(this,point).x+90)/188);
 }
 bool ChainEditor::isInterestedInDragSource(const SourceDetails& source)
 {
@@ -205,7 +207,7 @@ void ChainEditor::browserDropped(const juce::var& value)
 
 void ChainEditor::showChainMenu()
 {
-    juce::PopupMenu menu;menu.addItem(1,"Default: Saturation + Limiter (bypassed)");menu.addItem(2,"Kick punch");menu.addItem(3,"Snare snap");menu.addSeparator();menu.addItem(4,"Copy chain");menu.addItem(5,"Paste chain (replace)",clipboard.has_value());menu.addItem(6,"Save as default for new instruments");menu.addItem(7,"Apply saved default (replace)");menu.addItem(8,"Empty chain");menu.addSeparator();menu.addItem(9,"Save preset file...");menu.addItem(10,"Load preset file (replace)...");
+    juce::PopupMenu menu;menu.addItem(1,"Default: empty chain");menu.addItem(2,"Kick punch");menu.addItem(3,"Snare snap");menu.addSeparator();menu.addItem(4,"Copy chain");menu.addItem(5,"Paste chain (replace)",clipboard.has_value());menu.addItem(6,"Save as default for new instruments");menu.addItem(7,"Apply saved default (replace)");menu.addItem(8,"Empty chain");menu.addSeparator();menu.addItem(9,"Save preset file...");menu.addItem(10,"Load preset file (replace)...");
     const auto kit=kitId,instrument=instrumentId;
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&presets),[safe=juce::Component::SafePointer<ChainEditor>(this),kit,instrument](int choice){
         if(!safe || safe->kitId!=kit || safe->instrumentId!=instrument || !choice)return;

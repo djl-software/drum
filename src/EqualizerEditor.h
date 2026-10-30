@@ -1,12 +1,16 @@
 #pragma once
 #include "Equalizer.h"
 #include "ResetSlider.h"
+#include "SpectrumAnalyzer.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
-class EqualizerEditor final : public juce::Component
+class EqualizerEditor final : public juce::Component,private juce::Timer
 {
 public:
     EqualizerEditor();
+    ~EqualizerEditor() override;
+    void setSpectrum(drum::SpectrumTap*);
+    void visibilityChanged() override;
     void update(const drum::Equalizer&,double sampleRate);
     std::function<void(const drum::Equalizer&)> onChange;
     void paint(juce::Graphics&) override;
@@ -16,6 +20,9 @@ public:
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&,const juce::MouseWheelDetails&) override;
 private:
+    void timerCallback() override;
+    drum::SpectrumTap* spectrum=nullptr;
+    drum::SpectrumAnalysis analysis;
     juce::Rectangle<float> plot() const;
     juce::Point<float> point(int) const;
     void select(int);

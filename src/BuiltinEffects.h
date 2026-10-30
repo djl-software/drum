@@ -3,6 +3,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_dsp/juce_dsp.h>
 #include <optional>
+#include "SpectrumAnalyzer.h"
 
 namespace drum {
 enum class BuiltinKind { eq, compressor, transient, saturation, clipper, limiter, gate, utility };
@@ -35,6 +36,7 @@ public:
     const BuiltinKind kind;
     std::vector<juce::AudioParameterFloat*> controls;
     std::atomic<float> inputPeak{0},outputPeak{0},reduction{0};
+    std::unique_ptr<SpectrumTap> spectrum;
 private:
     void parameter(const juce::String&,float,float,float,const juce::String& unit={});
     VoiceEqualizer eq;

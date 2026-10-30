@@ -500,6 +500,8 @@ SoundEditor::~SoundEditor() {stopTimer();viewport.setViewedComponent(nullptr,fal
 void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
 {
     const bool changed=kitId!=kit || instrumentId!=(i?i->id:juce::String());
+    processor.getSampleEngine().analyserNote.store(i?i->note:-1);
+    if(changed)equalizer.setSpectrum(&processor.getSampleEngine().eqSpectrum);
     if(changed || path!=(i?i->samplePath:juce::String()))envelopeHistory={};
     updating=true; kitId=kit; instrumentId=i?i->id:juce::String(); name=i?i->name:"No instrument selected"; path=i?i->samplePath:juce::String(); note=i?i->note:21; sound=i?i->controls.sound:drum::SoundParameters{};
     chainPresent=i && !i->effects.empty();chain.select(kitId,instrumentId);
@@ -708,7 +710,7 @@ void SoundEditor::refreshPreview()
     else description+="     Key / Camelot: uncertain";
     noteIndicator.setText(description,juce::dontSendNotification);
 }
-void SoundEditor::visibilityChanged() {if(waveform)refreshPreview();}
+void SoundEditor::visibilityChanged() {if(waveform)refreshPreview();equalizer.visibilityChanged();}
 void SoundEditor::refresh()
 {
     auto state=processor.getLibrary().snapshot(); auto* kit=drum::activeKit(state);
@@ -778,8 +780,8 @@ void SoundEditor::resized()
     const int graphHeight=page==1 || page==2?180:0;
     const int graphWidth=getWidth()-36;
     const int waveTop=150;
-    const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:page==7?400:160;
-    const int minimumWaveHeight=page==7?100:184;
+    const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:page==7?310:160;
+    const int minimumWaveHeight=page==7?160:184;
     const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),waveformHeight);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);

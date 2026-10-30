@@ -66,6 +66,7 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
         auto* p=dynamic_cast<drum::BuiltinEffect*>(rack.instance(utility.id));check(p!=nullptr,"Built-in not instantiated");
         p->controls[0]->setValueNotifyingHost(p->controls[0]->convertTo0to1(-6.020599913f));
         mixed.settle();auto audio=mixed.hit(2048);near(audio.getSample(4,1500),.5f,"Built-in leaked into another instrument");
+        check(rack.peaks(external.id)[0]>=std::abs(audio.getSample(2,1500)) && rack.peaks(external.id)[0]<=audio.getMagnitude(2,0,2048)+.0001f,"Tile peak meter outside effect output range");
         auto before=audio.getSample(2,1500);check(rack.move(mixed.kit,mixed.a,external.id,0).ok,"Mixed chain reorder failed");mixed.settle();audio=mixed.hit(2048);check(std::abs(audio.getSample(2,1500)-before)>1e-4f,"Built-in/VST3 order did not affect audio");
         juce::MemoryBlock state;mixed.processor.getStateInformation(state);mixed.processor.setStateInformation(state.getData(),(int)state.getSize());mixed.settle();check(dynamic_cast<drum::BuiltinEffect*>(rack.instance(utility.id))!=nullptr,"Built-in chain did not recall");
         check(rack.replaceChain(mixed.kit,mixed.a,drum::factoryChain()).ok,"Factory default failed");mixed.settle();audio=mixed.hit();near(audio.getSample(2,0),.25f,"Bypassed factory chain altered sample");
@@ -75,6 +76,9 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
     Setup setup;auto& rack=setup.processor.getEffects();auto& library=setup.processor.getLibrary();
     auto found=rack.discover(juce::File(effectPath));check(found.size()==1,"External VST3 fixture not discovered");auto description=*found[0];
     auto empty=setup.hit();near(empty.getSample(2,0),0.25f,"Empty chain changed audio");near(empty.getSample(4,0),0.5f,"Empty second chain changed audio");
+    auto& spectrumEngine=setup.processor.getSampleEngine();spectrumEngine.analyserNote.store(21);spectrumEngine.eqSpectrum.enabled.store(true);
+    auto monitored=setup.hit();for(int c=0;c<8;++c)for(int n=0;n<64;++n)near(monitored.getSample(c,n),empty.getSample(c,n),"Spectrum monitoring changed routed audio");
+    float capturedPeak=0;spectrumEngine.eqSpectrum.consume([&](float l,float r){capturedPeak=juce::jmax(capturedPeak,std::abs(l),std::abs(r));});near(capturedPeak,.25f,"Spectrum captured wrong instrument");spectrumEngine.eqSpectrum.enabled.store(false);
     auto first=rack.add(setup.kit,setup.a,description);auto second=rack.add(setup.kit,setup.a,description);check(first.ok && second.ok,"Effects could not be added");setup.settle();
     check(rack.supportsSidechain(first.id),"Stereo sidechain not enabled");
     parameter(rack,first.id,4,1);rack.bypass(setup.kit,setup.a,second.id,true);

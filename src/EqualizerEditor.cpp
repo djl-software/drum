@@ -34,6 +34,10 @@ EqualizerEditor::EqualizerEditor()
 }
 void EqualizerEditor::update(const drum::Equalizer& value,double sampleRate)
 {equalizer=value;rate=sampleRate>0?sampleRate:44100;select(selected);}
+EqualizerEditor::~EqualizerEditor(){stopTimer();if(spectrum)spectrum->enabled.store(false);}
+void EqualizerEditor::setSpectrum(drum::SpectrumTap* tap){if(spectrum)spectrum->enabled.store(false);spectrum=tap;if(tap)analysis.clear(*tap);visibilityChanged();}
+void EqualizerEditor::visibilityChanged(){bool active=spectrum && isShowing();if(spectrum)spectrum->enabled.store(active);if(spectrum){if(!isTimerRunning())startTimerHz(15);}else stopTimer();}
+void EqualizerEditor::timerCallback(){visibilityChanged();if(spectrum && isShowing() && analysis.update(*spectrum))repaint();}
 void EqualizerEditor::select(int n)
 {
     const drum::Equalizer defaults;frequency.setDoubleClickReturnValue(true,defaults.bands[(size_t)n].frequency);gain.setDoubleClickReturnValue(true,0);q.setDoubleClickReturnValue(true,0.70710678);output.setDoubleClickReturnValue(true,0);
@@ -63,6 +67,14 @@ void EqualizerEditor::resized()
 void EqualizerEditor::paint(juce::Graphics& g)
 {
     g.fillAll(bg);const auto a=plot();
+    if(spectrum){
+        juce::Path fill;fill.startNewSubPath(a.getX(),a.getBottom());const double sampleRate=spectrum->rate.load();
+        for(int x=0;x<=(int)a.getWidth();++x){double hz=20*std::pow(1000.0,x/a.getWidth());float level=-100;
+            if(hz<sampleRate*.5){int bin=juce::jlimit(1,drum::SpectrumAnalysis::size/2,(int)std::round(hz*drum::SpectrumAnalysis::size/sampleRate));level=analysis.db[(size_t)bin];}
+            fill.lineTo(a.getX()+x,a.getBottom()-juce::jlimit(0.f,1.f,(level+90)/90)*a.getHeight());}
+        fill.lineTo(a.getRight(),a.getBottom());fill.closeSubPath();juce::ColourGradient shade(juce::Colour(0xff527a80),a.getX(),a.getY(),bg,a.getX(),a.getBottom(),false);g.setGradientFill(shade);g.fillPath(fill);
+        label(g,"Output spectrum: -90 to 0 dBFS",{(int)a.getRight()-170,(int)a.getY()+4,166,14},muted);
+    }
     for(double hz:{20.,50.,100.,200.,500.,1000.,2000.,5000.,10000.,20000.})
     {
         const auto x=a.getX()+(float)(std::log(hz/20)/std::log(1000.0))*a.getWidth();

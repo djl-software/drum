@@ -12,6 +12,7 @@ public:
                          .withOutput("Output",juce::AudioChannelSet::stereo(),true)), plugin(std::move(p)), hasSidechain(sidechain), owner(o), monoOnly(mono) {}
     void prepareToPlay(double hz,int frames) override
     {
+        for(auto& peak:outputPeaks)peak.store(0);
         plugin->setRateAndBufferSizeDetails(hz,frames);plugin->prepareToPlay(hz,frames);
         setLatencySamples(plugin->getLatencySamples());midi.ensureSize(8192);generation=owner.resetGeneration.load();
         if(hasSidechain)sidechainAudio.setSize(4,frames);
@@ -40,8 +41,10 @@ public:
         }
         else plugin->processBlock(audio,midi);
         // A broken processor must not spread NaNs through the whole kit.
-        for(int c=0;c<2;++c)for(int n=0;n<audio.getNumSamples();++n)
-            if(!std::isfinite(audio.getSample(c,n)))audio.setSample(c,n,0);
+        const float decay=std::exp(-(float)audio.getNumSamples()/((float)getSampleRate()*.5f));
+        for(int c=0;c<2;++c){float peak=0;for(int n=0;n<audio.getNumSamples();++n){auto value=audio.getSample(c,n);
+            if(!std::isfinite(value))audio.setSample(c,n,0);else peak=juce::jmax(peak,std::abs(value));}
+            outputPeaks[(size_t)c].store(juce::jmax(peak,outputPeaks[(size_t)c].load()*decay),std::memory_order_relaxed);}
     }
     const juce::String getName() const override { return plugin->getName(); }
     bool acceptsMidi() const override {return false;} bool producesMidi() const override {return false;}
@@ -55,6 +58,7 @@ public:
     std::unique_ptr<juce::AudioProcessor> plugin;
     bool hasSidechain=false;
     std::atomic<float> sidechainGain {1},sidechainMix {1};
+    std::array<std::atomic<float>,2> outputPeaks{};
 private:
     EffectRack& owner; bool monoOnly; uint64_t generation=0;juce::MidiBuffer midi;
     juce::AudioBuffer<float> sidechainAudio;
@@ -304,6 +308,12 @@ juce::String EffectRack::status(const juce::String& slot) const
 juce::AudioProcessor* EffectRack::instance(const juce::String& slot) const
 {
     const juce::ScopedLock guard(managementLock);auto it=nodes.find(slot);return it!=nodes.end() && it->second->processor()?it->second->processor()->plugin.get():nullptr;
+}
+std::array<float,2> EffectRack::peaks(const juce::String& slot) const
+{
+    const juce::ScopedLock guard(managementLock);auto it=nodes.find(slot);
+    if(it==nodes.end() || it->second->saved.bypassed || !it->second->processor())return {};
+    auto* p=it->second->processor();return {p->outputPeaks[0].load(std::memory_order_relaxed),p->outputPeaks[1].load(std::memory_order_relaxed)};
 }
 void EffectRack::openEditor(const juce::String& slot)
 {
