@@ -10,9 +10,12 @@ public:
     void poll(const juce::String& context, juce::Rectangle<int> dropArea);
     std::function<void(const juce::var&)> onDrop;
 private:
+    void stop();
     juce::Component& owner;
     juce::ChildProcess process;
     juce::File folder;
     juce::String lastRequest;
     bool attempted=false;
+    void* parentHandle=nullptr;
+    double retryAfter=0;
 };

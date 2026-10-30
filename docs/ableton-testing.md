@@ -139,3 +139,9 @@ The reported sample-drag failure was clarified as a naming issue: audio loaded s
 ## Shared audition transport (0.12.3)
 
 Check Play on the main screen and each Edit sound tab. With Loop off there should be one hit. Arm Loop and press Play: the button should read Pause; repeat interval is 500 ms at 120 BPM and one second at 60 BPM. Pause retains the Loop on state but stops audition voices and repetition. Incoming MIDI remains independent. Selecting another instrument or closing the editor stops the audition. Loop is separate from sample-region looping and the host tempo.
+
+## Browser focus and repeated drops (0.12.3 hotfix)
+
+The user confirmed a Valhalla browser drop loads an effect and removal works, but reported that the first drag hides Drum and later effects cannot be added. The helper no longer shows/activates itself at startup, rejects mouse activation, and retires completed drag state before publishing the load request. The C++ bridge reconnects after a native editor handle change or helper exit, with a one-second retry delay.
+
+Regression checks cover three successive helper drop deliveries, non-activating startup, and actual chain Remove button callbacks. Local Pro-G and ValhallaVintageVerb compatibility tests load two instances, remove both through cards, and add again. Live acceptance remains required: open Chain, drag Valhalla without reopening Drum, add a second different VST3, remove it, then close/reopen Drum and repeat.

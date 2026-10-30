@@ -7,16 +7,26 @@ namespace { void moduleAnchor() {} }
 LiveBrowserBridge::LiveBrowserBridge(juce::Component& c):owner(c) {}
 LiveBrowserBridge::~LiveBrowserBridge()
 {
+    stop();
+}
+void LiveBrowserBridge::stop()
+{
     if(folder!=juce::File()) folder.getChildFile("stop").replaceWithText("stop");
     if(process.isRunning() && !process.waitForProcessToFinish(500)) process.kill();
     if(folder!=juce::File()) folder.deleteRecursively();
+    folder={};lastRequest.clear();parentHandle=nullptr;
 }
 void LiveBrowserBridge::poll(const juce::String& context,juce::Rectangle<int> area)
 {
 #if JUCE_WINDOWS
     auto* peer=owner.getPeer(); if(!peer)return;
     auto hwnd=static_cast<HWND>(peer->getNativeHandle());
-    if(!attempted && owner.isShowing())
+    if(parentHandle && (parentHandle!=hwnd || !process.isRunning()))
+    {
+        stop();attempted=false;
+        retryAfter=juce::Time::getMillisecondCounterHiRes()+1000;
+    }
+    if(!attempted && owner.isShowing() && juce::Time::getMillisecondCounterHiRes()>=retryAfter)
     {
         attempted=true;
         wchar_t host[MAX_PATH]{};GetModuleFileNameW(nullptr,host,MAX_PATH);
@@ -28,6 +38,7 @@ void LiveBrowserBridge::poll(const juce::String& context,juce::Rectangle<int> ar
         if(!helper.existsAsFile())return;
         folder=juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("DJL-Drum-bridge-"+juce::Uuid().toString());
         if(!folder.createDirectory())return;
+        parentHandle=hwnd;
         process.start(juce::StringArray{helper.getFullPathName(),juce::String((juce::int64)GetCurrentProcessId()),
             juce::String((juce::int64)(intptr_t)hwnd),folder.getFullPathName()},0);
     }

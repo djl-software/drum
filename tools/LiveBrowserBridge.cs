@@ -52,24 +52,35 @@ internal sealed class LiveBrowserBridge : Form
         using(var bridge=new LiveBrowserBridge(int.Parse(args[0]),new IntPtr(long.Parse(args[1])),args[2]))
         { Application.Run(); }
     }
-    private LiveBrowserBridge(int pid,IntPtr hwnd,string output)
+    private LiveBrowserBridge(int pid,IntPtr hwnd,string output,bool observeMouse=true)
     {
         hostPid=pid;parent=hwnd;folder=output;
         FormBorderStyle=FormBorderStyle.None;TopLevel=false;ShowInTaskbar=false;AllowDrop=true;
         BackColor=Color.FromArgb(25,43,52);ForeColor=Color.FromArgb(103,223,197);
         label.Dock=DockStyle.Fill;label.TextAlign=ContentAlignment.MiddleCenter;label.Font=new Font("Segoe UI",12);
-        Controls.Add(label);SetParent(Handle,parent);Show();ShowWindow(Handle,0);
-        callback=Observe;hook=SetWindowsHookEx(14,callback,GetModuleHandle(null),0);
+        // Creating the OLE target must not activate a second application: Live
+        // can hide its plugin windows when the helper takes focus.
+        Controls.Add(label);SetParent(Handle,parent);
+        callback=Observe;if(observeMouse)hook=SetWindowsHookEx(14,callback,GetModuleHandle(null),0);
         DragEnter+=OnDrag;DragOver+=OnDrag;
         DragDrop+=delegate(object sender,DragEventArgs e) {
             if(!Fresh())return;
             dropping=true;
             var result=new Dictionary<string,object>{{"context",context},{"name",candidate},{"matches",matches}};
+            // Retire this gesture before publishing it. Loading a plugin may
+            // pump messages, and must never leave the target over the cards.
+            ++generation;candidate="";matches=null;ShowWindow(Handle,0);
             var temp=Path.Combine(folder,"pending.tmp");
             try {File.WriteAllText(temp,json.Serialize(result));File.Move(temp,Path.Combine(folder,"drop-"+Guid.NewGuid().ToString("N")+".json"));} catch(IOException) {}
-            candidate="";ShowWindow(Handle,0);dropping=false;
+            dropping=false;
         };
         timer.Interval=40;timer.Tick+=Tick;timer.Start();
+    }
+    protected override bool ShowWithoutActivation { get { return true; } }
+    protected override void WndProc(ref Message message)
+    {
+        if(message.Msg==0x0021) {message.Result=new IntPtr(3);return;} // WM_MOUSEACTIVATE: MA_NOACTIVATE
+        base.WndProc(ref message);
     }
     private bool Fresh() { return enabled && candidate.Length>0 && matches!=null && matches.Count>0 && (DateTime.UtcNow-captured).TotalSeconds<20; }
     private void OnDrag(object sender,DragEventArgs e) { e.Effect=Fresh()?DragDropEffects.Copy:DragDropEffects.None; }
@@ -125,6 +136,27 @@ internal sealed class LiveBrowserBridge : Form
     {
         if(disposing) {timer.Dispose();if(hook!=IntPtr.Zero) {UnhookWindowsHookEx(hook);hook=IntPtr.Zero;}}
         base.Dispose(disposing);
+    }
+
+    internal static void TestDropLifecycle(string folder)
+    {
+        using(var owner=new Form())
+        using(var bridge=new LiveBrowserBridge(Process.GetCurrentProcess().Id,owner.Handle,folder,false))
+        {
+            if(bridge.Visible)throw new Exception("Bridge showed itself during startup");
+            var activate=Message.Create(bridge.Handle,0x0021,IntPtr.Zero,IntPtr.Zero);
+            bridge.WndProc(ref activate);
+            if(activate.Result!=new IntPtr(3))throw new Exception("Drop target can activate");
+            for(int i=0;i<3;i++)
+            {
+                bridge.enabled=true;bridge.context="kit/instrument";bridge.candidate="Effect "+i;
+                bridge.matches=new List<Dictionary<string,object>>{new Dictionary<string,object>{{"name",bridge.candidate}}};
+                bridge.captured=DateTime.UtcNow;
+                bridge.OnDragDrop(new DragEventArgs(new DataObject(),0,0,0,DragDropEffects.Copy,DragDropEffects.Copy));
+                if(bridge.Fresh() || bridge.dropping)throw new Exception("Completed drag state retained");
+                if(Directory.GetFiles(folder,"drop-*.json").Length!=i+1)throw new Exception("Repeated drop lost");
+            }
+        }
     }
 
     internal static class Database

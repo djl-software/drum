@@ -111,7 +111,8 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
     click(editor,"chain-bypass-0");pump();
     capture(editor,"drum-chain.png");editor.setSize(800,600);capture(editor,"drum-chain-compact.png");editor.setSize(1280,900);
     check(!chain->isInterestedInFileDrag({"C:\\example.adv"}),"Live preset accepted as a plugin");
-    click(editor,"chain-edit-0");pump();rack.remove(setup.kit,setup.a,setup.instrument(setup.a).effects[0].id);pump(); // Close editor before releasing its processor.
+    click(editor,"chain-edit-0");pump();click(editor,"chain-remove-0");pump(); // Close editor before releasing its processor.
+    check(setup.instrument(setup.a).effects.size()==1,"Remove card button did not remove the effect");
     // Persisted chains also work when Drum itself is hosted as a compiled VST3.
     setup.processor.getStateInformation(saved);juce::VST3PluginFormat format;juce::OwnedArray<juce::PluginDescription> drums;format.findAllTypesForFile(drums,juce::File(drumPath).getFullPathName());check(drums.size()==1,"Drum VST3 missing");
     juce::String error;auto plugin=format.createInstanceFromDescription(*drums[0],48000,64,error);check(plugin!=nullptr,"Nested Drum host failed");
@@ -136,5 +137,16 @@ void runChainSmoke(const juce::String& path)
     setup.processor.setStateInformation(state.getData(),(int)state.getSize());setup.settle();
     check(rack.instance(slot.id),"Installed effect did not recall");
     audio=setup.hit(4096);check(audio.getMagnitude(2,0,audio.getNumSamples())>0,"Recalled effect produced no audio");
-    std::cout<<found[0]->name<<": loaded, processed and recalled successfully\n";
+    DrumAudioProcessorEditor editor(setup.processor);editor.setSize(1280,900);editor.setVisible(true);pump();
+    click(editor,"open-sound-editor");click(editor,"edit-tab-7");
+    auto* chain=dynamic_cast<ChainEditor*>(find(editor,"plugin-chain"));check(chain!=nullptr,"Compatibility chain UI missing");
+    chain->filesDropped({path},700,60);pump(100);setup.settle();pump();
+    check(setup.instrument(setup.a).effects.size()==2,"Second installed effect drop failed");
+    click(editor,"chain-remove-0");pump();setup.settle();pump();
+    check(setup.instrument(setup.a).effects.size()==1,"Installed effect Remove button failed");
+    click(editor,"chain-remove-0");pump();setup.settle();pump();
+    check(setup.instrument(setup.a).effects.empty(),"Last installed effect Remove button failed");
+    chain->filesDropped({path},700,60);pump(100);setup.settle();pump();
+    check(setup.instrument(setup.a).effects.size()==1,"Installed effect could not be added again after removal");
+    std::cout<<found[0]->name<<": loaded, processed, recalled, added twice, removed through cards and added again successfully\n";
 }

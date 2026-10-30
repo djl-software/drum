@@ -10,10 +10,11 @@ internal static class BridgeTests
     [DllImport("winsqlite3.dll",CallingConvention=CallingConvention.Cdecl)] private static extern int sqlite3_close(IntPtr db);
     private static byte[] Utf8(string text) {return Encoding.UTF8.GetBytes(text+"\0");}
     private static void Check(bool ok,string message) {if(!ok)throw new Exception(message);}
-    public static int Main()
+    [STAThread] public static int Main()
     {
         var dir=Path.Combine(Path.GetTempPath(),"DrumBridgeTest-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(dir);
         try {
+            LiveBrowserBridge.TestDropLifecycle(dir);
             var file=Path.Combine(dir,"effect.vst3");File.WriteAllText(file,"fixture");
             var dbPath=Path.Combine(dir,"test.db");IntPtr db;
             Check(sqlite3_open_v2(Utf8(dbPath),out db,6,IntPtr.Zero)==0,"Create fixture database");
