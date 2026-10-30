@@ -36,6 +36,9 @@ target_compile_definitions(DJLDrum PUBLIC
   JUCE_PLUGINHOST_VST3=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(DJLDrum PRIVATE DJLDrumAssets juce::juce_audio_utils juce::juce_dsp
   PUBLIC juce::juce_recommended_config_flags)
+if(WIN32)
+  target_link_libraries(DJLDrum PUBLIC comctl32)
+endif()
 if(BUILD_TESTING)
   juce_add_console_app(drum_tests PRODUCT_NAME "Drum Processor Tests")
   target_sources(drum_tests PRIVATE tests/PluginTests.cpp tests/ManagementTests.cpp tests/PlaybackTests.cpp tests/ControlTests.cpp tests/EditingTests.cpp tests/WaveformTests.cpp tests/PreviewTests.cpp tests/ChannelAttackTests.cpp tests/EnvelopeTests.cpp tests/EqualizerTests.cpp tests/PadTests.cpp tests/ChainTests.cpp)

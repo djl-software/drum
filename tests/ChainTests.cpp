@@ -5,6 +5,7 @@
 #include <stdexcept>
 #if JUCE_WINDOWS
 #include <windows.h>
+#include "NativeDragVisibility.h"
 #undef near
 #endif
 
@@ -108,6 +109,28 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
     // receiver. Exercise Windows' actual hit test, not just JUCE callbacks.
     if(juce::File::getSpecialLocation(juce::File::currentExecutableFile).getFileName().startsWith("Ableton Live"))
     {
+        // Exercise real Windows hide requests, including an ancestor frame,
+        // cancellation, an explicit host re-show and guard destruction.
+        auto host=CreateWindowExW(WS_EX_NOACTIVATE,L"STATIC",L"Test host",WS_POPUP,0,0,40,40,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
+        auto frame=CreateWindowExW(WS_EX_NOACTIVATE,L"STATIC",L"Drum visibility test",WS_POPUP,0,0,40,40,host,nullptr,GetModuleHandleW(nullptr),nullptr);
+        auto child=CreateWindowExW(0,L"STATIC",L"editor",WS_CHILD|WS_VISIBLE,0,0,40,40,frame,nullptr,GetModuleHandleW(nullptr),nullptr);
+        ShowWindow(frame,SW_SHOWNOACTIVATE);
+        {
+            NativeDragVisibility guard(child);
+            check(guard.guardedWindowCount()==2,"Editor frame guard missing or host window intercepted");
+            ShowWindow(frame,SW_HIDE);check(!IsWindowVisible(child),"Idle host auto-hide was blocked");
+            ShowWindow(frame,SW_SHOWNOACTIVATE);guard.hold();
+            ShowWindow(frame,SW_HIDE);check(guard.hasDeferredHide(),"Host frame hide not intercepted");check(IsWindowVisible(child),"Host frame auto-hide interrupted drag");
+            SetWindowPos(child,nullptr,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|SWP_HIDEWINDOW);
+            check(IsWindowVisible(child),"Editor auto-hide interrupted drag");
+            guard.release();check(!IsWindowVisible(frame) && !IsWindowVisible(child),"Cancelled drag failed to restore deferred hide");
+            ShowWindow(frame,SW_SHOWNOACTIVATE);ShowWindow(child,SW_SHOWNOACTIVATE);guard.hold();ShowWindow(child,SW_HIDE);
+            SetWindowPos(child,nullptr,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|SWP_SHOWWINDOW);
+            guard.release();check(IsWindowVisible(child),"Host re-show did not cancel deferred hide");
+            guard.hold();ShowWindow(child,SW_HIDE);
+        }
+        check(!IsWindowVisible(child),"Guard destruction left a pinned editor");
+        DestroyWindow(child);DestroyWindow(frame);DestroyWindow(host);
         pump(150);HWND drop=nullptr;
         EnumChildWindows((HWND)editor.getPeer()->getNativeHandle(),[](HWND child,LPARAM target)->BOOL{
             wchar_t text[128]{};GetWindowTextW(child,text,128);

@@ -1,4 +1,5 @@
 #include "LiveBrowserBridge.h"
+#include "NativeDragVisibility.h"
 #if JUCE_WINDOWS
 #include <windows.h>
 #include <UIAutomation.h>
@@ -51,6 +52,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
 {
     LiveBrowserBridge& bridge;HWND window=nullptr,overlay=nullptr,parent=nullptr;HHOOK hook=nullptr;
     bool overlayArmed=false;
+    NativeDragVisibility visibility;
     WNDPROC originalSurfaceProc=nullptr;
     static LRESULT CALLBACK surfaceProc(HWND hwnd,UINT message,WPARAM w,LPARAM l)
     {
@@ -73,8 +75,9 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
     juce::String context,pendingContext;juce::var result;std::atomic<bool> enabled {false};std::atomic<ULONG> references {1};
     double pressedAt=0;bool dragAccepted=false;uint64_t expired=0;
     uint64_t tracedGeneration=0;
+    uint64_t tracedHideGeneration=0;
     inline static std::vector<Impl*> receivers;
-    Impl(LiveBrowserBridge& b,HWND p):Thread("Drum browser identity"),bridge(b),parent(p)
+    Impl(LiveBrowserBridge& b,HWND p):Thread("Drum browser identity"),bridge(b),parent(p),visibility(p)
     {
         window=CreateWindowExW(WS_EX_NOACTIVATE,L"STATIC",L"Drop Live VST3 effects here",WS_CHILD|WS_BORDER|SS_CENTER|SS_CENTERIMAGE|SS_NOTIFY,0,0,1,1,parent,nullptr,GetModuleHandleW(nullptr),nullptr);
         // A fixed child receives OLE immediately, without covering any card.
@@ -93,6 +96,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
         DWORD thread=GetWindowThreadProcessId(GetAncestor(parent,GA_ROOTOWNER),nullptr);
         hook=SetWindowsHookExW(WH_MOUSE,mouse,nullptr,thread);startThread();
         traceNativeDrag("start registration="+juce::String((juce::int64)registration)+" hook="+juce::String(hook!=nullptr?1:0)+" hookThread="+juce::String(thread)+" editorThread="+juce::String(GetCurrentThreadId()));
+        traceNativeDrag("visibility guard windows="+juce::String((int)visibility.guardedWindowCount()));
         if(window && !hook)SetWindowTextW(window,L"Browser drag tracking unavailable - use Load VST3");
     }
     ~Impl() override
@@ -108,12 +112,15 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
         {
             const auto pt=reinterpret_cast<MOUSEHOOKSTRUCT*>(data)->pt;
             // Hooks are local to Live's UI thread, never global input hooks.
-            for(auto* receiver:receivers)if(receiver->enabled)
+            for(auto* receiver:receivers)if(receiver->enabled && IsWindowVisible(receiver->parent))
             {
                 const juce::ScopedLock guard(receiver->lock);receiver->point=pt;++receiver->generation;receiver->pressedAt=juce::Time::getMillisecondCounterHiRes();receiver->pendingDrop=0;
                 RECT bounds{};GetWindowRect(receiver->parent,&bounds);receiver->overlayArmed=!PtInRect(&bounds,pt);
                 if(receiver->overlay && receiver->overlayArmed)
+                {
+                    receiver->visibility.hold();
                     receiver->showSurface();
+                }
                 receiver->notify();
             }
         }
@@ -195,9 +202,21 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
             if(pendingContext==context){files=pendingFiles;pendingFiles.clear();}
             if(tracedGeneration!=generation){tracedGeneration=generation;traceNativeDrag("mouse generation="+juce::String(generation)+" x="+juce::String(point.x)+" y="+juce::String(point.y));}
             if(!pendingDrop && !(GetAsyncKeyState(VK_LBUTTON)&0x8000) && juce::Time::getMillisecondCounterHiRes()-pressedAt>300)expired=generation;
+            // Release tentative protection as soon as the origin proves not to
+            // be a supported browser effect. Plain track clicks still auto-hide.
+            if(completed==generation && !pendingDrop && incomingFiles.isEmpty())
+            {
+                const auto* matches=result["matches"].getArray();
+                if(!matches || matches->isEmpty())overlayArmed=false;
+            }
+            if(juce::Time::getMillisecondCounterHiRes()-pressedAt>20000)expired=generation;
+            if(GetAsyncKeyState(VK_ESCAPE)&0x8000){expired=generation;pendingDrop=0;pendingFiles.clear();}
+            if(visibility.hasDeferredHide() && tracedHideGeneration!=generation)
+            {tracedHideGeneration=generation;traceNativeDrag("deferred host hide generation="+juce::String(generation));}
             if(!visible || expired==generation)overlayArmed=false;
             if(pendingDrop && completed==pendingDrop){traceNativeDrag("deliver generation="+juce::String(pendingDrop));if(pendingContext==context)delivered=result;pendingDrop=0;result=juce::var{};}
         }
+        if(!overlayArmed && !pendingDrop)visibility.release();
         if(window)
         {
             SetWindowPos(window,nullptr,bounds.getX(),bounds.getY(),bounds.getWidth(),bounds.getHeight(),SWP_NOACTIVATE|SWP_NOZORDER|(visible?SWP_SHOWWINDOW:SWP_HIDEWINDOW));
@@ -236,7 +255,7 @@ void LiveBrowserBridge::poll(const juce::String& context,juce::Rectangle<int> ar
     if(!impl)return;
     auto local=peer->getComponent().getLocalArea(&owner,area);RECT client{};GetClientRect(parent,&client);
     const double scale=double(client.right-client.left)/juce::jmax(1,peer->getComponent().getWidth());
-    impl->poll(context,{juce::roundToInt(local.getX()*scale),juce::roundToInt(local.getY()*scale),juce::roundToInt(local.getWidth()*scale),juce::roundToInt(local.getHeight()*scale)},owner.isShowing());
+    impl->poll(context,{juce::roundToInt(local.getX()*scale),juce::roundToInt(local.getY()*scale),juce::roundToInt(local.getWidth()*scale),juce::roundToInt(local.getHeight()*scale)},owner.isShowing() && IsWindowVisible(parent));
 #else
     juce::ignoreUnused(context,area);
 #endif

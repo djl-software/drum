@@ -173,3 +173,9 @@ The native regression host checks that the full-editor surface is registered, hi
 ### 0.12.5 transport icons and drag activation
 
 Play and Pause render as vector icons in the same shared transport button; tooltips and accessible text retain their names. The drop surface now computes its screen position at mouse-down and temporarily sits above other windows without activation. Its window procedure explicitly returns MA_NOACTIVATE. This closes the delayed-placement and implicit-activation paths, but does not establish that Live's rapid-drag track switching is fixed. Mouse-release traces now include editor/surface visibility and OLE acceptance so a failed rapid drop can be distinguished from an accepted drop. Validate slow and fast drops over both the strip and the cards, followed by normal control clicks.
+
+### 0.12.5 auto-hide correction
+
+The user confirmed that disabling Live's Auto-Hide Plug-In Windows stops the disappearing-window problem. The correction leaves that preference unchanged and temporarily defers native hide requests to Drum's editor and its enclosing floating frame while a browser drag is in flight. It does not change Live's selected track. Protection starts at mouse-down to cover fast drags before asynchronous identification completes; unsupported origins release it on the next poll. Pending host hides are honoured after the drop, cancellation, Escape or timeout. Explicit host show requests cancel the corresponding pending hide. The main Live window is excluded. No helper executable is used.
+
+The native regression test sends real ShowWindow and SetWindowPos hide requests to a child editor and owned floating frame. It checks idle auto-hide, visibility during a drag, cancellation, explicit re-show and destruction. Live acceptance still requires fast drops with Auto-Hide enabled, followed by ordinary track selection and cancelled drags. The trace records `deferred host hide` when the guard handles a real host hide request.
