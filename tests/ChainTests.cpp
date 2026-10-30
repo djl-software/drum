@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "ChainEditor.h"
+#include "BuiltinEffects.h"
 #include <iostream>
 #include <stdexcept>
 #if JUCE_WINDOWS
@@ -36,6 +37,7 @@ struct Setup
     {
         auto state=processor.getLibrary().snapshot();kit=state.activeKit;group=state.kits[0].groups[0].id;
         a=processor.getLibrary().addInstrument(kit,group).id;b=processor.getLibrary().addInstrument(kit,group).id;
+        processor.getLibrary().setEffects(kit,a,{});processor.getLibrary().setEffects(kit,b,{});
         processor.getLibrary().rename(a,"Kick");processor.getLibrary().rename(b,"Snare");
         auto routes=processor.getBusesLayout();routes.outputBuses.set(1,juce::AudioChannelSet::stereo());routes.outputBuses.set(2,juce::AudioChannelSet::stereo());routes.outputBuses.set(16,juce::AudioChannelSet::stereo());
         check(processor.setBusesLayout(routes),"Chain output layout failed");processor.prepareToPlay(48000,64);
@@ -56,6 +58,20 @@ void parameter(drum::EffectRack& rack,const juce::String& slot,int index,float v
 }
 void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
 {
+    {
+        Setup mixed;auto& rack=mixed.processor.getEffects();auto found=rack.discover(juce::File(effectPath));check(!found.isEmpty(),"Mixed-chain fixture missing");
+        auto utility=rack.add(mixed.kit,mixed.a,drum::builtinDescription(drum::BuiltinKind::utility));
+        auto external=rack.add(mixed.kit,mixed.a,*found[0]);check(utility.ok && external.ok,"Mixed built-in/VST3 chain failed");
+        parameter(rack,external.id,1,.6f);
+        auto* p=dynamic_cast<drum::BuiltinEffect*>(rack.instance(utility.id));check(p!=nullptr,"Built-in not instantiated");
+        p->controls[0]->setValueNotifyingHost(p->controls[0]->convertTo0to1(-6.020599913f));
+        mixed.settle();auto audio=mixed.hit(2048);near(audio.getSample(4,1500),.5f,"Built-in leaked into another instrument");
+        auto before=audio.getSample(2,1500);check(rack.move(mixed.kit,mixed.a,external.id,0).ok,"Mixed chain reorder failed");mixed.settle();audio=mixed.hit(2048);check(std::abs(audio.getSample(2,1500)-before)>1e-4f,"Built-in/VST3 order did not affect audio");
+        juce::MemoryBlock state;mixed.processor.getStateInformation(state);mixed.processor.setStateInformation(state.getData(),(int)state.getSize());mixed.settle();check(dynamic_cast<drum::BuiltinEffect*>(rack.instance(utility.id))!=nullptr,"Built-in chain did not recall");
+        check(rack.replaceChain(mixed.kit,mixed.a,drum::factoryChain()).ok,"Factory default failed");mixed.settle();audio=mixed.hit();near(audio.getSample(2,0),.25f,"Bypassed factory chain altered sample");
+        rack.replaceChain(mixed.kit,mixed.a,{});rack.add(mixed.kit,mixed.a,drum::builtinDescription(drum::BuiltinKind::utility));mixed.settle();
+        mixed.processor.getSampleEngine().setAuditionBpm(120);mixed.processor.getSampleEngine().setAuditionLoop(21);juce::AudioBuffer<float> loop(8,48001);juce::MidiBuffer noMidi;mixed.processor.processBlock(loop,noMidi);near(loop.getSample(2,24000),.2f,"Effect blocks delayed audition beat");near(loop.getSample(2,48000),.2f,"Effect blocks accumulated audition drift");
+    }
     Setup setup;auto& rack=setup.processor.getEffects();auto& library=setup.processor.getLibrary();
     auto found=rack.discover(juce::File(effectPath));check(found.size()==1,"External VST3 fixture not discovered");auto description=*found[0];
     auto empty=setup.hit();near(empty.getSample(2,0),0.25f,"Empty chain changed audio");near(empty.getSample(4,0),0.5f,"Empty second chain changed audio");

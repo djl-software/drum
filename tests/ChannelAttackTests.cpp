@@ -1,3 +1,4 @@
+#include "LegacyTestState.h"
 #include "PluginProcessor.h"
 #include <iostream>
 #include <stdexcept>
@@ -116,11 +117,11 @@ void runChannelAttackTests()
     check(before==restored.getLibrary().toXml()->toString(),"Rejected restore replaced current kit");
     instrument->setAttribute("edit_mono",1.0);
     for(double invalid:{-0.1,2000.1}){instrument->setAttribute("edit_attackPosition",invalid);check(!restored.getLibrary().restore(*xml),"Out-of-range attack position accepted");}
-    xml=library.toXml();xml->setAttribute("schemaVersion",9);
+    xml=library.toXml();stripChainEffects(*xml);xml->setAttribute("schemaVersion",9);
     for(auto* k:xml->getChildIterator())for(auto* g:k->getChildIterator())for(auto* i:g->getChildIterator())i->removeAttribute("edit_attackPosition");
     check(restored.getLibrary().restore(*xml),"Schema 9 migration failed");state=restored.getLibrary().snapshot();
     check(drum::findInstrument(*drum::activeKit(state),id)->controls.sound.attackPosition==0,"Old attack was delayed on migration");
-    xml=library.toXml();xml->setAttribute("schemaVersion",5);
+    xml=library.toXml();stripChainEffects(*xml);xml->setAttribute("schemaVersion",5);
     for(auto* k:xml->getChildIterator())for(auto* g:k->getChildIterator())for(auto* i:g->getChildIterator())
         for(auto& p:drum::soundParameters)if(drum::introducedInVersion6(p))i->removeAttribute(juce::String("edit_")+p.key);
     check(restored.getLibrary().restore(*xml),"Schema 5 migration failed");state=restored.getLibrary().snapshot();

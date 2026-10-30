@@ -1,4 +1,5 @@
 #include "EffectRack.h"
+#include "BuiltinEffects.h"
 #include <set>
 
 namespace drum
@@ -6,7 +7,7 @@ namespace drum
 class EffectRack::HostedProcessor final : public juce::AudioProcessor
 {
 public:
-    HostedProcessor(std::unique_ptr<juce::AudioPluginInstance> p, EffectRack& o, bool mono,bool sidechain)
+    HostedProcessor(std::unique_ptr<juce::AudioProcessor> p, EffectRack& o, bool mono,bool sidechain)
         : AudioProcessor(BusesProperties().withInput("Input",sidechain?juce::AudioChannelSet::discreteChannels(4):juce::AudioChannelSet::stereo(),true)
                          .withOutput("Output",juce::AudioChannelSet::stereo(),true)), plugin(std::move(p)), hasSidechain(sidechain), owner(o), monoOnly(mono) {}
     void prepareToPlay(double hz,int frames) override
@@ -51,7 +52,7 @@ public:
     void changeProgramName(int,const juce::String&) override {}
     void getStateInformation(juce::MemoryBlock& b) override {plugin->getStateInformation(b);}
     void setStateInformation(const void* b,int size) override {plugin->setStateInformation(b,size);}
-    std::unique_ptr<juce::AudioPluginInstance> plugin;
+    std::unique_ptr<juce::AudioProcessor> plugin;
     bool hasSidechain=false;
     std::atomic<float> sidechainGain {1},sidechainMix {1};
 private:
@@ -61,7 +62,7 @@ private:
 class EffectRack::PluginWindow final : public juce::DocumentWindow
 {
 public:
-    PluginWindow(Graph::Node::Ptr n,juce::AudioPluginInstance& plugin)
+    PluginWindow(Graph::Node::Ptr n,juce::AudioProcessor& plugin)
         :DocumentWindow(plugin.getName(),juce::Colour(0xff19212e),closeButton),node(n)
     {
         setUsingNativeTitleBar(true);
@@ -179,12 +180,14 @@ void EffectRack::sync()
         {
             runtime=std::make_unique<Runtime>();runtime->kit=kit->id;runtime->instrument=instrument.id;runtime->saved=slot;
             juce::PluginDescription description;auto xml=juce::parseXML(slot.description);
-            if(!xml || !description.loadFromXml(*xml) || description.pluginFormatName!="VST3" || description.isInstrument || description.name=="DJL Drum")
+            if(!xml || !description.loadFromXml(*xml) || (!isBuiltin(description) && description.pluginFormatName!="VST3") || description.isInstrument || description.name=="DJL Drum")
                 runtime->error="Unsupported device. Choose a VST3 audio effect.";
-            else if(!juce::File(description.fileOrIdentifier).exists())runtime->error="Missing VST3. Restore its file, then Retry.";
+            else if(!isBuiltin(description) && !juce::File(description.fileOrIdentifier).exists())runtime->error="Missing VST3. Restore its file, then Retry.";
             else
             {
-                auto plugin=format.createInstanceFromDescription(description,rate.load(),blockSize.load(),runtime->error);
+                std::unique_ptr<juce::AudioProcessor> plugin;
+                if(isBuiltin(description))plugin=createBuiltin(description);
+                else plugin=format.createInstanceFromDescription(description,rate.load(),blockSize.load(),runtime->error);
                 if(plugin)
                 {
                     juce::MemoryBlock saved;
@@ -258,7 +261,7 @@ Result EffectRack::edit(const juce::String& kit,const juce::String& instrument,c
 }
 Result EffectRack::add(const juce::String& kit,const juce::String& instrument,const juce::PluginDescription& description,int position)
 {
-    if(description.pluginFormatName!="VST3" || description.isInstrument || description.name=="DJL Drum")return Result::fail("Choose a VST3 audio effect.");
+    if((!isBuiltin(description) && description.pluginFormatName!="VST3") || description.isInstrument || description.name=="DJL Drum")return Result::fail("Choose a VST3 audio effect.");
     return edit(kit,instrument,[&](auto& slots){
         if(slots.size()>=maxEffects)return Result::fail("This chain already contains 16 effects.");
         EffectSlot slot{juce::Uuid().toString(),description.createXml()->toString(),{},false};
@@ -268,6 +271,15 @@ Result EffectRack::add(const juce::String& kit,const juce::String& instrument,co
 Result EffectRack::remove(const juce::String& kit,const juce::String& instrument,const juce::String& slot)
 {
     return edit(kit,instrument,[&](auto& slots){std::erase_if(slots,[&](const auto& s){return s.id==slot;});return Result::success();});
+}
+std::vector<EffectSlot> EffectRack::copyChain(const juce::String& kit,const juce::String& instrument)
+{
+    capture();auto state=library.snapshot();for(const auto& k:state.kits)if(k.id==kit)if(auto* i=findInstrument(k,instrument))return i->effects;return {};
+}
+Result EffectRack::replaceChain(const juce::String& kit,const juce::String& instrument,std::vector<EffectSlot> replacement)
+{
+    for(auto& slot:replacement){slot.id=juce::Uuid().toString();slot.sidechainNote=-1;slot.sidechainMute=false;}
+    return edit(kit,instrument,[&](auto& slots){slots=std::move(replacement);return Result::success();});
 }
 Result EffectRack::move(const juce::String& kit,const juce::String& instrument,const juce::String& slot,int position)
 {
@@ -289,7 +301,7 @@ juce::String EffectRack::status(const juce::String& slot) const
     const juce::ScopedLock guard(managementLock);auto it=nodes.find(slot);if(it==nodes.end())return "Loading...";
     const auto& r=*it->second;return r.error.isNotEmpty()?r.error:r.saved.bypassed?"Bypassed - dry pass-through":"Active";
 }
-juce::AudioPluginInstance* EffectRack::instance(const juce::String& slot) const
+juce::AudioProcessor* EffectRack::instance(const juce::String& slot) const
 {
     const juce::ScopedLock guard(managementLock);auto it=nodes.find(slot);return it!=nodes.end() && it->second->processor()?it->second->processor()->plugin.get():nullptr;
 }

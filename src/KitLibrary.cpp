@@ -1,4 +1,5 @@
 #include "KitLibrary.h"
+#include "BuiltinEffects.h"
 #include <algorithm>
 #include <array>
 #include <set>
@@ -229,6 +230,7 @@ Result KitLibrary::addInstrument(const juce::String& kitId, const juce::String& 
         auto note = freeNote(*k, g->instruments.empty() ? firstNote : g->instruments.back().note + 1);
         if (note < 0) return Result::fail("This kit already has 88 instruments.");
         Instrument i { newId(), "Instrument " + juce::String(instrumentCount(*k) + 1), note };
+        i.effects=defaultChain();
         g->instruments.push_back(i); return Result::success(i.id);
     });
 }
@@ -324,6 +326,7 @@ Result KitLibrary::addSampleInstrument(const juce::String& kitId, const juce::St
         if(!juce::File::isAbsolutePath(path)) return Result::fail("The dropped file has no absolute path.");
         auto name=juce::File(path).getFileNameWithoutExtension().trim().substring(0,64);
         Instrument i{newId(),name.isEmpty()?"Sample":name,note,path};
+        i.effects=defaultChain();
         g->instruments.push_back(i); return Result::success(i.id);
     });
 }

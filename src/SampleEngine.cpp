@@ -248,7 +248,7 @@ void SampleEngine::updateBank(const State& state,double rate)
     next->rate=rate;
     size_t bytes=0; std::set<const Sample*> counted; double duration=0.0;
     bool hasSolo=false;
-    for(const auto& group:kit->groups)for(const auto& instrument:group.instruments)next->hasEffects|=!instrument.effects.empty();
+    for(const auto& group:kit->groups)for(const auto& instrument:group.instruments)for(const auto& slot:instrument.effects)next->hasEffects|=!slot.bypassed;
     for(auto& group:kit->groups) for(auto& instrument:group.instruments) hasSolo|=instrument.controls.solo;
     for(auto& group:kit->groups) for(auto& instrument:group.instruments)
     {
@@ -463,8 +463,10 @@ void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) no
     const double beatsPerSample=auditionTempo()/(60.0*hostRate);
     while(start<end)
     {
-        if(auditionBeatRemaining<=0){startAuditionVoice(repeatingNote);auditionBeatRemaining+=1.0;}
-        const int count=juce::jmin(end-start,juce::jmax(1,(int)std::ceil(auditionBeatRemaining/beatsPerSample)));
+        // Repeated graph-sized blocks accumulate tiny positive rounding errors.
+        // Treat sub-millionth-sample residue as zero rather than delaying a beat.
+        if(auditionBeatRemaining<=beatsPerSample*1.0e-7){startAuditionVoice(repeatingNote);auditionBeatRemaining+=1.0;}
+        const int count=juce::jmin(end-start,juce::jmax(1,(int)std::ceil(auditionBeatRemaining/beatsPerSample-1.0e-7)));
         renderVoices(output,start,start+count);start+=count;auditionBeatRemaining-=count*beatsPerSample;
     }
 }

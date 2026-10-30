@@ -1,0 +1,46 @@
+#pragma once
+#include "KitLibrary.h"
+#include <juce_audio_utils/juce_audio_utils.h>
+#include <juce_dsp/juce_dsp.h>
+#include <optional>
+
+namespace drum {
+enum class BuiltinKind { eq, compressor, transient, saturation, clipper, limiter, gate, utility };
+juce::String builtinName(BuiltinKind);
+juce::PluginDescription builtinDescription(BuiltinKind);
+bool isBuiltin(const juce::PluginDescription&);
+std::unique_ptr<juce::AudioProcessor> createBuiltin(const juce::PluginDescription&);
+std::vector<EffectSlot> factoryChain(int preset=0);
+std::vector<EffectSlot> defaultChain();
+juce::File defaultChainFile();
+bool saveChain(const juce::File&,const std::vector<EffectSlot>&);
+std::optional<std::vector<EffectSlot>> loadChain(const juce::File&);
+
+class BuiltinEffect final : public juce::AudioProcessor {
+public:
+    explicit BuiltinEffect(BuiltinKind);
+    const juce::String getName() const override {return "Drum "+builtinName(kind);}
+    bool acceptsMidi() const override{return false;} bool producesMidi() const override{return false;}
+    double getTailLengthSeconds() const override{return 0;}
+    bool hasEditor() const override{return true;} juce::AudioProcessorEditor* createEditor() override;
+    int getNumPrograms() override{return 1;} int getCurrentProgram() override{return 0;}
+    void setCurrentProgram(int) override{} const juce::String getProgramName(int) override{return {};}
+    void changeProgramName(int,const juce::String&) override{}
+    bool isBusesLayoutSupported(const BusesLayout& l) const override{return l.getMainInputChannelSet()==juce::AudioChannelSet::stereo() && l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
+    void prepareToPlay(double,int) override; void releaseResources() override{} void reset() override;
+    void processBlock(juce::AudioBuffer<float>&,juce::MidiBuffer&) override;
+    void getStateInformation(juce::MemoryBlock&) override; void setStateInformation(const void*,int) override;
+    Equalizer equalizer() const; void setEqualizer(const Equalizer&);
+    void resetParameters();
+    const BuiltinKind kind;
+    std::vector<juce::AudioParameterFloat*> controls;
+    std::atomic<float> inputPeak{0},outputPeak{0},reduction{0};
+private:
+    void parameter(const juce::String&,float,float,float,const juce::String& unit={});
+    VoiceEqualizer eq;
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
+    std::vector<juce::SmoothedValue<float>> smooth;
+    bool gateOpen=false;
+    double hz=44100;float envelope=0,fast=0,slow=0,gainEnvelope=1;
+};
+}

@@ -1,3 +1,4 @@
+#include "LegacyTestState.h"
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include <cmath>
@@ -89,7 +90,7 @@ void runControlTests()
     auto* element=xml->getChildByName("Kit")->getChildByName("Group")->getChildByName("Instrument");
     element->setAttribute("pan","0.25garbage"); check(!r.p.getLibrary().restore(*xml),"Malformed control value accepted");
     check(r.p.getLibrary().toXml()->toString()==before,"Bad state changed library");
-    xml=r.p.getLibrary().toXml(); xml->setAttribute("schemaVersion",3);
+    xml=r.p.getLibrary().toXml(); stripChainEffects(*xml);xml->setAttribute("schemaVersion",3);
     check(restored.getLibrary().restore(*xml),"Version 3 migration failed"); s=restored.getLibrary().snapshot();
     check(drum::findInstrument(*drum::activeKit(s),r.a)->controls==drum::InstrumentControls{},"Legacy controls not neutral");
     c.pan=std::numeric_limits<double>::quiet_NaN(); check(!r.p.getLibrary().setControls(r.kit,r.a,c).ok,"NaN control accepted");

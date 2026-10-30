@@ -1,3 +1,4 @@
+#include "LegacyTestState.h"
 #include "PluginEditor.h"
 #include "SoundEditor.h"
 #include "VoiceEnvelope.h"
@@ -275,12 +276,12 @@ void runEnvelopeTests()
     envelope->getFirstChildElement()->setAttribute("pivot",2.0);
     const auto prior=copy.toXml()->toString();check(!copy.restore(*xml) && copy.toXml()->toString()==prior,"Malformed shape was accepted/partially applied");
     xml=library.toXml();instrument=xml->getFirstChildElement()->getFirstChildElement()->getFirstChildElement();
-    xml->setAttribute("schemaVersion",8);check(copy.restore(*xml),"Version 8 envelope migration failed");
+    stripChainEffects(*xml);xml->setAttribute("schemaVersion",8);check(copy.restore(*xml),"Version 8 envelope migration failed");
     state=copy.snapshot();for(const auto& shape:drum::findInstrument(*drum::activeKit(state),id)->controls.sound.envelopes)for(int n=0;n<shape.count;++n)check(shape.points[(size_t)n].weight==1,"Version 8 envelope changed curvature model");
     xml=library.toXml();instrument=xml->getFirstChildElement()->getFirstChildElement()->getFirstChildElement();
     instrument->getFirstChildElement()->getFirstChildElement()->setAttribute("weight",0.0);check(!copy.restore(*xml),"Invalid curve weight accepted");
     xml=library.toXml();instrument=xml->getFirstChildElement()->getFirstChildElement()->getFirstChildElement();
-    instrument->deleteAllChildElements();xml->setAttribute("schemaVersion",6);check(copy.restore(*xml),"Version 6 migration failed");
+    instrument->deleteAllChildElements();stripChainEffects(*xml);xml->setAttribute("schemaVersion",6);check(copy.restore(*xml),"Version 6 migration failed");
     state=copy.snapshot();check(drum::findInstrument(*drum::activeKit(state),id)->controls.sound.envelopes[0].count==0,"Legacy state gained custom envelope");
     std::cout<<"Free point/curve editing, early release, sound analysis, waveform, macros and schema recall passed\n";
 }

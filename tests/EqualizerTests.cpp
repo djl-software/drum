@@ -1,3 +1,4 @@
+#include "LegacyTestState.h"
 #include "PluginEditor.h"
 #include "SoundEditor.h"
 #include <iostream>
@@ -50,7 +51,7 @@ void runEqualizerTests()
     auto recalled=restored.snapshot();check(drum::findInstrument(*drum::activeKit(recalled),id)->controls==c,"EQ state changed on recall");
     auto* instrument=xml->getFirstChildElement()->getFirstChildElement()->getFirstChildElement();instrument->setAttribute("eq3q",-1);
     const auto prior=restored.toXml()->toString();check(!restored.restore(*xml) && restored.toXml()->toString()==prior,"Invalid EQ partially restored");
-    xml=library.toXml();xml->setAttribute("schemaVersion",7);check(restored.restore(*xml),"Version 7 migration failed");recalled=restored.snapshot();
+    xml=library.toXml();stripChainEffects(*xml);xml->setAttribute("schemaVersion",7);check(restored.restore(*xml),"Version 7 migration failed");recalled=restored.snapshot();
     check(drum::findInstrument(*drum::activeKit(recalled),id)->controls.sound.equalizer==drum::Equalizer{},"Old state acquired EQ processing");
     processor.getSampleEngine().requestLoad(kit,id,juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav"));check(processor.getSampleEngine().waitForLoading(10000),"EQ sample load failed");processor.getSampleEngine().prepare(48000);
     c=current();c.sound.equalizer={};check(library.setControls(kit,id,c).ok,"Reset EQ failed");

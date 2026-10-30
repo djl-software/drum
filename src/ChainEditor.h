@@ -1,6 +1,7 @@
 #pragma once
 #include "EffectRack.h"
 #include "LiveBrowserBridge.h"
+#include <optional>
 
 class ChainEditor final : public juce::Component, public juce::DragAndDropContainer,
     public juce::DragAndDropTarget, public juce::FileDragAndDropTarget, private juce::Timer
@@ -23,10 +24,13 @@ private:
     int insertionAt(juce::Point<int>) const;
     void timerCallback() override;
     void browserDropped(const juce::var&);
+    void showChainMenu();
     drum::KitLibrary& library;
     drum::EffectRack& effects;
     juce::String kitId,instrumentId;
     juce::TextButton load{"Load VST3..."};
+    juce::TextButton builtin{"Add Drum effect"},presets{"Chain presets / defaults"};
+    inline static std::optional<std::vector<drum::EffectSlot>> clipboard;
     juce::Label status;
     juce::Viewport viewport;
     juce::Component flow;

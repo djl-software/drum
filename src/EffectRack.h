@@ -27,12 +27,14 @@ public:
     Result remove(const juce::String& kit, const juce::String& instrument, const juce::String& slot);
     Result move(const juce::String& kit, const juce::String& instrument, const juce::String& slot, int position);
     Result bypass(const juce::String& kit, const juce::String& instrument, const juce::String& slot, bool);
+    Result replaceChain(const juce::String&,const juce::String&,std::vector<EffectSlot>);
+    std::vector<EffectSlot> copyChain(const juce::String&,const juce::String&);
     void retry(const juce::String& slot);
     void openEditor(const juce::String& slot);
     bool supportsSidechain(const juce::String& slot) const;
     Result sidechain(const juce::String& kit,const juce::String& instrument,const juce::String& slot,int note,double gain,double mix,bool mute);
     juce::String status(const juce::String& slot) const;
-    juce::AudioPluginInstance* instance(const juce::String& slot) const; // Message thread only.
+    juce::AudioProcessor* instance(const juce::String& slot) const; // Message thread only.
 private:
     class HostedProcessor;
     class PluginWindow;

@@ -153,3 +153,25 @@ Play, Loop and BPM now live in the workspace header, visible at the same locatio
 ### Compact effect panels
 
 Each Chain card keeps Open, Bypass, Remove and order arrows. Effects supporting a stereo sidechain show No Input/source, Gain (0 dB), Mix (100%) and Mute source (off). Select another kit instrument as a pre-effect detector source. Gain and Mix affect the detector signal, not output level or wet/dry balance. Mute source removes its audible output while retaining the detector feed. Use Open for plugin-specific controls. Routing saves with the Set; external Live tracks are not available as sources. Drag Live effects into the fixed strip above the cards; this uses native code inside Drum, without a helper executable.
+
+## Drum built-in instrument effects (0.13.0)
+
+Each instrument has its own chain; this is not a drum-bus chain. Click **Add Drum effect** to add EQ, Compressor, Transient, Saturation, Clipper, Limiter, Gate or Utility. Built-ins and VST3 effects process left to right in the same chain. Drag a card header or use its arrows to change order. Open edits that instance, Bypass preserves its place and settings, and Remove deletes it. All settings save in the Set.
+
+The chain EQ uses the same eight-band DSP and graphical editor as Edit Sound → Filter, but has independent settings. The sound-editor EQ remains before the chain. Put a chain EQ before saturation to control what drives it, or after saturation to shape the harmonics it creates. EQ is optional and is not inserted by default.
+
+Compressor has stereo-linked peak detection, threshold, ratio, soft knee, attack, release, makeup and wet/dry mix. Use it to control a hit's body without necessarily removing the attack. Transient uses fast and slow envelope followers; Attack changes the onset and Sustain changes the body, with Length controlling the slower follower. It does not rewrite the sample or its drawn envelope.
+
+Saturation uses a soft nonlinear curve with Drive, Mix and Output. Clipper offers Drive, Ceiling, Softness and Output. Both use 2x oversampling, with their latency compensated by the chain graph. Clipping deliberately changes sharp peaks; saturation adds harmonics. Lower Output when comparing processed and original sound so loudness does not mask the tonal difference.
+
+Limiter is a stereo-linked, instantaneous-attack sample-peak limiter with Input, Ceiling and Release. It is **not a true-peak or look-ahead mastering limiter**. Very short releases and heavy limiting can distort; use modest reduction on individual hits. Gate reduces audio below Threshold by Range, using Attack and Release to avoid abrupt changes. Utility provides gain, width (0% mono, 100% original), polarity inversion and channel selection (0 stereo, 1 left, 2 right, 3 swap).
+
+Open panels display input/output peak and gain-reduction readings. Reset restores that effect's parameters; double-click a numeric control to restore its default. The waveform preview remains before chain processing, so the effect meters and listening are the checks for chain changes.
+
+New instruments begin with **Saturation → Limiter, both bypassed**, preserving the source sound. Existing saved instruments are not migrated or altered. Under **Chain presets / defaults**, choose a factory preset, copy/paste a whole chain, save/load a `.drumchain` file, or save the current chain as the default for new instruments. Applying a preset or pasting replaces the selected instrument's chain; copying first preserves the previous chain for later paste. Kick punch and Snare snap are starting points, not automatic level matching. Sidechain source notes and source mute are reset when copying/applying presets so a new instrument cannot accidentally mute another source.
+
+## Browser identity and unsupported devices
+
+Live's browser exposes a name to Drum's drag reader, not a proven VST3 device identity. Browser drops therefore show a confirmation listing the actual installed VST3 vendor/name/path before loading. This prevents silently substituting a same-named effect. Direct `.vst3` file drops and Load VST3 identify the file explicitly. Native Live devices and synth instruments cannot be inserted into this audio-effects chain; an unsupported browser drop displays an explanation. Drum does not change Live's browser filters.
+
+The 30 October 2026 installed-plugin audit found one collision against known native Live audio-effect names: Ableton **Limiter** versus Mastering the Mix **LIMITER**. No other duplicate installed VST3 effect names were found after the installation cleanup. The confirmation rule applies to all names, including future installations, rather than relying on that audit as a permanent allow-list.

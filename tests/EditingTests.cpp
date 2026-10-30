@@ -1,3 +1,4 @@
+#include "LegacyTestState.h"
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include <iostream>
@@ -116,7 +117,7 @@ void runEditingTests()
     auto xml=r.p.getLibrary().toXml();auto* instrument=xml->getChildByName("Kit")->getChildByName("Group")->getChildByName("Instrument");
     instrument->setAttribute("edit_start",0.99);check(!restored.getLibrary().restore(*xml),"Invalid region accepted");
     instrument->setAttribute("edit_start","nan");check(!restored.getLibrary().restore(*xml),"NaN editing value accepted");
-    xml=r.p.getLibrary().toXml();xml->setAttribute("schemaVersion",4);check(restored.getLibrary().restore(*xml),"Version 4 migration failed");state=restored.getLibrary().snapshot();check(drum::findInstrument(*drum::activeKit(state),r.id)->controls.sound==drum::SoundParameters{},"Legacy sound did not keep defaults");
+    xml=r.p.getLibrary().toXml();stripChainEffects(*xml);xml->setAttribute("schemaVersion",4);check(restored.getLibrary().restore(*xml),"Version 4 migration failed");state=restored.getLibrary().snapshot();check(drum::findInstrument(*drum::activeKit(state),r.id)->controls.sound==drum::SoundParameters{},"Legacy sound did not keep defaults");
     auto slices=r.p.getLibrary().sliceInstrument(r.kit,r.id,8);check(slices.ok,"Slicing failed");state=r.p.getLibrary().snapshot();auto* sliced=drum::findGroup(*drum::activeKit(state),slices.id);
     check(sliced && sliced->instruments.size()==8 && drum::instrumentCount(*drum::activeKit(state))==9,"Slicing lost original or wrong count");
     check(sliced->instruments.front().controls.sound.start==r.controls.sound.start && sliced->instruments.back().controls.sound.end==r.controls.sound.end,"Slices ignored selected region");

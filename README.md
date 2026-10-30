@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.13.0 adds eight Drum built-in effects to each instrument chain, including the existing eight-band EQ with independent settings. Built-ins and VST3 effects share ordering, bypass and state recall. New instruments default to bypassed Saturation and Limiter. Chain presets, copy/paste and saved defaults are available. Browser drops require confirmation of the actual VST3 identity to prevent native-device name collisions. See docs/sound-editor.md for controls and limitations; the bundled 0.12.3 PDF predates these changes.
+
 Version 0.12.5 uses Play/Pause icons and updates the native full-window browser-drop surface to position synchronously and reject activation. The auto-hide correction temporarily defers host hide requests during browser drags, allowing Live's Auto-Hide Plug-In Windows preference to remain enabled; real Live verification is still required. Version 0.12.4 added host-default audition tempo, looping across audio reinitialisation, and in-process browser drops without a helper executable. Effect cards expose real stereo sidechain source/Gain/Mix/Mute controls where supported. See docs/ableton-testing.md for routing details and Live acceptance checks. The bundled 0.12.3 PDF predates these changes.
 
 Drum is a VST3 drum instrument for DJLeslieson, intended to replace drum-rack workflows with a clearer kit/group/instrument interface. Uses the same CMake/C++20/JUCE 8.0.12 foundation as Meter.

@@ -45,7 +45,7 @@ juce::var resolveLiveEffect(const juce::String& name)
         }
     }
     if(statement)finish(statement);if(db)close(db);
-    auto* result=new juce::DynamicObject();result->setProperty("matches",rows);return juce::var(result);
+    auto* result=new juce::DynamicObject();result->setProperty("matches",rows);result->setProperty("requiresConfirmation",true);return juce::var(result);
 }
 }
 struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
@@ -159,6 +159,12 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
                 }
             }
             auto found=browser && name.isNotEmpty()?resolveLiveEffect(name):juce::var{};
+            if(browser && name.isNotEmpty())
+            {
+                if(!found.getDynamicObject())found=juce::var(new juce::DynamicObject());
+                auto* object=found.getDynamicObject();object->setProperty("browserItem",true);object->setProperty("browserName",name);
+                if(!found["matches"].isArray() || found["matches"].getArray()->isEmpty())object->setProperty("error",name+": no installed VST3 audio effect. Use Add Drum effect for built-ins; Live devices and instruments are unsupported.");
+            }
             auto* rows=found["matches"].getArray();traceNativeDrag("identity generation="+juce::String(current)+" browser="+juce::String(browser?1:0)+" name="+name+" matches="+juce::String(rows?rows->size():0));
             {const juce::ScopedLock guard(lock);if(current==generation){result=found;completed=current;}}
         }
@@ -206,8 +212,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
             // be a supported browser effect. Plain track clicks still auto-hide.
             if(completed==generation && !pendingDrop && incomingFiles.isEmpty())
             {
-                const auto* matches=result["matches"].getArray();
-                if(!matches || matches->isEmpty())overlayArmed=false;
+                if(!bool(result["browserItem"]))overlayArmed=false;
             }
             if(juce::Time::getMillisecondCounterHiRes()-pressedAt>20000)expired=generation;
             if(GetAsyncKeyState(VK_ESCAPE)&0x8000){expired=generation;pendingDrop=0;pendingFiles.clear();}

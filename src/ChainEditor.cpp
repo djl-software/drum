@@ -1,4 +1,5 @@
 #include "ChainEditor.h"
+#include "BuiltinEffects.h"
 
 namespace
 {
@@ -71,6 +72,9 @@ private:
 ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library(model),effects(rack)
 {
     setComponentID("plugin-chain");
+    addAndMakeVisible(builtin);builtin.setComponentID("chain-add-builtin");
+    builtin.onClick=[this]{juce::PopupMenu menu;for(int n=0;n<8;++n)menu.addItem(n+1,drum::builtinName((drum::BuiltinKind)n));menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&builtin),[safe=juce::Component::SafePointer<ChainEditor>(this)](int choice){if(safe && choice>0 && choice<=8)safe->apply(safe->effects.add(safe->kitId,safe->instrumentId,drum::builtinDescription((drum::BuiltinKind)(choice-1))));});};
+    addAndMakeVisible(presets);presets.setComponentID("chain-presets");presets.onClick=[this]{showChainMenu();};
     addAndMakeVisible(load);load.setComponentID("chain-load");
     load.onClick=[this]{
         chooser=std::make_unique<juce::FileChooser>("Choose a VST3 audio effect",juce::File{},"*.vst3");
@@ -104,13 +108,13 @@ void ChainEditor::refresh()
         resized();repaint();
     }
     else slots=std::move(next);
-    for(auto& card:cards)card->update();load.setEnabled(instrument!=nullptr && slots.size()<drum::maxEffects);
+    for(auto& card:cards)card->update();load.setEnabled(instrument!=nullptr && slots.size()<drum::maxEffects);builtin.setEnabled(load.isEnabled());presets.setEnabled(instrument!=nullptr);
 }
 void ChainEditor::paint(juce::Graphics& g)
 {
     g.setColour(ink);g.setFont(juce::FontOptions(13));
-    g.drawText("Instrument audio  >  effects in order  >  output / sends",0,0,getWidth()-140,22,juce::Justification::centredLeft);
-    g.setColour(muted);g.drawText("Drop Live VST3 effects here",0,30,getWidth(),26,juce::Justification::centred);
+    g.drawText("Instrument chain: Drum effects + VST3, processed left to right",0,0,getWidth(),22,juce::Justification::centredLeft);
+    g.setColour(muted);g.drawText("Third-party VST3: drop here or on the chain",0,54,getWidth(),26,juce::Justification::centred);
     if(cards.empty())
     {
         g.setColour(bg);g.fillRoundedRectangle(viewport.getBounds().toFloat().reduced(3),6);g.setColour(muted);
@@ -119,8 +123,8 @@ void ChainEditor::paint(juce::Graphics& g)
 }
 void ChainEditor::resized()
 {
-    load.setBounds(getWidth()-126,0,126,25);
-    viewport.setBounds(0,62,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-95));
+    builtin.setBounds(0,24,140,25);presets.setBounds(148,24,190,25);load.setBounds(getWidth()-126,24,126,25);
+    viewport.setBounds(0,84,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-117));
     const int height=juce::jmax(254,viewport.getHeight()-16);flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*206+100),height);
     for(size_t i=0;i<cards.size();++i)cards[i]->setBounds((int)i*206,0,192,height);
     status.setBounds(0,getHeight()-29,getWidth(),27);
@@ -174,25 +178,44 @@ void ChainEditor::apply(const drum::Result& result)
 void ChainEditor::timerCallback()
 {
     if(isShowing())refresh();
-    browserBridge->poll(kitId+"/"+instrumentId,{0,30,getWidth(),26});
+    browserBridge->poll(kitId+"/"+instrumentId,{0,54,getWidth(),26});
 }
 void ChainEditor::browserDropped(const juce::var& value)
 {
+    if(value["error"].toString().isNotEmpty()){status.setText(value["error"].toString(),juce::dontSendNotification);return;}
     const auto* matches=value["matches"].getArray();if(!matches || matches->isEmpty())return;
     std::vector<juce::File> files;juce::PopupMenu menu;
+    menu.addSectionHeader("Confirm VST3 identity - browser name alone is not proof");
     for(const auto& match:*matches)
     {
         auto path=match["path"].toString();if(!juce::File::isAbsolutePath(path))continue;
         juce::File file(path);if(!file.hasFileExtension("vst3") || !file.exists())continue;
         if(!match["id"].toString().startsWith("device:vst3:audiofx:"))continue;
-        files.push_back(file);menu.addItem((int)files.size(),match["vendor"].toString()+" "+match["name"].toString()+" — "+path);
+        files.push_back(file);menu.addItem((int)files.size(),match["vendor"].toString()+" "+match["name"].toString()+" - "+path);
     }
     if(files.empty())return;
-    if(files.size()==1){addFile(files.front());return;}
-    status.setText("Multiple installed VST3 matches. Choose the effect to add.",juce::dontSendNotification);
+    if(files.size()==1 && !bool(value["requiresConfirmation"])){addFile(files.front());return;}
+    status.setText("Confirm the VST3 below. Ableton native devices cannot load inside Drum.",juce::dontSendNotification);
     const auto kit=kitId,instrument=instrumentId;
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
         [safe=juce::Component::SafePointer<ChainEditor>(this),files,kit,instrument](int choice){
             if(safe && safe->kitId==kit && safe->instrumentId==instrument && choice>0 && choice<=(int)files.size())safe->addFile(files[(size_t)choice-1]);
         });
+}
+
+void ChainEditor::showChainMenu()
+{
+    juce::PopupMenu menu;menu.addItem(1,"Default: Saturation + Limiter (bypassed)");menu.addItem(2,"Kick punch");menu.addItem(3,"Snare snap");menu.addSeparator();menu.addItem(4,"Copy chain");menu.addItem(5,"Paste chain (replace)",clipboard.has_value());menu.addItem(6,"Save as default for new instruments");menu.addItem(7,"Apply saved default (replace)");menu.addItem(8,"Empty chain");menu.addSeparator();menu.addItem(9,"Save preset file...");menu.addItem(10,"Load preset file (replace)...");
+    const auto kit=kitId,instrument=instrumentId;
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&presets),[safe=juce::Component::SafePointer<ChainEditor>(this),kit,instrument](int choice){
+        if(!safe || safe->kitId!=kit || safe->instrumentId!=instrument || !choice)return;
+        auto& self=*safe;
+        if(choice<=3)self.apply(self.effects.replaceChain(kit,instrument,drum::factoryChain(choice-1)));
+        else if(choice==4){clipboard=self.effects.copyChain(kit,instrument);self.status.setText("Chain copied, including effect settings.",juce::dontSendNotification);}
+        else if(choice==5 && clipboard)self.apply(self.effects.replaceChain(kit,instrument,*clipboard));
+        else if(choice==6){bool ok=drum::saveChain(drum::defaultChainFile(),self.effects.copyChain(kit,instrument));self.status.setText(ok?"Default saved for new instruments. Existing instruments unchanged; sidechain sources reset.":"Could not save default chain.",juce::dontSendNotification);}
+        else if(choice==7)self.apply(self.effects.replaceChain(kit,instrument,drum::defaultChain()));
+        else if(choice==8)self.apply(self.effects.replaceChain(kit,instrument,{}));
+        else if(choice==9 || choice==10){bool save=choice==9;self.chooser=std::make_unique<juce::FileChooser>(save?"Save Drum chain preset":"Load Drum chain preset",juce::File{},"*.drumchain");self.chooser->launchAsync((save?juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::warnAboutOverwriting:juce::FileBrowserComponent::openMode)|juce::FileBrowserComponent::canSelectFiles,[safe,kit,instrument,save](const juce::FileChooser& fc){if(!safe || fc.getResult()==juce::File{})return;if(save){bool ok=drum::saveChain(fc.getResult().withFileExtension("drumchain"),safe->effects.copyChain(kit,instrument));safe->status.setText(ok?"Preset saved.":"Could not save preset.",juce::dontSendNotification);}else if(auto slots=drum::loadChain(fc.getResult()))safe->apply(safe->effects.replaceChain(kit,instrument,*slots));else safe->status.setText("Invalid Drum chain preset.",juce::dontSendNotification);});}
+    });
 }
