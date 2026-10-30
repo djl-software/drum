@@ -56,6 +56,22 @@ public:
     }
     void drawButtonText(juce::Graphics& g,juce::TextButton& button,bool hover,bool down) override
     {
+        if(button.getComponentID()=="play-sample")
+        {
+            const auto centre=button.getLocalBounds().toFloat().getCentre();
+            g.setColour(text.withMultipliedAlpha(button.isEnabled()?1.0f:0.35f));
+            if(button.getButtonText()=="Pause")
+            {
+                g.fillRoundedRectangle(centre.x-6,centre.y-7,4,14,1);
+                g.fillRoundedRectangle(centre.x+2,centre.y-7,4,14,1);
+            }
+            else
+            {
+                juce::Path triangle;triangle.addTriangle(centre.x-5,centre.y-8,centre.x-5,centre.y+8,centre.x+8,centre.y);
+                g.fillPath(triangle);
+            }
+            return;
+        }
         if(button.getComponentID().startsWith("kit-") && button.getComponentID().substring(4).containsOnly("0123456789"))
         {
             g.setFont(juce::FontOptions(13.0f));g.setColour(button.getToggleState()?background:text);
@@ -669,6 +685,7 @@ private:
         if(identity!=auditionSelection){engine.pauseAudition();auditionSelection=identity;}
         playSample.setEnabled(selected && engine.statusFor(selected->id).ready);
         playSample.setButtonText(loopSample.getToggleState() && engine.auditionLoopRunning()?"Pause":"Play");
+        playSample.setTooltip(playSample.getButtonText());
     }
     juce::String auditionSelection;
     juce::Slider auditionTempo;

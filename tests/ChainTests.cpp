@@ -125,6 +125,7 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
             return TRUE;
         },reinterpret_cast<LPARAM>(&surface));
         check(surface && !IsWindowVisible(surface),"Full-window drop surface missing or blocking idle controls");
+        check(SendMessageW(surface,WM_MOUSEACTIVATE,0,MAKELPARAM(HTCLIENT,WM_LBUTTONDOWN))==MA_NOACTIVATE,"Drop surface can activate Live while dragging");
         COLORREF key=0;BYTE alpha=0;DWORD flags=0;
         check(GetLayeredWindowAttributes(surface,&key,&alpha,&flags) && alpha>0 && alpha<5,"Drop surface obscures the plugin cards");
         RECT client{},area{};GetClientRect((HWND)editor.getPeer()->getNativeHandle(),&client);GetClientRect(surface,&area);

@@ -51,6 +51,23 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
 {
     LiveBrowserBridge& bridge;HWND window=nullptr,overlay=nullptr,parent=nullptr;HHOOK hook=nullptr;
     bool overlayArmed=false;
+    WNDPROC originalSurfaceProc=nullptr;
+    static LRESULT CALLBACK surfaceProc(HWND hwnd,UINT message,WPARAM w,LPARAM l)
+    {
+        auto* receiver=reinterpret_cast<Impl*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));
+        // Never let the drag surface activate Live's owner window or its track.
+        if(message==WM_MOUSEACTIVATE)return MA_NOACTIVATE;
+        if(message==WM_NCHITTEST)return HTCLIENT;
+        return receiver && receiver->originalSurfaceProc?CallWindowProcW(receiver->originalSurfaceProc,hwnd,message,w,l):DefWindowProcW(hwnd,message,w,l);
+    }
+    void showSurface()
+    {
+        if(!overlay)return;
+        RECT client{};GetClientRect(parent,&client);POINT origin{};ClientToScreen(parent,&origin);
+        // Place synchronously at mouse-down, not on the next 100 ms UI timer.
+        // Topmost applies only to this temporary, non-activating drag surface.
+        SetWindowPos(overlay,HWND_TOPMOST,origin.x,origin.y,client.right,client.bottom,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    }
     juce::StringArray incomingFiles,pendingFiles;
     juce::CriticalSection lock;POINT point{};uint64_t generation=0,work=0,completed=0,pendingDrop=0;
     juce::String context,pendingContext;juce::var result;std::atomic<bool> enabled {false};std::atomic<ULONG> references {1};
@@ -66,6 +83,8 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
         overlay=CreateWindowExW(WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_LAYERED,L"STATIC",L"Drum plugin drop surface",WS_POPUP|SS_NOTIFY,0,0,1,1,GetAncestor(parent,GA_ROOT),nullptr,GetModuleHandleW(nullptr),nullptr);
         if(overlay)
         {
+            SetWindowLongPtrW(overlay,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(this));
+            originalSurfaceProc=reinterpret_cast<WNDPROC>(SetWindowLongPtrW(overlay,GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(surfaceProc)));
             const auto layered=SetLayeredWindowAttributes(overlay,0,1,LWA_ALPHA);const auto overlayRegistration=RegisterDragDrop(overlay,this);
             traceNativeDrag("surface layered="+juce::String(layered?1:0)+" registration="+juce::String((juce::int64)overlayRegistration));
             if(!layered || FAILED(overlayRegistration))SetWindowTextW(overlay,L"Drum plugin drop surface unavailable");
@@ -94,10 +113,16 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
                 const juce::ScopedLock guard(receiver->lock);receiver->point=pt;++receiver->generation;receiver->pressedAt=juce::Time::getMillisecondCounterHiRes();receiver->pendingDrop=0;
                 RECT bounds{};GetWindowRect(receiver->parent,&bounds);receiver->overlayArmed=!PtInRect(&bounds,pt);
                 if(receiver->overlay && receiver->overlayArmed)
-                    SetWindowPos(receiver->overlay,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_SHOWWINDOW);
+                    receiver->showSurface();
                 receiver->notify();
             }
         }
+        if(code==HC_ACTION && message==WM_LBUTTONUP)
+            for(auto* receiver:receivers)if(receiver->enabled)
+            {
+                const auto* event=reinterpret_cast<MOUSEHOOKSTRUCT*>(data);
+                traceNativeDrag("release generation="+juce::String(receiver->generation)+" x="+juce::String(event->pt.x)+" y="+juce::String(event->pt.y)+" parentVisible="+juce::String(IsWindowVisible(receiver->parent)?1:0)+" surfaceVisible="+juce::String(IsWindowVisible(receiver->overlay)?1:0)+" accepted="+juce::String(receiver->dragAccepted?1:0));
+            }
         return CallNextHookEx(nullptr,code,message,data);
     }
     void run() override
@@ -179,8 +204,12 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
         }
         if(overlay)
         {
-            RECT client{};GetClientRect(parent,&client);POINT origin{};ClientToScreen(parent,&origin);
-            SetWindowPos(overlay,HWND_TOP,origin.x,origin.y,client.right,client.bottom,SWP_NOACTIVATE|(visible && overlayArmed?SWP_SHOWWINDOW:SWP_HIDEWINDOW));
+            if(visible && overlayArmed)showSurface();
+            else
+            {
+                RECT client{};GetClientRect(parent,&client);POINT origin{};ClientToScreen(parent,&origin);
+                SetWindowPos(overlay,HWND_NOTOPMOST,origin.x,origin.y,client.right,client.bottom,SWP_NOACTIVATE|SWP_HIDEWINDOW);
+            }
         }
         if(!delivered.isVoid() && bridge.onDrop)bridge.onDrop(delivered);
         if(!files.isEmpty())for(auto* component=&bridge.owner;component;component=component->getParentComponent())
