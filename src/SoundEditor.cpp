@@ -778,8 +778,9 @@ void SoundEditor::resized()
     const int graphHeight=page==1 || page==2?180:0;
     const int graphWidth=getWidth()-36;
     const int waveTop=150;
-    const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:page==7?280:160;
-    const int height=juce::jlimit(184,juce::jmax(184,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),waveformHeight);
+    const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:page==7?400:160;
+    const int minimumWaveHeight=page==7?100:184;
+    const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),waveformHeight);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
     const int graphTop=waveTop+12+height;

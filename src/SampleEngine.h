@@ -65,8 +65,10 @@ public:
     void setMacros(const std::array<float,numMacros>& values) noexcept { macroValues=values; }
     void setOutputChannels(const std::array<int,22>& channels, int mainChannels) noexcept { busChannels=channels; mainWidth=mainChannels; }
     void audition(int note) { if(note>=0 && note<128)previewNote.store(note); }
-    void setAuditionLoop(int note) { repeatNote.store(note>=0 && note<128?note:-1); }
-    void setAuditionBpm(double bpm) { auditionBpm.store(juce::jlimit(20.0,300.0,bpm)); }
+    void setAuditionLoop(int note) { repeatEpoch.store(library.activeKitEpoch());repeatNote.store(note>=0 && note<128?note:-1); }
+    void setAuditionBpm(double bpm) { auditionBpm.store(juce::jlimit(20.0,999.0,bpm));auditionFollowsHost.store(false); }
+    void followHostAuditionTempo() { auditionFollowsHost.store(true); }
+    double auditionTempo() const { return auditionFollowsHost.load()?displayedTempo.load():auditionBpm.load(); }
     bool auditionLoopRunning() const { return repeatNote.load()>=0; }
     void pauseAudition() { repeatNote.store(-1); previewNote.store(-1); pausePreview.store(true); }
     // Message-thread pad/piano presses, consumed without locks by the audio thread.
@@ -174,7 +176,9 @@ private:
     std::array<KeyboardCommand,128> keyboardCommands;
     std::array<std::atomic<uint64_t>,128> activity {};
     std::atomic<int> repeatNote {-1};
+    std::atomic<uint64_t> repeatEpoch {0};
     std::atomic<double> auditionBpm {120.0};
+    std::atomic<bool> auditionFollowsHost {true};
     std::atomic<bool> pausePreview {false};
     int repeatingNote=-1;
     double auditionBeatRemaining=0;

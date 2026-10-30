@@ -125,6 +125,14 @@ void runPlaybackTests()
     near(loopAudio.getSample(0,23999),0,"Audition beat early");
     near(loopAudio.getSample(0,24000),0.2f,"Audition BPM timing wrong");
     near(loopAudio.getSample(0,48000),0.2f,"Audition second interval drifted");
+    audition.processor.releaseResources();audition.processor.prepareToPlay(48000,512);
+    check(engine.auditionLoopRunning(),"Host reprepare cancelled audition loop");
+    audition.processor.processBlock(loopAudio,noMidi);
+    near(loopAudio.getSample(0,24000),0.2f,"Audition did not resume after host reprepare");
+    engine.followHostAuditionTempo();engine.setTempo(96.5);
+    check(std::abs(engine.auditionTempo()-96.5)<0.001,"Audition did not follow host tempo");
+    engine.setAuditionBpm(120);engine.setTempo(140);
+    check(engine.auditionTempo()==120,"Manual audition tempo override was lost");
     engine.pauseAudition();audition.processor.processBlock(loopAudio,noMidi);
     near(loopAudio.getSample(0,24000),0,"Paused audition retriggered");
     auto serial=engine.noteActivity(36)>>32;

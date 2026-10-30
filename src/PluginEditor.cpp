@@ -268,10 +268,10 @@ public:
         loopSample.setColour(juce::TextButton::buttonOnColourId,accent.darker(0.4f));
         loopSample.onClick=[this]{if(!loopSample.getToggleState())processor.getSampleEngine().pauseAudition();updateTransport();};
         loopSample.setTooltip("Repeat the selected drum once per beat. Separate from sample-region looping.");
-        setupSlider(auditionTempo,"audition-bpm",20,300,1," BPM");
+        setupSlider(auditionTempo,"audition-bpm",20,999,0.01," BPM");
         auditionTempo.setSliderStyle(juce::Slider::IncDecButtons);auditionTempo.setTextBoxStyle(juce::Slider::TextBoxLeft,false,78,28);
-        auditionTempo.setValue(120,juce::dontSendNotification);auditionTempo.setDoubleClickReturnValue(true,120);
-        processor.getSampleEngine().setAuditionBpm(120);
+        processor.getSampleEngine().followHostAuditionTempo();
+        auditionTempo.setValue(processor.getSampleEngine().auditionTempo(),juce::dontSendNotification);
         auditionTempo.onValueChange=[this]{processor.getSampleEngine().setAuditionBpm(auditionTempo.getValue());};
         setupSlider(volume,"instrument-volume",-60,12,0.1," dB");
         volume.textFromValueFunction=[](double v) { return v<=-60 ? juce::String("-inf") : juce::String(v,1); };
@@ -649,6 +649,7 @@ private:
     void updateTransport()
     {
         auto* selected=instrument();auto& engine=processor.getSampleEngine();
+        if(!auditionTempo.isMouseButtonDown())auditionTempo.setValue(engine.auditionTempo(),juce::dontSendNotification);
         auto identity=view.activeKit+"/"+(selected?selected->id:juce::String());
         if(identity!=auditionSelection){engine.pauseAudition();auditionSelection=identity;}
         playSample.setEnabled(selected && engine.statusFor(selected->id).ready);

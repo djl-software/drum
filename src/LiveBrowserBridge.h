@@ -1,21 +1,15 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
-
-// A Windows companion reads Live's drag origin outside the audio/host process.
+// Native, in-process Live browser drop receiver; no helper executable.
 class LiveBrowserBridge
 {
 public:
     explicit LiveBrowserBridge(juce::Component&);
     ~LiveBrowserBridge();
-    void poll(const juce::String& context, juce::Rectangle<int> dropArea);
+    void poll(const juce::String&,juce::Rectangle<int>);
     std::function<void(const juce::var&)> onDrop;
 private:
-    void stop();
+    struct Impl;
     juce::Component& owner;
-    juce::ChildProcess process;
-    juce::File folder;
-    juce::String lastRequest;
-    bool attempted=false;
-    void* parentHandle=nullptr;
-    double retryAfter=0;
+    std::unique_ptr<Impl> impl;
 };

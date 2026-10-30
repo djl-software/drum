@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.12.4 adds host-default audition tempo, preserves looping through host audio reinitialisation, and replaces the external drag helper with a fixed native drop strip inside Drum. Effect cards expose real stereo sidechain source/Gain/Mix/Mute controls where supported. See docs/ableton-testing.md for routing details and Live acceptance checks. The bundled 0.12.3 PDF predates these changes.
+
 Drum is a VST3 drum instrument for DJLeslieson, intended to replace drum-rack workflows with a clearer kit/group/instrument interface. Uses the same CMake/C++20/JUCE 8.0.12 foundation as Meter.
 
 The design supports up to 8 named kits, each with 1–16 groups and up to 88 instruments, with one active kit at a time. See the [product specification](docs/product-specification.md).

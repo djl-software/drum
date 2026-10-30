@@ -23,6 +23,9 @@ struct EffectSlot
 {
     juce::String id, description, state;
     bool bypassed = false;
+    int sidechainNote = -1;
+    double sidechainGain = 0, sidechainMix = 1;
+    bool sidechainMute = false;
     bool operator==(const EffectSlot&) const = default;
 };
 struct Instrument { juce::String id, name; int note = firstNote; juce::String samplePath; InstrumentControls controls; std::vector<EffectSlot> effects; };

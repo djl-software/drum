@@ -12,9 +12,8 @@ public:
     {
         juce::PluginDescription description;if(auto xml=juce::parseXML(slot.description))description.loadFromXml(*xml);
         title=description.name;setComponentID("chain-slot-"+juce::String(position));
-        for(auto* button:{&edit,&bypass,&earlier,&later,&remove,&retry})addAndMakeVisible(*button);
-        edit.setComponentID("chain-edit-"+juce::String(position));bypass.setComponentID("chain-bypass-"+juce::String(position));
-        remove.setComponentID("chain-remove-"+juce::String(position));
+        for(auto* button:{&edit,&bypass,&earlier,&later,&remove,&retry,&mute})addAndMakeVisible(*button);
+        edit.setComponentID("chain-edit-"+juce::String(position));bypass.setComponentID("chain-bypass-"+juce::String(position));remove.setComponentID("chain-remove-"+juce::String(position));
         edit.onClick=[this]{owner.effects.openEditor(slot.id);};
         bypass.setToggleState(slot.bypassed,juce::dontSendNotification);
         bypass.onClick=[this]{owner.apply(owner.effects.bypass(owner.kitId,owner.instrumentId,slot.id,!slot.bypassed));};
@@ -22,44 +21,30 @@ public:
         later.onClick=[this]{owner.apply(owner.effects.move(owner.kitId,owner.instrumentId,slot.id,position+1));};
         remove.onClick=[this]{owner.apply(owner.effects.remove(owner.kitId,owner.instrumentId,slot.id));};
         retry.onClick=[this]{owner.effects.retry(slot.id);update();};
-        earlier.setTooltip("Move earlier in the audio chain");later.setTooltip("Move later in the audio chain");
-        for(int row=0;row<2;++row)
-        {
-            addAndMakeVisible(parameters[row]);addAndMakeVisible(values[row]);
-            values[row].setComponentID("chain-value-"+juce::String(position)+"-"+juce::String(row));
-            values[row].setSliderStyle(juce::Slider::LinearHorizontal);values[row].setTextBoxStyle(juce::Slider::TextBoxRight,false,70,22);
-            values[row].setRange(0,1);parameters[row].onChange=[this]{update();};
-            values[row].textFromValueFunction=[this,row](double v){auto* p=parameter(row);return p?p->getText((float)v,32)+" "+p->getLabel():juce::String{};};
-            values[row].valueFromTextFunction=[this,row](const juce::String& text){auto* p=parameter(row);return p?(double)p->getValueForText(text):0.0;};
-            values[row].onValueChange=[this,row]{if(auto* p=parameter(row)){p->beginChangeGesture();p->setValueNotifyingHost((float)values[row].getValue());p->endChangeGesture();}};
-        }
-        update();
+        addAndMakeVisible(source);source.addItem("No Input",1);
+        auto state=owner.library.snapshot();const auto* kit=drum::activeKit(state);
+        for(const auto& group:kit->groups)for(const auto& i:group.instruments)source.addItem(i.name+" ("+drum::noteName(i.note)+")",i.note+2);
+        source.setSelectedId(slot.sidechainNote<0?1:slot.sidechainNote+2,juce::dontSendNotification);
+        source.setTooltip("Sidechain source: another instrument, before its effects. No Input supplies silence to the external sidechain.");
+        for(auto* slider:{&gain,&mix}){addAndMakeVisible(*slider);slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,78,20);}
+        gain.setRange(-60,24,0.1);gain.setTextValueSuffix(" dB");gain.setValue(slot.sidechainGain);gain.setDoubleClickReturnValue(true,0);
+        mix.setRange(0,100,0.1);mix.setTextValueSuffix(" %");mix.setValue(slot.sidechainMix*100);mix.setDoubleClickReturnValue(true,100);
+        gain.setComponentID("chain-sidechain-gain-"+juce::String(position));mix.setComponentID("chain-sidechain-mix-"+juce::String(position));
+        mute.setToggleState(slot.sidechainMute,juce::dontSendNotification);mute.setClickingTogglesState(true);
+        mute.setTooltip("Mute the selected source in the kit output while it still feeds this sidechain. Does not mute this effect's own instrument.");
+        auto save=[this]{slot.sidechainNote=source.getSelectedId()==1?-1:source.getSelectedId()-2;slot.sidechainGain=gain.getValue();slot.sidechainMix=mix.getValue()/100;slot.sidechainMute=mute.getToggleState();owner.apply(owner.effects.sidechain(owner.kitId,owner.instrumentId,slot.id,slot.sidechainNote,slot.sidechainGain,slot.sidechainMix,slot.sidechainMute));};
+        source.onChange=save;gain.onValueChange=save;mix.onValueChange=save;mute.onClick=save;update();
     }
     void update()
     {
+        if(position<(int)owner.slots.size())slot=owner.slots[(size_t)position];
+        source.setSelectedId(slot.sidechainNote<0?1:slot.sidechainNote+2,juce::dontSendNotification);
+        if(!gain.isMouseButtonDown())gain.setValue(slot.sidechainGain,juce::dontSendNotification);
+        if(!mix.isMouseButtonDown())mix.setValue(slot.sidechainMix*100,juce::dontSendNotification);
+        mute.setToggleState(slot.sidechainMute,juce::dontSendNotification);
         info=owner.effects.status(slot.id);const bool ready=owner.effects.instance(slot.id)!=nullptr;
-        auto* plugin=owner.effects.instance(slot.id);const int count=plugin?plugin->getParameters().size():0;
-        if(count!=parameterCount)
-        {
-            parameterCount=count;
-            for(int row=0;row<2;++row)
-            {
-                parameters[row].clear(juce::dontSendNotification);
-                for(int n=0;n<count;++n)parameters[row].addItem(plugin->getParameters()[n]->getName(64),n+1);
-                parameters[row].setSelectedId(count>row?row+1:count,juce::dontSendNotification);
-            }
-        }
-        for(int row=0;row<2;++row)
-        {
-            auto* p=parameter(row);parameters[row].setEnabled(p!=nullptr);values[row].setEnabled(p!=nullptr);
-            if(p && !values[row].isMouseButtonDown())
-            {
-                const int steps=p->getNumSteps();values[row].setRange(0,1,steps>1 && steps<10000?1.0/(steps-1):0);
-                values[row].setDoubleClickReturnValue(true,p->getDefaultValue());
-                values[row].setValue(p->getValue(),juce::dontSendNotification);values[row].updateText();
-            }
-        }
-        edit.setTooltip(info);bypass.setTooltip(info);
+        const bool sidechain=owner.effects.supportsSidechain(slot.id);
+        source.setVisible(sidechain);gain.setVisible(sidechain);mix.setVisible(sidechain);mute.setVisible(sidechain);
         edit.setEnabled(ready);retry.setVisible(!ready);earlier.setEnabled(position>0);later.setEnabled(position+1<(int)owner.slots.size());repaint();
     }
     void paint(juce::Graphics& g) override
@@ -67,26 +52,21 @@ public:
         g.setColour(panel);g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(1),7);
         g.setColour(slot.bypassed?muted:mint);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1),7,1);
         g.setFont(juce::FontOptions(14,juce::Font::bold));g.drawText(juce::String(position+1)+". "+title,10,8,getWidth()-20,25,juce::Justification::centredLeft,true);
+        g.setFont(juce::FontOptions(11));g.setColour(muted);
+        if(source.isVisible()){g.drawText("Sidechain",10,61,170,16,juce::Justification::left);g.drawText("Gain",10,105,78,16,juce::Justification::centred);g.drawText("Mix",100,105,78,16,juce::Justification::centred);}
+        else g.drawFittedText(info+"\nUse Open for plugin controls",10,95,170,65,juce::Justification::centred,3);
     }
     void resized() override
     {
-        edit.setBounds(10,34,72,23);bypass.setBounds(88,34,92,23);
-        for(int row=0;row<2;++row){parameters[row].setBounds(10,63+row*49,170,23);values[row].setBounds(10,87+row*49,170,23);}
-        earlier.setBounds(10,166,32,24);later.setBounds(47,166,32,24);remove.setBounds(88,166,92,24);retry.setBounds(10,63,170,25);
+        edit.setBounds(10,34,72,23);bypass.setBounds(88,34,92,23);source.setBounds(10,79,170,23);
+        gain.setBounds(10,121,78,67);mix.setBounds(100,121,78,67);mute.setBounds(10,192,170,22);
+        earlier.setBounds(10,220,32,24);later.setBounds(47,220,32,24);remove.setBounds(88,220,92,24);retry.setBounds(10,63,170,25);
     }
-    void mouseDrag(const juce::MouseEvent& event) override
-    {
-        if(event.getDistanceFromDragStart()>5 && event.getMouseDownY()<33 && !owner.isDragAndDropActive())owner.startDragging("slot:"+slot.id,this);
-    }
+    void mouseDrag(const juce::MouseEvent& e) override {if(e.getDistanceFromDragStart()>5 && e.getMouseDownY()<33 && !owner.isDragAndDropActive())owner.startDragging("slot:"+slot.id,this);}
 private:
-    juce::AudioProcessorParameter* parameter(int row) const
-    {
-        auto* plugin=owner.effects.instance(slot.id);const int index=parameters[row].getSelectedId()-1;
-        return plugin && index>=0 && index<plugin->getParameters().size()?plugin->getParameters()[index]:nullptr;
-    }
-    juce::ComboBox parameters[2];juce::Slider values[2];int parameterCount=-1;
     ChainEditor& owner;drum::EffectSlot slot;int position;juce::String title,info;
-    juce::TextButton edit{"Open"},bypass{"Bypass"},earlier{"<"},later{">"},remove{"Remove"},retry{"Retry loading"};
+    juce::ComboBox source;juce::Slider gain,mix;
+    juce::TextButton edit{"Open"},bypass{"Bypass"},earlier{"<"},later{">"},remove{"Remove"},retry{"Retry loading"},mute{"Mute source"};
 };
 ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library(model),effects(rack)
 {
@@ -123,12 +103,14 @@ void ChainEditor::refresh()
         for(size_t i=0;i<slots.size();++i){auto card=std::make_unique<Card>(*this,slots[i],(int)i);flow.addAndMakeVisible(*card);cards.push_back(std::move(card));}
         resized();repaint();
     }
+    else slots=std::move(next);
     for(auto& card:cards)card->update();load.setEnabled(instrument!=nullptr && slots.size()<drum::maxEffects);
 }
 void ChainEditor::paint(juce::Graphics& g)
 {
     g.setColour(ink);g.setFont(juce::FontOptions(13));
     g.drawText("Instrument audio  >  effects in order  >  output / sends",0,0,getWidth()-140,22,juce::Justification::centredLeft);
+    g.setColour(muted);g.drawText("Drop Live VST3 effects here",0,30,getWidth(),26,juce::Justification::centred);
     if(cards.empty())
     {
         g.setColour(bg);g.fillRoundedRectangle(viewport.getBounds().toFloat().reduced(3),6);g.setColour(muted);
@@ -138,8 +120,8 @@ void ChainEditor::paint(juce::Graphics& g)
 void ChainEditor::resized()
 {
     load.setBounds(getWidth()-126,0,126,25);
-    viewport.setBounds(0,33,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-66));
-    const int height=juce::jmax(200,viewport.getHeight()-16);flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*206+100),height);
+    viewport.setBounds(0,62,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-95));
+    const int height=juce::jmax(254,viewport.getHeight()-16);flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*206+100),height);
     for(size_t i=0;i<cards.size();++i)cards[i]->setBounds((int)i*206,0,192,height);
     status.setBounds(0,getHeight()-29,getWidth(),27);
 }
@@ -192,7 +174,7 @@ void ChainEditor::apply(const drum::Result& result)
 void ChainEditor::timerCallback()
 {
     if(isShowing())refresh();
-    browserBridge->poll(kitId+"/"+instrumentId,viewport.getBounds());
+    browserBridge->poll(kitId+"/"+instrumentId,{0,30,getWidth(),26});
 }
 void ChainEditor::browserDropped(const juce::var& value)
 {

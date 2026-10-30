@@ -67,6 +67,9 @@ bool validate(const State& state)
                 if(instrument.effects.size()>maxEffects)return false;
                 for(const auto& effect:instrument.effects)
                 {
+                    if((effect.sidechainNote!=-1 && (effect.sidechainNote<firstNote || effect.sidechainNote>=firstNote+maxInstruments))
+                        || !std::isfinite(effect.sidechainGain) || effect.sidechainGain < -60 || effect.sidechainGain>24
+                        || !std::isfinite(effect.sidechainMix) || effect.sidechainMix<0 || effect.sidechainMix>1)return false;
                     if(!validId(effect.id) || effect.description.length()>65536 || effect.description.isEmpty()
                         || effect.state.length()>24*1024*1024 || !juce::parseXML(effect.description))return false;
                     effectStorage+=effect.description.getNumBytesAsUTF8()+effect.state.getNumBytesAsUTF8();
@@ -396,6 +399,8 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
                 {
                     auto* node=instrument->createNewChildElement("Effect");node->setAttribute("id",effect.id);
                     node->setAttribute("bypassed",effect.bypassed?1:0);
+                    node->setAttribute("sidechainNote",effect.sidechainNote);node->setAttribute("sidechainGain",effect.sidechainGain);
+                    node->setAttribute("sidechainMix",effect.sidechainMix);node->setAttribute("sidechainMute",effect.sidechainMute);
                     node->addChildElement(juce::parseXML(effect.description).release());
                     node->createNewChildElement("State")->addTextElement(effect.state);
                 }
@@ -472,6 +477,9 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                                 auto encoded=saved->getAllSubText();juce::MemoryBlock decoded;
                                 if(encoded.length()>24*1024*1024 || (encoded.isNotEmpty() && !decoded.fromBase64Encoding(encoded)))return false;
                                 group.instruments.back().effects.push_back({e->getStringAttribute("id"),description->toString(),encoded,bypassed!=0});
+                                auto& effect=group.instruments.back().effects.back();effect.sidechainNote=e->getIntAttribute("sidechainNote",-1);
+                                effect.sidechainGain=e->getDoubleAttribute("sidechainGain",0);effect.sidechainMix=e->getDoubleAttribute("sidechainMix",1);
+                                effect.sidechainMute=e->getBoolAttribute("sidechainMute",false);
                                 continue;
                             }
                             const int index=integerAttribute(*e,"index");

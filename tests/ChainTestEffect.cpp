@@ -5,12 +5,13 @@
 class ChainTestEffect final : public juce::AudioProcessor
 {
 public:
-    ChainTestEffect():AudioProcessor(BusesProperties().withInput("In",juce::AudioChannelSet::stereo(),true).withOutput("Out",juce::AudioChannelSet::stereo(),true))
+    ChainTestEffect():AudioProcessor(BusesProperties().withInput("In",juce::AudioChannelSet::stereo(),true).withInput("Sidechain",juce::AudioChannelSet::stereo(),false).withOutput("Out",juce::AudioChannelSet::stereo(),true))
     {
         addParameter(gain=new juce::AudioParameterFloat("gain","Gain",0.0f,2.0f,0.5f));
         addParameter(bias=new juce::AudioParameterFloat("bias","Bias",-0.5f,0.5f,0.0f));
         addParameter(delay=new juce::AudioParameterInt("delay","Delay",0,64,0));
         addParameter(feedback=new juce::AudioParameterFloat("feedback","Feedback",0.0f,0.9f,0.0f));
+        addParameter(listen=new juce::AudioParameterBool("listen","Listen sidechain",false));
     }
     void prepareToPlay(double,int) override {reset();setLatencySamples(delay->get());}
     void releaseResources() override {}
@@ -23,7 +24,7 @@ public:
         {
             for(int channel=0;channel<2;++channel)
             {
-                const float input=audio.getSample(channel,frame)*gain->get()+bias->get();
+                const float input=listen->get() && audio.getNumChannels()>=4?audio.getSample(channel+2,frame):audio.getSample(channel,frame)*gain->get()+bias->get();
                 const float previous=d?history[(size_t)channel][(size_t)((cursor+128-d)%128)]:0;
                 history[(size_t)channel][(size_t)cursor]=input+previous*feedback->get();audio.setSample(channel,frame,d?previous:input);
             }
@@ -40,6 +41,7 @@ public:
     void getStateInformation(juce::MemoryBlock& saved) override {juce::XmlElement xml("TestEffect");for(int i=0;i<getParameters().size();++i)xml.setAttribute("p"+juce::String(i),getParameters()[i]->getValue());copyXmlToBinary(xml,saved);}
     void setStateInformation(const void* data,int size) override {if(auto xml=getXmlFromBinary(data,size))for(int i=0;i<getParameters().size();++i)getParameters()[i]->setValueNotifyingHost((float)xml->getDoubleAttribute("p"+juce::String(i),getParameters()[i]->getValue()));}
 private:
+    juce::AudioParameterBool* listen=nullptr;
     juce::AudioParameterFloat *gain=nullptr,*bias=nullptr,*feedback=nullptr;juce::AudioParameterInt* delay=nullptr;
     std::array<std::array<float,128>,2> history{};int cursor=0;
 };

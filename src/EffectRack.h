@@ -29,6 +29,8 @@ public:
     Result bypass(const juce::String& kit, const juce::String& instrument, const juce::String& slot, bool);
     void retry(const juce::String& slot);
     void openEditor(const juce::String& slot);
+    bool supportsSidechain(const juce::String& slot) const;
+    Result sidechain(const juce::String& kit,const juce::String& instrument,const juce::String& slot,int note,double gain,double mix,bool mute);
     juce::String status(const juce::String& slot) const;
     juce::AudioPluginInstance* instance(const juce::String& slot) const; // Message thread only.
 private:
@@ -53,6 +55,7 @@ private:
     std::atomic<uint64_t> graphEpoch {UINT64_MAX}, resetGeneration {0};
     std::atomic<double> rate {44100}, tail {0};
     std::atomic<int> blockSize {512};
+    std::array<std::atomic<bool>,maxInstruments> mutedSidechainSources {};
     uint64_t seenRevision = UINT64_MAX;
     int captureTicks = 0;
     juce::MidiBuffer noMidi;

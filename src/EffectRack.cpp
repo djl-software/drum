@@ -6,13 +6,14 @@ namespace drum
 class EffectRack::HostedProcessor final : public juce::AudioProcessor
 {
 public:
-    HostedProcessor(std::unique_ptr<juce::AudioPluginInstance> p, EffectRack& o, bool mono)
-        : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true)
-                         .withOutput("Output",juce::AudioChannelSet::stereo(),true)), plugin(std::move(p)), owner(o), monoOnly(mono) {}
+    HostedProcessor(std::unique_ptr<juce::AudioPluginInstance> p, EffectRack& o, bool mono,bool sidechain)
+        : AudioProcessor(BusesProperties().withInput("Input",sidechain?juce::AudioChannelSet::discreteChannels(4):juce::AudioChannelSet::stereo(),true)
+                         .withOutput("Output",juce::AudioChannelSet::stereo(),true)), plugin(std::move(p)), hasSidechain(sidechain), owner(o), monoOnly(mono) {}
     void prepareToPlay(double hz,int frames) override
     {
         plugin->setRateAndBufferSizeDetails(hz,frames);plugin->prepareToPlay(hz,frames);
         setLatencySamples(plugin->getLatencySamples());midi.ensureSize(8192);generation=owner.resetGeneration.load();
+        if(hasSidechain)sidechainAudio.setSize(4,frames);
     }
     void releaseResources() override { plugin->releaseResources(); }
     void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer&) override
@@ -21,7 +22,16 @@ public:
         const auto next=owner.resetGeneration.load();
         if(next!=generation){plugin->reset();generation=next;}
         plugin->setPlayHead(getPlayHead());plugin->setNonRealtime(owner.offline.load());midi.clear();
-        if(monoOnly)
+        if(hasSidechain)
+        {
+            sidechainAudio.setSize(4,audio.getNumSamples(),false,false,true);
+            for(int c=0;c<4;++c)sidechainAudio.copyFrom(c,0,audio,c,0,audio.getNumSamples());
+            const auto mix=sidechainMix.load(),gain=sidechainGain.load();
+            for(int c=0;c<2;++c){sidechainAudio.applyGain(c+2,0,audio.getNumSamples(),gain*mix);sidechainAudio.addFrom(c+2,0,audio,c,0,audio.getNumSamples(),1-mix);}
+            plugin->processBlock(sidechainAudio,midi);
+            for(int c=0;c<2;++c)audio.copyFrom(c,0,sidechainAudio,c,0,audio.getNumSamples());
+        }
+        else if(monoOnly)
         {
             audio.applyGain(0,0,audio.getNumSamples(),0.5f);audio.addFrom(0,0,audio,1,0,audio.getNumSamples(),0.5f);
             float* data[]={audio.getWritePointer(0)};juce::AudioBuffer<float> mono(data,1,audio.getNumSamples());
@@ -29,7 +39,7 @@ public:
         }
         else plugin->processBlock(audio,midi);
         // A broken processor must not spread NaNs through the whole kit.
-        for(int c=0;c<audio.getNumChannels();++c)for(int n=0;n<audio.getNumSamples();++n)
+        for(int c=0;c<2;++c)for(int n=0;n<audio.getNumSamples();++n)
             if(!std::isfinite(audio.getSample(c,n)))audio.setSample(c,n,0);
     }
     const juce::String getName() const override { return plugin->getName(); }
@@ -42,8 +52,11 @@ public:
     void getStateInformation(juce::MemoryBlock& b) override {plugin->getStateInformation(b);}
     void setStateInformation(const void* b,int size) override {plugin->setStateInformation(b,size);}
     std::unique_ptr<juce::AudioPluginInstance> plugin;
+    bool hasSidechain=false;
+    std::atomic<float> sidechainGain {1},sidechainMix {1};
 private:
     EffectRack& owner; bool monoOnly; uint64_t generation=0;juce::MidiBuffer midi;
+    juce::AudioBuffer<float> sidechainAudio;
 };
 class EffectRack::PluginWindow final : public juce::DocumentWindow
 {
@@ -179,25 +192,28 @@ void EffectRack::sync()
                     auto busLayout=plugin->getBusesLayout();
                     for(auto& bus:busLayout.inputBuses)bus=juce::AudioChannelSet::disabled();
                     for(auto& bus:busLayout.outputBuses)bus=juce::AudioChannelSet::disabled();
-                    bool configured=false,mono=false;
+                    bool configured=false,mono=false,sidechain=false;
                     if(!busLayout.inputBuses.isEmpty() && !busLayout.outputBuses.isEmpty())
                     {
                         busLayout.inputBuses.set(0,juce::AudioChannelSet::stereo());busLayout.outputBuses.set(0,juce::AudioChannelSet::stereo());configured=plugin->setBusesLayout(busLayout);
                         if(!configured){busLayout.inputBuses.set(0,juce::AudioChannelSet::mono());busLayout.outputBuses.set(0,juce::AudioChannelSet::mono());configured=plugin->setBusesLayout(busLayout);mono=configured;}
+                        if(configured && !mono && busLayout.inputBuses.size()>1)
+                        {auto withSidechain=busLayout;withSidechain.inputBuses.set(1,juce::AudioChannelSet::stereo());sidechain=plugin->setBusesLayout(withSidechain);}
                     }
                     if(configured)
                     {
-                        plugin->addListener(this);runtime->node=graph.addNode(std::make_unique<HostedProcessor>(std::move(plugin),*this,mono),{},Graph::UpdateKind::none);runtime->error.clear();
+                        plugin->addListener(this);runtime->node=graph.addNode(std::make_unique<HostedProcessor>(std::move(plugin),*this,mono,sidechain),{},Graph::UpdateKind::none);runtime->error.clear();
                     }
                     else runtime->error="This effect needs an unsupported audio layout or sidechain.";
                 }
             }
         }
         runtime->saved.bypassed=slot.bypassed;
-        if(auto* p=runtime->processor()){p->setLatencySamples(p->plugin->getLatencySamples());p->suspendProcessing(slot.bypassed);}
+        if(auto* p=runtime->processor()){p->setLatencySamples(p->plugin->getLatencySamples());p->suspendProcessing(slot.bypassed);p->sidechainGain.store(juce::Decibels::decibelsToGain((float)slot.sidechainGain));p->sidechainMix.store((float)slot.sidechainMix);}
     }
     for(const auto& connection:graph.getConnections())graph.removeConnection(connection,Graph::UpdateKind::none);
     bool any=false;double longestTail=0;
+    for(auto& muted:mutedSidechainSources)muted.store(false);
     for(int note=firstNote;note<firstNote+maxInstruments;++note)
     {
         Graph::NodeID previous=input->nodeID;int previousChannel=(note-firstNote)*2;double chainTail=0;
@@ -205,6 +221,11 @@ void EffectRack::sync()
         {
             auto& r=*nodes.at(slot.id);if(slot.bypassed || !r.node)continue;any=true;
             for(int c=0;c<2;++c)graph.addConnection({{previous,previousChannel+c},{r.node->nodeID,c}},Graph::UpdateKind::none);
+            if(r.processor()->hasSidechain && slot.sidechainNote>=firstNote)
+            {
+                for(int c=0;c<2;++c)graph.addConnection({{input->nodeID,(slot.sidechainNote-firstNote)*2+c},{r.node->nodeID,2+c}},Graph::UpdateKind::none);
+                if(slot.sidechainMute && slot.sidechainNote!=note)mutedSidechainSources[(size_t)(slot.sidechainNote-firstNote)].store(true);
+            }
             previous=r.node->nodeID;previousChannel=0;
             const double seconds=r.processor()->plugin->getTailLengthSeconds();chainTail+=std::isfinite(seconds)?juce::jlimit(0.0,3600.0,seconds):3600;
         }
@@ -218,6 +239,7 @@ void EffectRack::process(juce::AudioBuffer<float>& audio,uint64_t epoch,juce::Au
     if(epoch!=graphEpoch.load()){audio.clear();return;}
     if(!hasEffects.load())return;
     offline.store(nonRealtime);graph.setPlayHead(playHead);noMidi.clear();graph.processBlock(audio,noMidi);
+    for(int n=0;n<maxInstruments;++n)if(mutedSidechainSources[(size_t)n].load()){audio.clear(n*2,0,audio.getNumSamples());audio.clear(n*2+1,0,audio.getNumSamples());}
 }
 juce::OwnedArray<juce::PluginDescription> EffectRack::discover(const juce::File& file)
 {
@@ -276,5 +298,13 @@ void EffectRack::openEditor(const juce::String& slot)
     const juce::ScopedLock guard(managementLock);auto it=nodes.find(slot);if(it==nodes.end() || !it->second->processor())return;
     auto& r=*it->second;if(!r.window)r.window=std::make_unique<PluginWindow>(r.node,*r.processor()->plugin);
     r.window->setVisible(true);r.window->toFront(true);
+}
+bool EffectRack::supportsSidechain(const juce::String& slot) const
+{
+    const juce::ScopedLock guard(managementLock);auto it=nodes.find(slot);return it!=nodes.end() && it->second->processor() && it->second->processor()->hasSidechain;
+}
+Result EffectRack::sidechain(const juce::String& kit,const juce::String& instrument,const juce::String& slot,int note,double gain,double mix,bool mute)
+{
+    return edit(kit,instrument,[&](auto& slots){for(auto& s:slots)if(s.id==slot){s.sidechainNote=note;s.sidechainGain=gain;s.sidechainMix=mix;s.sidechainMute=mute;return Result::success(slot);}return Result::fail("Effect no longer exists.");});
 }
 }

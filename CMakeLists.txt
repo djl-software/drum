@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DJLDrum VERSION 0.12.3 LANGUAGES C CXX)
+project(DJLDrum VERSION 0.12.4 LANGUAGES C CXX)
 if(APPLE)
   enable_language(OBJC OBJCXX)
 endif()
@@ -76,28 +76,4 @@ if(WIN32)
     add_custom_command(OUTPUT "${drum_info_dir}/${drum_target}_resources.rc" APPEND
       DEPENDS "${drum_info_dir}/Info.txt")
   endforeach()
-endif()
-
-if(WIN32)
-  set(drum_bridge "${CMAKE_CURRENT_BINARY_DIR}/DrumLiveBrowserBridge.exe")
-  add_custom_command(OUTPUT "${drum_bridge}"
-    COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/build-live-browser-bridge.ps1" -Output "${drum_bridge}"
-    DEPENDS tools/LiveBrowserBridge.cs scripts/build-live-browser-bridge.ps1 VERBATIM)
-  add_custom_target(drum_live_browser_bridge DEPENDS "${drum_bridge}")
-  if(BUILD_TESTING)
-    set(drum_bridge_test "${CMAKE_CURRENT_BINARY_DIR}/DrumLiveBrowserBridgeTests.exe")
-    add_custom_command(OUTPUT "${drum_bridge_test}"
-      COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/build-live-browser-bridge.ps1" -Output "${drum_bridge_test}" -Test
-      DEPENDS tools/LiveBrowserBridge.cs tests/LiveBrowserBridgeTests.cs scripts/build-live-browser-bridge.ps1 VERBATIM)
-    add_custom_target(drum_live_browser_bridge_tests DEPENDS "${drum_bridge_test}")
-    add_dependencies(drum_tests drum_live_browser_bridge_tests)
-    add_test(NAME live_browser_resolver COMMAND "${drum_bridge_test}")
-  endif()
-  add_dependencies(DJLDrum_VST3 drum_live_browser_bridge)
-  add_custom_target(drum_live_browser_bundle ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${drum_bridge}" "$<TARGET_FILE_DIR:DJLDrum_VST3>/DrumLiveBrowserBridge.exe"
-    DEPENDS DJLDrum_VST3 drum_live_browser_bridge)
-  if(BUILD_TESTING)
-    add_dependencies(drum_tests drum_live_browser_bundle)
-  endif()
 endif()
