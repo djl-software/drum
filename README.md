@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.0 adds explicit New library actions and replaces the step grid with a **MIDI** piano roll: note placement/lengths, selection, undo/redo, expression lanes, loops and editing tools. See [MIDI editor controls](docs/midi-editor.md).
+
 Version 0.15.0 follows the Library/Kit specification: reusable libraries, one independently saved kit per instance, grouped additions with contiguous keys, portable samples, and a kit-linked pattern sequencer with MIDI drag/export. See [Libraries and Kits](docs/library-kit-workflow.md).
 
 Version 0.14.0 separates the shared kit library from each MIDI track. Put one Drum instance on each Ableton MIDI track, open **Kit library**, select a sound and choose **Add to track**. Each copy includes its settings and effect chain and can be edited independently. See [MIDI tracks and the shared library](docs/library-kit-workflow.md) for setup, saving and migration.

@@ -46,7 +46,8 @@ void runPadTests()
     }
     editor.setSize(1280,900);const int side=(grid.getWidth()-36)/4;juce::Point<float> point{float(side/2),float(side/2)};
     // Select before taking a baseline: activity must visibly differ from selection alone.
-    grid.mouseDown(mouse(grid,point));grid.mouseUp(mouse(grid,point,false));engine.stop();processor.processBlock(output,midi);for(int n=0;n<7;++n)tick();
+    // Allow the five-frame flash plus the three-frame key return to finish before recording the idle image.
+    grid.mouseDown(mouse(grid,point));grid.mouseUp(mouse(grid,point,false));engine.stop();processor.processBlock(output,midi);for(int n=0;n<10;++n)tick();
     const auto area=juce::Rectangle<int>{0,0,side,side};auto idlePad=pixels(grid,area),idlePiano=pixels(piano,piano.getLocalBounds());
     midi.addEvent(juce::MidiMessage::noteOn(2,21,(juce::uint8)110),0);processor.processBlock(output,midi);tick();
     check(output.getMagnitude(0,256)>0.15f,"Incoming MIDI did not play the sample");

@@ -38,17 +38,14 @@ The selected root is stored in `%APPDATA%/DJL/Drum/data-root.txt`; without a con
 
 An old session's active collection opens as the kit with its groups preserved. Other old collections are retained for migration into the shared libraries. A 0.14 kit that was already flattened cannot recover its original groups automatically; new additions retain their source group.
 
-## Patterns and MIDI export
+## MIDI editing and export (0.16.0)
 
-Choose **Patterns** from the Kit page. Each kit can store sixteen named patterns. The initial editor is a sixteenth-note step sequencer with one, two or four bars in 4/4.
+Choose **MIDI** from the Kit page. Saved sequences are called **clips**. The step grid from 0.15 is replaced by a piano roll; existing clips migrate without changing their sound assignments. See [MIDI editor controls](midi-editor.md).
 
-- Click a cell to add or remove a hit. Shift-drag vertically on a cell to change velocity (1-127).
-- Choose the pattern length and name. Reducing length removes hits beyond the new end.
-- **Play pattern** loops the pattern at the header BPM; **Stop pattern** sends note-offs. This is a local audition, independent of DAW transport. Stop pattern audition before playing an exported clip to avoid doubling the hits. Editing the pattern or changing its key map restarts its audition from the beginning; sound-control changes do not.
-- **Drag MIDI** drags a standard MIDI file to the DAW or Explorer. **Export MIDI...** saves one manually. Drag files remain in the Drum/MIDI folder.
-- Hits reference instrument identities. Reordering sounds or groups updates playback and the next export to use the correct current notes. Removing an instrument removes its hits from Drum patterns.
-- Patterns are saved inside the kit and DAW state, including velocities. Export includes the tempo, 4/4 signature and exact loop length. Gate length is 90% of a sixteenth note in this initial editor; Trigger-mode drum sounds still play their full sample.
+Create collections with **New library** directly from the main screen, even with no kit open. The library window also has a clearly labelled **New library** button. New collections are named Library 2, Library 3, etc., and can be renamed in the Library field. Use Save all to save the shared collections, or Save library as for an individual portable file.
 
-An exported clip belongs to the DAW and is an independent copy. After changing the kit mapping, replace that clip with a fresh export. A DAW may import the MIDI file's tempo or keep its own tempo. Direct updates of existing Ableton clips, and the Setup checkbox **Automatically update Ableton clips**, are deferred with the companion integration. No automatic clip updates are claimed by this build.
+The MIDI editor stores up to sixteen clips per kit, up to 8192 notes and 1024 quarter-note beats per clip. It supports free note placement/lengths, selection, clipboard operations, undo/redo, velocity/chance/release editing, loops, and note-editing tools. Drum clips follow instrument identities when the kit order changes. Removing an instrument removes its MIDI notes.
 
-The editor and file format are shared by VST3 and desktop standalone builds. The tablet application and a free-time piano-roll editor remain future work.
+An exported clip belongs to the DAW and is an independent copy. After changing the kit mapping, replace it with a fresh MIDI export. The planned Setup checkbox **Automatically update Ableton clips** remains deferred with the companion integration. This build does not rewrite existing DAW clips.
+
+The editor and saved format are shared by VST3 and desktop standalone builds. MPE, clip automation and Live's MIDI generators are outside the Notes-editor scope chosen for this update. The tablet application remains future work.

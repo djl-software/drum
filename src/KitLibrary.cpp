@@ -78,9 +78,9 @@ bool validate(const State& state)
         if (!validId(kit.id) || !validName(kit.name) || kit.groups.empty() || kit.groups.size() > maxGroups || instrumentCount(kit) > maxInstruments) return false;
         if(kit.patterns.size()>16)return false;
         for(const auto& pattern:kit.patterns){
-            if(!validId(pattern.id) || !validName(pattern.name) || (pattern.steps!=16 && pattern.steps!=32 && pattern.steps!=64) || pattern.hits.size()>88*64)return false;
-            std::set<std::pair<juce::String,int>> occupied;
-            for(const auto& hit:pattern.hits)if(!findInstrument(kit,hit.instrumentId) || hit.step<0 || hit.step>=pattern.steps || hit.velocity<1 || hit.velocity>127 || !occupied.insert({hit.instrumentId,hit.step}).second)return false;
+            if(!validId(pattern.id) || !validName(pattern.name) || (pattern.steps<1 || pattern.steps>4096) || pattern.hits.size()>8192 || !std::isfinite(pattern.loopStart) || !std::isfinite(pattern.loopEnd) || pattern.loopStart<0 || pattern.loopFinish()<=pattern.loopStart || pattern.loopFinish()>pattern.end() || pattern.numerator<1 || pattern.numerator>32 || (pattern.denominator!=1 && pattern.denominator!=2 && pattern.denominator!=4 && pattern.denominator!=8 && pattern.denominator!=16))return false;
+            std::set<juce::String> noteIds;
+            for(const auto& hit:pattern.hits)if(!findInstrument(kit,hit.instrumentId) || !std::isfinite(hit.start) || !std::isfinite(hit.duration) || !std::isfinite(hit.chance) || hit.beat()<0 || hit.beat()>=pattern.end() || hit.duration<=0 || hit.duration>pattern.end() || hit.beat()+hit.duration>pattern.end()+1.e-8 || hit.chance<0 || hit.chance>1 || hit.groupMode<0 || hit.groupMode>2 || hit.chanceGroup.length()>64 || (hit.groupMode>0 && hit.chanceGroup.isEmpty()) || hit.deviation<0 || hit.deviation>127 || hit.releaseVelocity<0 || hit.releaseVelocity>127 || hit.velocity<1 || hit.velocity>127 || hit.id.isEmpty() || hit.id.length()>64 || !noteIds.insert(hit.id).second)return false;
         }
         std::set<int> notes;
         for (const auto& group : kit.groups)
@@ -144,7 +144,7 @@ Result KitLibrary::edit(const std::function<Result(State&)>& operation)
     state = std::move(candidate); activeEpoch.store(state.kitEpoch);
     return result;
 }
-Result KitLibrary::addPattern(const juce::String& kitId){return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit || kit->patterns.size()>=16)return Result::fail("A kit can contain up to 16 patterns.");Pattern pattern{newId(),"Pattern "+juce::String((int)kit->patterns.size()+1),16,{}};kit->patterns.push_back(pattern);return Result::success(pattern.id);});}
+Result KitLibrary::addPattern(const juce::String& kitId){return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit || kit->patterns.size()>=16)return Result::fail("A kit can contain up to 16 patterns.");Pattern pattern{newId(),"Clip "+juce::String((int)kit->patterns.size()+1),16,{}};kit->patterns.push_back(pattern);return Result::success(pattern.id);});}
 Result KitLibrary::setPattern(const juce::String& kitId,const Pattern& pattern){return edit([&](State& state){auto* kit=find(state.kits,kitId);auto* target=kit?find(kit->patterns,pattern.id):nullptr;if(!target)return Result::fail("Pattern no longer exists.");*target=pattern;return Result::success(pattern.id);});}
 Result KitLibrary::removePattern(const juce::String& kitId,const juce::String& id){return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit || !find(kit->patterns,id))return Result::fail("Pattern no longer exists.");std::erase_if(kit->patterns,[&](const auto& p){return p.id==id;});return Result::success();});}
 Result KitLibrary::addKit(bool example)
@@ -416,11 +416,11 @@ Result KitLibrary::setEffects(const juce::String& kitId,const juce::String& inst
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 13); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 14); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
-        for(const auto& p:k.patterns){auto* pattern=kit->createNewChildElement("Pattern");pattern->setAttribute("id",p.id);pattern->setAttribute("name",p.name);pattern->setAttribute("steps",p.steps);for(const auto& hit:p.hits){auto* note=pattern->createNewChildElement("Hit");note->setAttribute("instrument",hit.instrumentId);note->setAttribute("step",hit.step);note->setAttribute("velocity",hit.velocity);}}
+        for(const auto& p:k.patterns){auto* pattern=kit->createNewChildElement("Pattern");pattern->setAttribute("id",p.id);pattern->setAttribute("name",p.name);pattern->setAttribute("steps",p.steps);pattern->setAttribute("loopStart",p.loopStart);pattern->setAttribute("loopEnd",p.loopEnd);pattern->setAttribute("looping",p.looping);pattern->setAttribute("numerator",p.numerator);pattern->setAttribute("denominator",p.denominator);for(const auto& hit:p.hits){auto* note=pattern->createNewChildElement("Hit");note->setAttribute("instrument",hit.instrumentId);note->setAttribute("step",hit.step);note->setAttribute("velocity",hit.velocity);note->setAttribute("id",hit.id);note->setAttribute("start",hit.start);note->setAttribute("duration",hit.duration);note->setAttribute("chance",hit.chance);note->setAttribute("deviation",hit.deviation);note->setAttribute("releaseVelocity",hit.releaseVelocity);note->setAttribute("enabled",hit.enabled);note->setAttribute("chanceGroup",hit.chanceGroup);note->setAttribute("groupMode",hit.groupMode);}}
         for (auto& g : k.groups)
         {
             auto* group = kit->createNewChildElement("Group"); group->setAttribute("id", g.id); group->setAttribute("name", g.name); group->setAttribute("colour", g.colour);
@@ -478,7 +478,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
     }
-    if (version < 2 || version > 13) return false;
+    if (version < 2 || version > 14) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -489,9 +489,9 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         {
             if(version>=13 && g->hasTagName("Pattern")){
                 Pattern pattern{g->getStringAttribute("id"),g->getStringAttribute("name"),integerAttribute(*g,"steps"),{}};
-                if(kit.patterns.size()>=16 || g->getNumChildElements()>88*64)return false;
-                for(auto* hit:g->getChildIterator()){if(!hit->hasTagName("Hit") || hit->getNumChildElements())return false;pattern.hits.push_back({hit->getStringAttribute("instrument"),integerAttribute(*hit,"step"),integerAttribute(*hit,"velocity")});}
-                kit.patterns.push_back(std::move(pattern));continue;
+                if(kit.patterns.size()>=16 || g->getNumChildElements()>8192)return false;
+                for(auto* hit:g->getChildIterator()){if(!hit->hasTagName("Hit") || hit->getNumChildElements())return false;pattern.hits.push_back({hit->getStringAttribute("instrument"),integerAttribute(*hit,"step"),integerAttribute(*hit,"velocity")});if(version<14)pattern.hits.back().id=pattern.id+"-note-"+juce::String((int)pattern.hits.size());if(version>=14){auto& h=pattern.hits.back();h.id=hit->getStringAttribute("id");h.start=numberAttribute(*hit,"start");h.duration=numberAttribute(*hit,"duration");h.chance=numberAttribute(*hit,"chance");h.deviation=integerAttribute(*hit,"deviation");h.releaseVelocity=integerAttribute(*hit,"releaseVelocity");h.enabled=hit->getBoolAttribute("enabled",true);h.chanceGroup=hit->getStringAttribute("chanceGroup");h.groupMode=hit->getIntAttribute("groupMode",0);}}
+                if(version>=14){pattern.loopStart=numberAttribute(*g,"loopStart");pattern.loopEnd=numberAttribute(*g,"loopEnd");pattern.looping=g->getBoolAttribute("looping",true);pattern.numerator=integerAttribute(*g,"numerator");pattern.denominator=integerAttribute(*g,"denominator");}kit.patterns.push_back(std::move(pattern));continue;
             }
             if (!g->hasTagName("Group") || kit.groups.size() == maxGroups) return false;
             Group group { g->getStringAttribute("id"), g->getStringAttribute("name"), integerAttribute(*g, "colour"), {} };

@@ -257,7 +257,8 @@ public:
         setup(reloadLibrary,"Reload library","reload-kit-library");reloadLibrary.onClick=[this]{confirm("Reload shared library?","This replaces unsaved library edits with the saved global kits.",[this]{if(processor.reloadSharedLibrary)complete(processor.reloadSharedLibrary());});};
         setup(useSound,"Add","use-library-sound");useSound.onClick=[this]{if(processor.useLibrarySound && instrument()){auto result=processor.useLibrarySound(view.activeKit,instrumentId);status=result.ok?"Copied "+instrument()->name+" to the kit.":result.message;statusError=!result.ok;if(!result.ok)juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Add instrument",result.message);repaint();}};
 
-        setup(patternButton,"Patterns","open-patterns");patternButton.onClick=[this]{if(!patternEditor){patternEditor=std::make_unique<DrumPatternEditor>(processor);addChildComponent(*patternEditor);resized();}patternEditor->open();};
+        setup(newLibraryButton,"New library","new-library");newLibraryButton.onClick=[this]{auto result=processor.openSharedLibrary();if(!result.ok){complete(result);return;}auto* target=processor.libraryEditorProcessor();auto added=target->getLibrary().addKit();if(added.ok)target->getLibrary().rename(added.id,"Library "+juce::String((int)target->getLibrary().snapshot().kits.size()));else {complete(added);return;}showLibrary();};
+        setup(patternButton,"MIDI","open-patterns");patternButton.onClick=[this]{if(!patternEditor){patternEditor=std::make_unique<DrumPatternEditor>(processor);addChildComponent(*patternEditor);resized();}patternEditor->open();};
         setup(newKitButton,"New kit","new-kit");newKitButton.onClick=[this]{confirm("Create a new kit?","Save the current kit first if you want to keep it.",[this]{processor.newKit();groupId.clear();instrumentId.clear();refresh();});};
         setup(openDocumentButton,processor.isMidiTrack()?"Open kit":"Open library","open-document");openDocumentButton.onClick=[this]{confirm("Open a file?","Save current edits first. Opening a kit replaces it; opening a library replaces a collection with the same identity.",[this]{chooseDocument(false);});};
         setup(saveDocumentButton,processor.isMidiTrack()?"Save kit":"Save library as","save-document");saveDocumentButton.onClick=[this]{if(processor.isMidiTrack() && processor.documentFile().existsAsFile())complete(processor.saveDocument(processor.documentFile()));else chooseDocument(true);};
@@ -268,7 +269,7 @@ public:
             setup(kitTabs[(size_t)n], "", "kit-"+juce::String(n));
             kitTabs[(size_t)n].onClick = [this,n] { if (n < (int)view.kits.size()) { groupId.clear(); instrumentId.clear(); complete(library.activateKit(view.kits[(size_t)n].id)); } };
         }
-        setup(addKit, "+ LIB", "add-kit"); addKit.onClick = [this] { groupId.clear(); instrumentId.clear(); complete(library.addKit()); };
+        setup(addKit, "New library", "add-kit"); addKit.onClick = [this] { groupId.clear(); instrumentId.clear(); auto created=library.addKit();if(created.ok)library.rename(created.id,"Library "+juce::String((int)library.snapshot().kits.size()));complete(created); };
         setup(example, "Add example kit", "example-kit"); example.onClick = [this] { groupId.clear(); instrumentId.clear(); complete(library.addKit(true)); };
         setup(copyKit, "Copy LIB", "copy-kit"); copyKit.onClick = [this] { complete(library.duplicateKit(view.activeKit)); };
         setup(deleteKit, "Remove LIB", "delete-kit"); deleteKit.onClick = [this] {
@@ -424,7 +425,7 @@ public:
         example.setBounds(w-194,23,170,31);
         openLibrary.setBounds(24,88,170,35);saveLibrary.setBounds(310,23,140,31);reloadLibrary.setBounds(458,23,140,31);useSound.setBounds(w-194,23,170,31);
         playSample.setBounds(w-488,23,68,31);loopSample.setBounds(w-412,23,65,31);auditionTempo.setBounds(w-339,23,135,31);
-        const int count=(int)view.kits.size(),gap=6,reserved=count<8?84:0;
+        const int count=(int)view.kits.size(),gap=6,reserved=count<8?142:0;
         const int available=w-48-reserved-gap*juce::jmax(0,count-1);
         std::array<int,8> widths {};int total=0;
         const juce::Font tabFont(juce::FontOptions(13.0f));
@@ -438,7 +439,7 @@ public:
         {auto widest=std::max_element(widths.begin(),widths.begin()+count);--*widest;--total;}
         int tabX=24;
         for(int n=0;n<count;++n){kitTabs[(size_t)n].setBounds(tabX,88,widths[(size_t)n],35);tabX+=widths[(size_t)n]+gap;}
-        addKit.setBounds(tabX,88,78,35);
+        addKit.setBounds(tabX,88,136,35);
         kitName.setBounds(113,138,juce::jmin(340,w-600),34); copyKit.setBounds(w-242,138,96,34); deleteKit.setBounds(w-136,138,112,34);
         const int bodyTop=192, bodyHeight=h-376;
         left={24,bodyTop,216,bodyHeight}; right={w-312,bodyTop,288,bodyHeight}; centre={252,bodyTop,w-576,bodyHeight}; keyPanel={24,h-166,w-48,128};
@@ -468,7 +469,7 @@ public:
             for(auto* component:std::initializer_list<juce::Component*>{&addKit,&copyKit,&deleteKit,&example})component->setVisible(false);
             addInstrument.setButtonText("Add from library");
         }
-        patternButton.setBounds(722,88,110,35);patternButton.setVisible(processor.isMidiTrack());patternButton.setEnabled(processor.hasOpenKit());if(patternEditor)patternEditor->setBounds(24,125,w-48,h-149);
+        newLibraryButton.setBounds(840,88,138,35);newLibraryButton.setVisible(processor.isMidiTrack());patternButton.setBounds(722,88,110,35);patternButton.setVisible(processor.isMidiTrack());patternButton.setEnabled(processor.hasOpenKit());if(patternEditor)patternEditor->setBounds(24,125,w-48,h-149);
         newKitButton.setVisible(processor.isMidiTrack());saveAsButton.setVisible(processor.isMidiTrack());
         newKitButton.setBounds(200,88,105,35);openDocumentButton.setBounds(processor.isMidiTrack()?313:470,processor.isMidiTrack()?88:138,120,35);
         saveDocumentButton.setBounds(processor.isMidiTrack()?441:598,processor.isMidiTrack()?88:138,140,35);saveAsButton.setBounds(589,88,125,35);
@@ -737,7 +738,7 @@ private:
     juce::Label note;
     juce::ComboBox destination,choke;
     std::unique_ptr<DrumPatternEditor> patternEditor;
-    juce::TextButton patternButton;
+    juce::TextButton patternButton,newLibraryButton;
     juce::TextButton openLibrary,saveLibrary,reloadLibrary,useSound,newKitButton,openDocumentButton,saveDocumentButton,saveAsButton;
     std::unique_ptr<SharedLibraryWindow> libraryWindow;
     juce::ListBox groups;
