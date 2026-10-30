@@ -21,6 +21,7 @@ void runPadTests();
 void runChainTests(const juce::String&,const juce::String&);
 void runBuiltinTests();
 void runTrackLibraryTests();
+void runPatternTests();
 void runChainSmoke(const juce::String&);
 void runVst3PlaybackTest(const juce::String&);
 
@@ -100,6 +101,7 @@ int main(int argc, char** argv)
         runPadTests();
         runBuiltinTests();
         runTrackLibraryTests();
+        runPatternTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
     }

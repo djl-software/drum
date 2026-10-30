@@ -30,7 +30,9 @@ struct EffectSlot
 };
 struct Instrument { juce::String id, name; int note = firstNote; juce::String samplePath; InstrumentControls controls; std::vector<EffectSlot> effects; };
 struct Group { juce::String id, name; int colour = 0; std::vector<Instrument> instruments; };
-struct Kit { juce::String id, name; std::vector<Group> groups; };
+struct PatternHit { juce::String instrumentId; int step=0, velocity=100; bool operator==(const PatternHit&) const = default; };
+struct Pattern { juce::String id,name; int steps=16; std::vector<PatternHit> hits; };
+struct Kit { juce::String id, name; std::vector<Group> groups; std::vector<Pattern> patterns; };
 struct State { std::vector<Kit> kits; juce::String activeKit; uint64_t revision = 0, kitEpoch = 0; };
 struct Result
 {
@@ -51,8 +53,12 @@ class KitLibrary
 public:
     explicit KitLibrary(bool trackLayout=false);
     State snapshot() const;
+    uint64_t currentRevision() const{const juce::ScopedLock guard(lock);return state.revision;}
     uint64_t activeKitEpoch() const { return activeEpoch.load(); }
     Result addKit(bool example = false);
+    Result addPattern(const juce::String& kitId);
+    Result setPattern(const juce::String& kitId,const Pattern&);
+    Result removePattern(const juce::String& kitId,const juce::String& patternId);
     Result duplicateKit(const juce::String&);
     Result removeKit(const juce::String&);
     Result activateKit(const juce::String&);
@@ -74,6 +80,7 @@ public:
     // Capture live effect settings before copying a kit/group/instrument.
     std::function<void()> beforeClone;
     std::function<void()> afterRestore;
+    Result importGroupedInstrument(const juce::String& kitId,const Group& sourceGroup,const Instrument& source);
     Result importInstrument(const juce::String& kitId,const juce::String& groupId,const Instrument& source);
     Result addSampleInstrument(const juce::String& kitId, const juce::String& groupId, const juce::String& path);
     Result sliceInstrument(const juce::String& kitId,const juce::String& instrumentId,int regions);

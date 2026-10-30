@@ -1,6 +1,8 @@
 # DJL Drum
 
-Version 0.14.0 separates the shared kit library from each MIDI track. Put one Drum instance on each Ableton MIDI track, open **Kit library**, select a sound and choose **Add to track**. Each copy includes its settings and effect chain and can be edited independently. See [MIDI tracks and the shared library](docs/midi-tracks.md) for setup, saving and migration.
+Version 0.15.0 follows the Library/Kit specification: reusable libraries, one independently saved kit per instance, grouped additions with contiguous keys, portable samples, and a kit-linked pattern sequencer with MIDI drag/export. See [Libraries and Kits](docs/library-kit-workflow.md).
+
+Version 0.14.0 separates the shared kit library from each MIDI track. Put one Drum instance on each Ableton MIDI track, open **Kit library**, select a sound and choose **Add to track**. Each copy includes its settings and effect chain and can be edited independently. See [MIDI tracks and the shared library](docs/library-kit-workflow.md) for setup, saving and migration.
 
 Version 0.13.4 maps kit instruments to consecutive keyboard keys from A0 (MIDI 21), following group and pad order. Adding, copying, slicing, moving or deleting sounds closes gaps and shifts later keys. Sidechain sources follow their instruments. Existing libraries are reordered on load.
 

@@ -1,5 +1,6 @@
 #include "ResetSlider.h"
 #include "PluginEditor.h"
+#include "PatternEditor.h"
 #include "RotaryDial.h"
 #include "DJLAssets.h"
 #include "SoundEditor.h"
@@ -235,7 +236,7 @@ public:
 namespace {
 class SharedLibraryWindow final:public juce::DocumentWindow {
 public:
-    explicit SharedLibraryWindow(DrumAudioProcessor& p):DocumentWindow("Drum - Shared kit library",juce::Colour(0xff10151f),closeButton),owner(p){setUsingNativeTitleBar(true);setContentOwned(owner.libraryEditorProcessor()->createEditorIfNeeded(),true);setResizable(true,false);centreWithSize(getWidth(),getHeight());}
+    explicit SharedLibraryWindow(DrumAudioProcessor& p):DocumentWindow("Drum - Libraries",juce::Colour(0xff10151f),closeButton),owner(p){setUsingNativeTitleBar(true);setContentOwned(owner.libraryEditorProcessor()->createEditorIfNeeded(),true);setResizable(true,false);centreWithSize(getWidth(),getHeight());}
     ~SharedLibraryWindow() override{owner.closeSharedLibrary();clearContentComponent();}
     void closeButtonPressed() override{
         if(owner.sharedLibraryDirty()){auto result=owner.libraryEditorProcessor()->saveSharedLibrary();if(!result.ok){juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Library changes kept open",result.message);return;}}
@@ -251,21 +252,26 @@ public:
     explicit Workspace(DrumAudioProcessor& p) : processor(p), library(p.getLibrary()), view(library.snapshot()), tooltip(this, 550), soundEditor(p)
     {
         setLookAndFeel(&look);
-        setup(openLibrary,"Kit library","open-kit-library");openLibrary.onClick=[this]{showLibrary();};
-        setup(saveLibrary,"Save library","save-kit-library");saveLibrary.onClick=[this]{if(processor.saveSharedLibrary){auto result=processor.saveSharedLibrary();status=result.ok?"Shared library saved.":result.message;statusError=!result.ok;repaint();}};
+        setup(openLibrary,"Libraries","open-kit-library");openLibrary.onClick=[this]{showLibrary();};
+        setup(saveLibrary,"Save all","save-kit-library");saveLibrary.onClick=[this]{if(processor.saveSharedLibrary){auto result=processor.saveSharedLibrary();status=result.ok?"Shared library saved.":result.message;statusError=!result.ok;repaint();}};
         setup(reloadLibrary,"Reload library","reload-kit-library");reloadLibrary.onClick=[this]{confirm("Reload shared library?","This replaces unsaved library edits with the saved global kits.",[this]{if(processor.reloadSharedLibrary)complete(processor.reloadSharedLibrary());});};
-        setup(useSound,"Add to track","use-library-sound");useSound.onClick=[this]{if(processor.useLibrarySound && instrument()){auto result=processor.useLibrarySound(view.activeKit,instrumentId);status=result.ok?"Copied "+instrument()->name+" to the MIDI track.":result.message;statusError=!result.ok;repaint();}};
+        setup(useSound,"Add","use-library-sound");useSound.onClick=[this]{if(processor.useLibrarySound && instrument()){auto result=processor.useLibrarySound(view.activeKit,instrumentId);status=result.ok?"Copied "+instrument()->name+" to the kit.":result.message;statusError=!result.ok;if(!result.ok)juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Add instrument",result.message);repaint();}};
 
+        setup(patternButton,"Patterns","open-patterns");patternButton.onClick=[this]{if(!patternEditor){patternEditor=std::make_unique<DrumPatternEditor>(processor);addChildComponent(*patternEditor);resized();}patternEditor->open();};
+        setup(newKitButton,"New kit","new-kit");newKitButton.onClick=[this]{confirm("Create a new kit?","Save the current kit first if you want to keep it.",[this]{processor.newKit();groupId.clear();instrumentId.clear();refresh();});};
+        setup(openDocumentButton,processor.isMidiTrack()?"Open kit":"Open library","open-document");openDocumentButton.onClick=[this]{confirm("Open a file?","Save current edits first. Opening a kit replaces it; opening a library replaces a collection with the same identity.",[this]{chooseDocument(false);});};
+        setup(saveDocumentButton,processor.isMidiTrack()?"Save kit":"Save library as","save-document");saveDocumentButton.onClick=[this]{if(processor.isMidiTrack() && processor.documentFile().existsAsFile())complete(processor.saveDocument(processor.documentFile()));else chooseDocument(true);};
+        setup(saveAsButton,"Save kit as","save-document-as");saveAsButton.onClick=[this]{chooseDocument(true);};
         logo = juce::ImageCache::getFromMemory(DJLAssets::DJLLogoWhite_png, DJLAssets::DJLLogoWhite_pngSize);
         for (int n = 0; n < 8; ++n)
         {
             setup(kitTabs[(size_t)n], "", "kit-"+juce::String(n));
             kitTabs[(size_t)n].onClick = [this,n] { if (n < (int)view.kits.size()) { groupId.clear(); instrumentId.clear(); complete(library.activateKit(view.kits[(size_t)n].id)); } };
         }
-        setup(addKit, "+ Kit", "add-kit"); addKit.onClick = [this] { groupId.clear(); instrumentId.clear(); complete(library.addKit()); };
+        setup(addKit, "+ LIB", "add-kit"); addKit.onClick = [this] { groupId.clear(); instrumentId.clear(); complete(library.addKit()); };
         setup(example, "Add example kit", "example-kit"); example.onClick = [this] { groupId.clear(); instrumentId.clear(); complete(library.addKit(true)); };
-        setup(copyKit, "Copy kit", "copy-kit"); copyKit.onClick = [this] { complete(library.duplicateKit(view.activeKit)); };
-        setup(deleteKit, "Remove kit", "delete-kit"); deleteKit.onClick = [this] {
+        setup(copyKit, "Copy LIB", "copy-kit"); copyKit.onClick = [this] { complete(library.duplicateKit(view.activeKit)); };
+        setup(deleteKit, "Remove LIB", "delete-kit"); deleteKit.onClick = [this] {
             const auto id = view.activeKit;
             confirm("Remove this kit?", "All groups and instruments in this kit will be removed.", [this,id] { complete(library.removeKit(id)); });
         };
@@ -360,7 +366,7 @@ public:
         addChildComponent(soundEditor);
         editSound.onClick=[this] { soundEditor.select(view.activeKit,instrument()); soundEditor.setVisible(true); soundEditor.toFront(false); };
         soundEditor.close=[this] { soundEditor.setVisible(false); refresh(); };
-        status=processor.isMidiTrack()?"Track sounds are saved with the DAW project. Add sounds from Kit library.":"Build your collections here. Save library shares them with all Drum instances.";
+        status=processor.isMidiTrack()?(processor.hasOpenKit()?"Kit edits are independent of the library. Save kit to collect its samples.":"New kit or Open kit to begin. Add instruments from Libraries."):"Save all updates shared libraries. Save library as creates a portable file.";
         for(int n=0;n<128;++n)noteSerials[(size_t)n]=processor.getSampleEngine().noteActivity(n)>>32;
         refresh(); startTimerHz(30);
     }
@@ -370,22 +376,22 @@ public:
         g.fillAll(background);
         g.drawImageWithin(logo,24,20,64,38,juce::RectanglePlacement::centred);
         label(g,"DRUM",{104,17,180,36},29);
-        label(g,processor.isMidiTrack()?"MIDI TRACK":"KIT LIBRARY",{106,53,200,18},10,muted);
+        label(g,processor.isMidiTrack()?"KIT":"LIBRARIES",{106,53,200,18},10,muted);
         label(g,"INSTRUMENT PREVIEW / v" DRUM_VERSION_STRING,{getWidth()-440,57,225,18},11,muted,juce::Justification::centredRight);
-        label(g,processor.isMidiTrack()?"TRACK NAME":"ACTIVE KIT",{24,139,86,32},10,accent);
-        if(!processor.isMidiTrack())label(g,juce::String(view.kits.size())+" / 8 kits",{getWidth()-360,139,95,32},12,muted,juce::Justification::centredRight);
-        if(!processor.isMidiTrack())box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
-        if(!processor.isMidiTrack())label(g,"GROUPS",left.reduced(16,0).withY(left.getY()+12).withHeight(26),12,muted);
-        if(!processor.isMidiTrack())label(g,juce::String(kit().groups.size())+" / 16",{left.getRight()-76,left.getY()+12,60,26},12,muted,juce::Justification::centredRight);
-        if(!processor.isMidiTrack())label(g,"GROUP NAME",{left.getX()+16,left.getBottom()-130,left.getWidth()-32,20},10,muted);
-        label(g,processor.isMidiTrack()?"Track sounds":group().name,{centre.getX()+18,centre.getY()+16,centre.getWidth()-175,30},22,groupColour(group().colour));
-        label(g,juce::String(group().instruments.size())+" instruments  /  "+juce::String(drum::instrumentCount(kit()))+(processor.isMidiTrack()?" of 88 in track":" of 88 in kit"),{centre.getX()+18,centre.getY()+51,centre.getWidth()-36,22},12,muted);
+        label(g,processor.isMidiTrack()?"KIT NAME":"LIBRARY",{24,139,86,32},10,accent);
+        if(!processor.isMidiTrack())label(g,juce::String(view.kits.size())+" / 8 libraries",{getWidth()-360,139,95,32},12,muted,juce::Justification::centredRight);
+        box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
+        label(g,"GROUPS",left.reduced(16,0).withY(left.getY()+12).withHeight(26),12,muted);
+        label(g,juce::String(kit().groups.size())+" / 16",{left.getRight()-76,left.getY()+12,60,26},12,muted,juce::Justification::centredRight);
+        label(g,"GROUP NAME",{left.getX()+16,left.getBottom()-130,left.getWidth()-32,20},10,muted);
+        label(g,group().name,{centre.getX()+18,centre.getY()+16,centre.getWidth()-175,30},22,groupColour(group().colour));
+        label(g,juce::String(group().instruments.size())+" instruments  /  "+juce::String(drum::instrumentCount(kit()))+(processor.isMidiTrack()?" of 88 in kit":" of 88 in library"),{centre.getX()+18,centre.getY()+51,centre.getWidth()-36,22},12,muted);
         label(g,"INSTRUMENT",{right.getX()+18,right.getY()+16,right.getWidth()-36,24},12,muted);
         if (const auto* i=instrument())
         {
             label(g,"NAME",{right.getX()+18,right.getY()+43,right.getWidth()-36,16},10,muted);
             label(g,"KEY",{right.getX()+18,right.getY()+98,112,16},10,muted);
-            if(!processor.isMidiTrack())label(g,"GROUP",{right.getX()+150,right.getY()+98,120,16},10,muted);
+            label(g,"GROUP",{right.getX()+150,right.getY()+98,120,16},10,muted);
             auto source=juce::Rectangle<int>(right.getX()+18,right.getY()+153,right.getWidth()-36,66);
             g.setColour(background); g.fillRoundedRectangle(source.toFloat(),8);
             label(g,i->samplePath.isEmpty()?"Drop audio here":juce::File(i->samplePath).getFileName(),source.reduced(10,0).withTrimmedTop(8).withHeight(22),13);
@@ -424,7 +430,7 @@ public:
         const juce::Font tabFont(juce::FontOptions(13.0f));
         for(int n=0;n<count;++n)
         {
-            widths[(size_t)n]=juce::jlimit(66,168,(int)std::ceil(juce::GlyphArrangement::getStringWidth(tabFont,view.kits[(size_t)n].name))+24);
+            widths[(size_t)n]=juce::jlimit(66,168,(int)std::ceil(juce::GlyphArrangement::getStringWidth(tabFont,view.kits[(size_t)n].name+" LIB"))+24);
             total+=widths[(size_t)n];
         }
         // Preserve compact short names; shorten the widest names only when full.
@@ -436,7 +442,6 @@ public:
         kitName.setBounds(113,138,juce::jmin(340,w-600),34); copyKit.setBounds(w-242,138,96,34); deleteKit.setBounds(w-136,138,112,34);
         const int bodyTop=192, bodyHeight=h-376;
         left={24,bodyTop,216,bodyHeight}; right={w-312,bodyTop,288,bodyHeight}; centre={252,bodyTop,w-576,bodyHeight}; keyPanel={24,h-166,w-48,128};
-        if(processor.isMidiTrack())centre={24,bodyTop,w-348,bodyHeight};
         groups.setBounds(left.getX()+8,left.getY()+49,left.getWidth()-16,left.getHeight()-198);
         groupName.setBounds(left.getX()+16,left.getBottom()-107,left.getWidth()-32,31);
         addGroup.setBounds(left.getX()+16,left.getBottom()-65,84,29); copyGroup.setBounds(left.getX()+108,left.getBottom()-65,42,29); deleteGroup.setBounds(left.getX()+156,left.getBottom()-65,48,29);
@@ -460,9 +465,15 @@ public:
         soundEditor.setBounds(24,100,w-48,h-124);
         if(processor.isMidiTrack()){
             for(auto& tab:kitTabs)tab.setVisible(false);
-            for(auto* component:std::initializer_list<juce::Component*>{&addKit,&copyKit,&deleteKit,&example,&groups,&groupName,&addGroup,&copyGroup,&deleteGroup,&groupUp,&groupDown,&destination})component->setVisible(false);
-            addInstrument.setButtonText("Add from kits");
+            for(auto* component:std::initializer_list<juce::Component*>{&addKit,&copyKit,&deleteKit,&example})component->setVisible(false);
+            addInstrument.setButtonText("Add from library");
         }
+        patternButton.setBounds(722,88,110,35);patternButton.setVisible(processor.isMidiTrack());patternButton.setEnabled(processor.hasOpenKit());if(patternEditor)patternEditor->setBounds(24,125,w-48,h-149);
+        newKitButton.setVisible(processor.isMidiTrack());saveAsButton.setVisible(processor.isMidiTrack());
+        newKitButton.setBounds(200,88,105,35);openDocumentButton.setBounds(processor.isMidiTrack()?313:470,processor.isMidiTrack()?88:138,120,35);
+        saveDocumentButton.setBounds(processor.isMidiTrack()?441:598,processor.isMidiTrack()?88:138,140,35);saveAsButton.setBounds(589,88,125,35);
+        saveDocumentButton.setEnabled(processor.hasOpenKit());saveAsButton.setEnabled(processor.hasOpenKit());
+        if(processor.isMidiTrack() && !processor.hasOpenKit()){for(auto* c:std::initializer_list<juce::Component*>{&addGroup,&copyGroup,&deleteGroup,&groupUp,&groupDown,&kitName,&groupName})c->setEnabled(false);}else {kitName.setEnabled(true);groupName.setEnabled(true);}
         openLibrary.setVisible(processor.isMidiTrack());saveLibrary.setVisible(bool(processor.saveSharedLibrary));reloadLibrary.setVisible(bool(processor.reloadSharedLibrary));useSound.setVisible(bool(processor.useLibrarySound));useSound.setEnabled(instrument()!=nullptr);if(processor.useLibrarySound)example.setVisible(false);
 
     }
@@ -470,9 +481,21 @@ public:
     void filesDropped(const juce::StringArray& files,int x,int y) override
     { handleDrop(files,right.contains(x,y)&&instrument()?instrumentId:juce::String()); }
 private:
+    void chooseDocument(bool save){
+        auto kind=processor.isMidiTrack()?juce::String("kit"):juce::String("library");auto extension=processor.isMidiTrack()?".drumkit":".drumlib";
+        auto folder=drum::PortableFiles::root().getChildFile(processor.isMidiTrack()?"Kits":"Libraries");
+        chooser=std::make_unique<juce::FileChooser>((save?"Save ":"Open ")+kind,folder.getChildFile(save?juce::File::createLegalFileName(kit().name)+extension:juce::String()),"*"+juce::String(extension));
+        juce::Component::SafePointer<Workspace> safe(this);
+        chooser->launchAsync(juce::FileBrowserComponent::canSelectFiles|(save?(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::warnAboutOverwriting):juce::FileBrowserComponent::openMode),[safe,save,extension](const juce::FileChooser& dialog){
+            if(!safe || dialog.getResult()==juce::File())return;auto file=dialog.getResult();if(save)file=file.withFileExtension(extension);
+            auto finish=[safe,save,file]{if(!safe)return;auto result=save?safe->processor.saveDocument(file):safe->processor.openDocument(file);safe->groupId.clear();safe->instrumentId.clear();safe->complete(result);if(result.ok){safe->status=(save?"Saved ":"Opened ")+file.getFileName();safe->repaint();}};
+            if(save && file!=dialog.getResult() && file.exists())safe->confirm("Replace existing kit/library file?",file.getFileName()+" already exists.",finish);else finish();
+        });
+    }
     void showLibrary(){auto result=processor.openSharedLibrary();if(!result.ok){status=result.message;statusError=true;repaint();return;}if(processor.libraryStatus().isNotEmpty()){status=processor.libraryStatus();repaint();}if(!libraryWindow)libraryWindow=std::make_unique<SharedLibraryWindow>(processor);libraryWindow->setVisible(true);libraryWindow->toFront(true);}
     void handleDrop(const juce::StringArray& files,const juce::String& target)
     {
+        if(!processor.hasOpenKit()){status="No kit open. Choose New kit or Open kit first.";statusError=true;repaint();return;}
         auto fail=[this](juce::String message){status=message; statusError=true; repaint();};
         if(files.isEmpty()) return;
         if(target.isNotEmpty() && files.size()!=1) { fail("Drop one sample on a card, or several in empty space to create instruments."); return; }
@@ -549,7 +572,7 @@ private:
     {
         juce::Component::SafePointer<Workspace> safe(this);
         juce::AlertWindow::showAsync(juce::MessageBoxOptions().withIconType(juce::MessageBoxIconType::QuestionIcon)
-            .withTitle(title).withMessage(message).withButton("Remove").withButton("Cancel").withAssociatedComponent(this),
+            .withTitle(title).withMessage(message).withButton("Continue").withButton("Cancel").withAssociatedComponent(this),
             [safe,action](int result) { if(safe && result==1) action(); });
     }
     void refresh(bool forceNames = true)
@@ -562,7 +585,7 @@ private:
         for(int n=0;n<8;++n)
         {
             auto& b=kitTabs[(size_t)n]; b.setVisible(n<(int)view.kits.size());
-            if(n<(int)view.kits.size()) { auto& k=view.kits[(size_t)n]; b.setButtonText(k.name); b.setTooltip(k.name); b.setToggleState(k.id==view.activeKit,juce::dontSendNotification); }
+            if(n<(int)view.kits.size()) { auto& k=view.kits[(size_t)n]; b.setButtonText(k.name+" LIB"); b.setTooltip(k.name+" LIB"); b.setToggleState(k.id==view.activeKit,juce::dontSendNotification); }
         }
         addKit.setVisible(view.kits.size()<8); example.setEnabled(view.kits.size()<8); copyKit.setEnabled(view.kits.size()<8); deleteKit.setEnabled(view.kits.size()>1);
         if(forceNames || !kitName.hasKeyboardFocus(true)) kitName.setText(kit().name,false);
@@ -713,7 +736,9 @@ private:
     juce::TextEditor kitName,groupName,instrumentName;
     juce::Label note;
     juce::ComboBox destination,choke;
-    juce::TextButton openLibrary,saveLibrary,reloadLibrary,useSound;
+    std::unique_ptr<DrumPatternEditor> patternEditor;
+    juce::TextButton patternButton;
+    juce::TextButton openLibrary,saveLibrary,reloadLibrary,useSound,newKitButton,openDocumentButton,saveDocumentButton,saveAsButton;
     std::unique_ptr<SharedLibraryWindow> libraryWindow;
     juce::ListBox groups;
     InstrumentGrid grid;

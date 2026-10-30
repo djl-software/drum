@@ -4,12 +4,20 @@
 #include "SampleEngine.h"
 #include "EffectRack.h"
 #include "GlobalKitStore.h"
+#include "PortableFiles.h"
+#include "PatternPlayer.h"
 
 class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater
 {
 public:
     explicit DrumAudioProcessor(bool trackInstance=false);
     bool isMidiTrack() const{return trackInstance;}
+    bool hasOpenKit() const{return !trackInstance || kitOpened.load();}
+    void newKit();
+    drum::Result saveDocument(const juce::File&);
+    drum::Result openDocument(const juce::File&);
+    juce::File documentFile() const{return currentDocument;}
+
     DrumAudioProcessor* libraryEditorProcessor() const{return libraryPreview.get();}
     drum::Result openSharedLibrary();
     bool sharedLibraryDirty() const{return libraryPreview && sharedStore.hasChanges(libraryPreview->getLibrary());}
@@ -20,6 +28,7 @@ public:
 
     ~DrumAudioProcessor() override;
     drum::KitLibrary& getLibrary() { return library; }
+    drum::PatternPlayer& getPatterns(){return *patternPlayer;}
     drum::SampleEngine& getSampleEngine() { return sampleEngine; }
     drum::EffectRack& getEffects() { return effects; }
     juce::AudioParameterFloat& macro(int n) { return *macros[(size_t)n]; }
@@ -43,7 +52,11 @@ public:
     void setStateInformation(const void*, int) override;
 private:
     const bool trackInstance;
+    std::atomic<bool> kitOpened{false};
+    juce::File currentDocument;
     drum::KitLibrary library;
+    std::unique_ptr<drum::PatternPlayer> patternPlayer;
+    juce::MidiBuffer patternMidi;
     drum::GlobalKitStore sharedStore;
     std::unique_ptr<DrumAudioProcessor> libraryPreview;
     std::atomic<bool> previewActive{false};
