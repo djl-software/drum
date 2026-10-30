@@ -91,10 +91,17 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
     auto malformed=library.toXml();auto* instrument=malformed->getChildByName("Kit")->getChildByName("Group")->getChildByName("Instrument");instrument->getChildByName("Effect")->getChildByName("State")->deleteAllTextElements();instrument->getChildByName("Effect")->getChildByName("State")->addTextElement("invalid");check(!library.restore(*malformed),"Corrupt plugin state accepted");
     rack.remove(setup.kit,setup.a,unavailable.id);setup.settle();
     // File drops append real VST3 effects without an embedded plugin browser.
-    DrumAudioProcessorEditor editor(setup.processor);editor.setSize(1280,900);editor.setVisible(true);pump();click(editor,"open-sound-editor");click(editor,"edit-tab-7");
+    DrumAudioProcessorEditor editor(setup.processor);editor.setSize(1280,900);editor.addToDesktop(0);editor.setVisible(true);pump();click(editor,"open-sound-editor");click(editor,"edit-tab-7");
     auto* chain=dynamic_cast<ChainEditor*>(find(editor,"plugin-chain"));check(chain && chain->isVisible(),"Chain tab not visible");
     juce::StringArray dropped{effectPath};check(chain->isInterestedInFileDrag(dropped),"VST3 drop rejected");chain->filesDropped(dropped,700,60);pump(100);setup.settle();pump();
     auto uiSlots=setup.instrument(setup.a).effects;check(uiSlots.size()==1,"File drop failed to insert effect");
+    auto* panelValue=dynamic_cast<juce::Slider*>(find(editor,"chain-value-0-0"));check(panelValue!=nullptr,"Compact parameter control missing");
+    const auto panelOriginal=panelValue->getValue();
+    panelValue->setValue(0.37,juce::sendNotificationSync);
+    near(rack.instance(uiSlots[0].id)->getParameters()[0]->getValue(),0.37f,"Compact control did not edit hosted parameter");
+    parameter(rack,uiSlots[0].id,0,0.62f);pump(150);
+    near((float)panelValue->getValue(),0.62f,"Compact control did not follow plugin edits");
+    panelValue->setValue(panelOriginal,juce::sendNotificationSync);
     check(find(editor,"chain-browser")==nullptr && find(editor,"chain-search")==nullptr,"Removed plugin list is still present");
     auto* flow=find(editor,"chain-flow");check(flow && flow->getX()==0,"Chain did not reclaim browser space");
     chain->filesDropped(dropped,700,60);pump(100);setup.settle();pump();check(setup.instrument(setup.a).effects.size()==2,"Second VST3 drop failed");
@@ -137,7 +144,7 @@ void runChainSmoke(const juce::String& path)
     setup.processor.setStateInformation(state.getData(),(int)state.getSize());setup.settle();
     check(rack.instance(slot.id),"Installed effect did not recall");
     audio=setup.hit(4096);check(audio.getMagnitude(2,0,audio.getNumSamples())>0,"Recalled effect produced no audio");
-    DrumAudioProcessorEditor editor(setup.processor);editor.setSize(1280,900);editor.setVisible(true);pump();
+    DrumAudioProcessorEditor editor(setup.processor);editor.setSize(1280,900);editor.addToDesktop(0);editor.setVisible(true);pump();
     click(editor,"open-sound-editor");click(editor,"edit-tab-7");
     auto* chain=dynamic_cast<ChainEditor*>(find(editor,"plugin-chain"));check(chain!=nullptr,"Compatibility chain UI missing");
     chain->filesDropped({path},700,60);pump(100);setup.settle();pump();

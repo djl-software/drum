@@ -23,11 +23,43 @@ public:
         remove.onClick=[this]{owner.apply(owner.effects.remove(owner.kitId,owner.instrumentId,slot.id));};
         retry.onClick=[this]{owner.effects.retry(slot.id);update();};
         earlier.setTooltip("Move earlier in the audio chain");later.setTooltip("Move later in the audio chain");
+        for(int row=0;row<2;++row)
+        {
+            addAndMakeVisible(parameters[row]);addAndMakeVisible(values[row]);
+            values[row].setComponentID("chain-value-"+juce::String(position)+"-"+juce::String(row));
+            values[row].setSliderStyle(juce::Slider::LinearHorizontal);values[row].setTextBoxStyle(juce::Slider::TextBoxRight,false,70,22);
+            values[row].setRange(0,1);parameters[row].onChange=[this]{update();};
+            values[row].textFromValueFunction=[this,row](double v){auto* p=parameter(row);return p?p->getText((float)v,32)+" "+p->getLabel():juce::String{};};
+            values[row].valueFromTextFunction=[this,row](const juce::String& text){auto* p=parameter(row);return p?(double)p->getValueForText(text):0.0;};
+            values[row].onValueChange=[this,row]{if(auto* p=parameter(row)){p->beginChangeGesture();p->setValueNotifyingHost((float)values[row].getValue());p->endChangeGesture();}};
+        }
         update();
     }
     void update()
     {
         info=owner.effects.status(slot.id);const bool ready=owner.effects.instance(slot.id)!=nullptr;
+        auto* plugin=owner.effects.instance(slot.id);const int count=plugin?plugin->getParameters().size():0;
+        if(count!=parameterCount)
+        {
+            parameterCount=count;
+            for(int row=0;row<2;++row)
+            {
+                parameters[row].clear(juce::dontSendNotification);
+                for(int n=0;n<count;++n)parameters[row].addItem(plugin->getParameters()[n]->getName(64),n+1);
+                parameters[row].setSelectedId(count>row?row+1:count,juce::dontSendNotification);
+            }
+        }
+        for(int row=0;row<2;++row)
+        {
+            auto* p=parameter(row);parameters[row].setEnabled(p!=nullptr);values[row].setEnabled(p!=nullptr);
+            if(p && !values[row].isMouseButtonDown())
+            {
+                const int steps=p->getNumSteps();values[row].setRange(0,1,steps>1 && steps<10000?1.0/(steps-1):0);
+                values[row].setDoubleClickReturnValue(true,p->getDefaultValue());
+                values[row].setValue(p->getValue(),juce::dontSendNotification);values[row].updateText();
+            }
+        }
+        edit.setTooltip(info);bypass.setTooltip(info);
         edit.setEnabled(ready);retry.setVisible(!ready);earlier.setEnabled(position>0);later.setEnabled(position+1<(int)owner.slots.size());repaint();
     }
     void paint(juce::Graphics& g) override
@@ -35,19 +67,24 @@ public:
         g.setColour(panel);g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(1),7);
         g.setColour(slot.bypassed?muted:mint);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1),7,1);
         g.setFont(juce::FontOptions(14,juce::Font::bold));g.drawText(juce::String(position+1)+". "+title,10,8,getWidth()-20,25,juce::Justification::centredLeft,true);
-        g.setFont(juce::FontOptions(11));g.setColour(muted);g.drawFittedText(info,10,36,getWidth()-20,32,juce::Justification::topLeft,2);
-        g.setFont(juce::FontOptions(10));g.drawText("Drag header to reorder",10,getHeight()-18,getWidth()-20,14,juce::Justification::centredLeft);
     }
     void resized() override
     {
-        edit.setBounds(10,75,72,25);bypass.setBounds(88,75,92,25);
-        earlier.setBounds(10,106,32,24);later.setBounds(47,106,32,24);remove.setBounds(88,106,92,24);retry.setBounds(10,137,170,24);
+        edit.setBounds(10,34,72,23);bypass.setBounds(88,34,92,23);
+        for(int row=0;row<2;++row){parameters[row].setBounds(10,63+row*49,170,23);values[row].setBounds(10,87+row*49,170,23);}
+        earlier.setBounds(10,166,32,24);later.setBounds(47,166,32,24);remove.setBounds(88,166,92,24);retry.setBounds(10,63,170,25);
     }
     void mouseDrag(const juce::MouseEvent& event) override
     {
-        if(event.getDistanceFromDragStart()>5 && event.getMouseDownY()<70 && !owner.isDragAndDropActive())owner.startDragging("slot:"+slot.id,this);
+        if(event.getDistanceFromDragStart()>5 && event.getMouseDownY()<33 && !owner.isDragAndDropActive())owner.startDragging("slot:"+slot.id,this);
     }
 private:
+    juce::AudioProcessorParameter* parameter(int row) const
+    {
+        auto* plugin=owner.effects.instance(slot.id);const int index=parameters[row].getSelectedId()-1;
+        return plugin && index>=0 && index<plugin->getParameters().size()?plugin->getParameters()[index]:nullptr;
+    }
+    juce::ComboBox parameters[2];juce::Slider values[2];int parameterCount=-1;
     ChainEditor& owner;drum::EffectSlot slot;int position;juce::String title,info;
     juce::TextButton edit{"Open"},bypass{"Bypass"},earlier{"<"},later{">"},remove{"Remove"},retry{"Retry loading"};
 };
@@ -62,7 +99,7 @@ ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library
                 if(safe && fc.getResult()!=juce::File())safe->addFile(fc.getResult());
             });
     };
-    addAndMakeVisible(viewport);viewport.setViewedComponent(&flow,false);viewport.setScrollBarsShown(false,true);viewport.setComponentID("chain-flow");
+    addAndMakeVisible(viewport);viewport.setViewedComponent(&flow,false);viewport.setScrollBarsShown(true,true);viewport.setComponentID("chain-flow");
     addAndMakeVisible(status);status.setFont(juce::FontOptions(11));status.setColour(juce::Label::textColourId,muted);
     status.setText("Drop a VST3 effect into the chain, or use Load VST3.",juce::dontSendNotification);
     browserBridge=std::make_unique<LiveBrowserBridge>(*this);
@@ -102,7 +139,7 @@ void ChainEditor::resized()
 {
     load.setBounds(getWidth()-126,0,126,25);
     viewport.setBounds(0,33,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-66));
-    const int height=juce::jmax(184,viewport.getHeight()-16);flow.setSize(juce::jmax(viewport.getWidth(),(int)cards.size()*206+100),height);
+    const int height=juce::jmax(200,viewport.getHeight()-16);flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*206+100),height);
     for(size_t i=0;i<cards.size();++i)cards[i]->setBounds((int)i*206,0,192,height);
     status.setBounds(0,getHeight()-29,getWidth(),27);
 }
@@ -166,7 +203,7 @@ void ChainEditor::browserDropped(const juce::var& value)
         auto path=match["path"].toString();if(!juce::File::isAbsolutePath(path))continue;
         juce::File file(path);if(!file.hasFileExtension("vst3") || !file.exists())continue;
         if(!match["id"].toString().startsWith("device:vst3:audiofx:"))continue;
-        files.push_back(file);menu.addItem((int)files.size(),match["vendor"].toString()+" "+match["name"].toString()+" — "+path);
+        files.push_back(file);menu.addItem((int)files.size(),match["vendor"].toString()+" "+match["name"].toString()+" â€” "+path);
     }
     if(files.empty())return;
     if(files.size()==1){addFile(files.front());return;}

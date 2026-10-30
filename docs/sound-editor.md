@@ -149,3 +149,7 @@ Sample gain turns red only when the completed processed preview exceeds 0 dBFS. 
 ## Shared audition transport (0.12.3)
 
 Play, Loop and BPM now live in the workspace header, visible at the same location above every editing tab. Play triggers one audition with Loop off. Loop latches and highlights; Play starts repeating at one hit per beat and becomes Pause. BPM ranges from 20 to 300, default 120, independently of the host tempo and sample-region loop. Pause fades audition voices without cancelling MIDI voices. Instrument/kit changes and editor closure stop audition repetition. Loop/BPM are editor audition settings, not saved musical parameters.
+
+### Compact effect panels
+
+Each Chain card shows two parameter selectors and value sliders. Choose a parameter from either dropdown, then drag its slider or edit its displayed value. Values use the plugin's units and follow changes in its own editor. Double-click a value to restore that parameter's plugin default. Open shows the original VST3 interface; Bypass, Remove and the order arrows remain available. Parameter values save with the effect; the two display selections are temporary and reset when the card is rebuilt. Plugins without exposed parameters use Open for their controls.
