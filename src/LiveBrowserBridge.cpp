@@ -6,6 +6,13 @@
 #include <shellapi.h>
 using Microsoft::WRL::ComPtr;
 namespace {
+void traceNativeDrag(const juce::String& message)
+{
+    static juce::CriticalSection traceLock;const juce::ScopedLock guard(traceLock);
+    auto file=juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("DJL/Drum/native-drag.log");
+    file.getParentDirectory().createDirectory();if(file.getSize()>131072)file.replaceWithText("");
+    file.appendText(juce::Time::getCurrentTime().toISO8601(true)+" "+message+"\n");
+}
 juce::var resolveLiveEffect(const juce::String& name)
 {
     // Windows' SQLite implementation, read-only; no external process or scan.
@@ -46,6 +53,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
     juce::CriticalSection lock;POINT point{};uint64_t generation=0,work=0,completed=0,pendingDrop=0;
     juce::String context,pendingContext;juce::var result;std::atomic<bool> enabled {false};std::atomic<ULONG> references {1};
     double pressedAt=0;bool dragAccepted=false;uint64_t expired=0;
+    uint64_t tracedGeneration=0;
     inline static std::vector<Impl*> receivers;
     Impl(LiveBrowserBridge& b,HWND p):Thread("Drum browser identity"),bridge(b),parent(p)
     {
@@ -56,6 +64,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
         receivers.push_back(this);
         DWORD thread=GetWindowThreadProcessId(GetAncestor(parent,GA_ROOTOWNER),nullptr);
         hook=SetWindowsHookExW(WH_MOUSE,mouse,nullptr,thread);startThread();
+        traceNativeDrag("start registration="+juce::String((juce::int64)registration)+" hook="+juce::String(hook!=nullptr?1:0)+" hookThread="+juce::String(thread)+" editorThread="+juce::String(GetCurrentThreadId()));
         if(window && !hook)SetWindowTextW(window,L"Browser drag tracking unavailable - use Load VST3");
     }
     ~Impl() override
@@ -79,6 +88,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
     {
         const auto hr=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
         ComPtr<IUIAutomation> automation;CoCreateInstance(__uuidof(CUIAutomation8),nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&automation));
+        traceNativeDrag("UIA ready="+juce::String(automation?1:0));
         if(automation){ComPtr<IUIAutomation6> modern;if(SUCCEEDED(automation.As(&modern))){modern->put_ConnectionTimeout(500);modern->put_TransactionTimeout(500);}}
         while(!threadShouldExit())
         {
@@ -101,6 +111,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
                 }
             }
             auto found=browser && name.isNotEmpty()?resolveLiveEffect(name):juce::var{};
+            auto* rows=found["matches"].getArray();traceNativeDrag("identity generation="+juce::String(current)+" browser="+juce::String(browser?1:0)+" name="+name+" matches="+juce::String(rows?rows->size():0));
             {const juce::ScopedLock guard(lock);if(current==generation){result=found;completed=current;}}
         }
         automation.Reset();if(SUCCEEDED(hr))CoUninitialize();
@@ -116,6 +127,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
         if(hasFormats && format.ptd)CoTaskMemFree(format.ptd);
         const juce::ScopedLock guard(lock);
         dragAccepted=enabled && !hasFormats && generation>expired && juce::Time::getMillisecondCounterHiRes()-pressedAt<20000;
+        traceNativeDrag("enter enabled="+juce::String(enabled?1:0)+" formats="+juce::String(hasFormats?1:0)+" generation="+juce::String(generation)+" expired="+juce::String(expired)+" accepted="+juce::String(dragAccepted?1:0));
         *effect=dragAccepted?DROPEFFECT_COPY:DROPEFFECT_NONE;return S_OK;
     }
     HRESULT STDMETHODCALLTYPE DragOver(DWORD,POINTL,DWORD* effect) override{*effect=enabled && dragAccepted?DROPEFFECT_COPY:DROPEFFECT_NONE;return S_OK;}
@@ -132,8 +144,9 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
             const juce::ScopedLock guard(lock);
             if(context!=next || !visible){pendingDrop=0;result=juce::var{};}
             context=next;enabled=visible;
+            if(tracedGeneration!=generation){tracedGeneration=generation;traceNativeDrag("mouse generation="+juce::String(generation)+" x="+juce::String(point.x)+" y="+juce::String(point.y));}
             if(!pendingDrop && !(GetAsyncKeyState(VK_LBUTTON)&0x8000) && juce::Time::getMillisecondCounterHiRes()-pressedAt>300)expired=generation;
-            if(pendingDrop && completed==pendingDrop){if(pendingContext==context)delivered=result;pendingDrop=0;result=juce::var{};}
+            if(pendingDrop && completed==pendingDrop){traceNativeDrag("deliver generation="+juce::String(pendingDrop));if(pendingContext==context)delivered=result;pendingDrop=0;result=juce::var{};}
         }
         if(window)
         {

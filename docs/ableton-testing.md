@@ -159,3 +159,7 @@ Acceptance: drag quickly into the fixed strip, add two different effects consecu
 ### Native strip hit-test correction
 
 The first 0.12.4 native strip omitted Windows SS_NOTIFY. STATIC controls without that style return HTTRANSPARENT, allowing mouse/drop hit-testing to pass through the receiver. The strip now opts into hit-testing; startup shows a visible diagnostic if OLE registration or the Live-thread mouse hook fails. The native test host checks that the actual child HWND exists, is visible and returns HTCLIENT. This does not replace real Live browser-drop acceptance.
+
+### Live acceptance, 30 October 2026
+
+With the diagnostic 0.12.4 build, the trace identified ValhallaVintageVerb, accepted its empty-format browser drag on the labelled native strip and delivered generation 19. The user confirmed that its card appeared. The user then dragged a different VST3 effect onto the same strip and confirmed a second card appeared while Drum stayed visible. Drops onto the wider card area and the previously reported rapid-drag track-selection behavior are not confirmed fixed by these observations.
