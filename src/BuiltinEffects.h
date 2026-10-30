@@ -36,7 +36,7 @@ public:
     const BuiltinKind kind;
     std::vector<juce::AudioParameterFloat*> controls;
     std::atomic<float> inputPeak{0},outputPeak{0},reduction{0};
-    std::unique_ptr<SpectrumTap> spectrum;
+    std::unique_ptr<SpectrumTap> spectrum, waveform;
 private:
     void parameter(const juce::String&,float,float,float,const juce::String& unit={});
     VoiceEqualizer eq;

@@ -29,7 +29,7 @@ private:
     drum::EffectRack& effects;
     juce::String kitId,instrumentId;
     juce::TextButton load{"Load VST3..."};
-    juce::TextButton builtin{"Add Drum effect"},presets{"Chain presets / defaults"};
+    juce::TextButton builtin{"Add effect"},presets{"Chain presets / defaults"};
     inline static std::optional<std::vector<drum::EffectSlot>> clipboard;
     juce::Label status;
     juce::Viewport viewport;

@@ -57,7 +57,13 @@ public:
         if(source.isVisible()){g.drawText("Gain",8,74,64,15,juce::Justification::centred);g.drawText("Mix",86,74,64,15,juce::Justification::centred);}
         else g.drawFittedText(info+"\nUse Open for plugin controls",8,63,144,80,juce::Justification::centred,3);
         const auto peaks=owner.effects.peaks(slot.id);
-        for(int c=0;c<2;++c){juce::Rectangle<float> bar((float)getWidth()-14+c*5,31,3,127);g.setColour(bg);g.fillRect(bar);float level=juce::jlimit(0.f,1.f,(juce::Decibels::gainToDecibels(peaks[(size_t)c],-60.f)+60)/60);g.setColour(peaks[(size_t)c]>1?juce::Colours::red:mint);g.fillRect(bar.removeFromBottom(bar.getHeight()*level));}
+        for(int c=0;c<2;++c){
+            juce::Rectangle<float> bar((float)getWidth()-14+c*5,31,3,127);
+            float db=juce::Decibels::gainToDecibels(peaks[(size_t)c],-60.f);
+            auto y=[&](float value){return bar.getBottom()-(value+60)/66*bar.getHeight();};
+            const float limits[]={-60,-12,-3,6};const juce::Colour colours[]={juce::Colour(0xff53d58b),juce::Colour(0xffffcf5c),juce::Colour(0xffff636f)};
+            for(int zone=0;zone<3;++zone){float low=limits[zone],high=limits[zone+1];g.setColour(colours[zone].withAlpha(.14f));g.fillRect(bar.getX(),y(high),bar.getWidth(),y(low)-y(high));float lit=juce::jlimit(low,high,db);g.setColour(colours[zone]);g.fillRect(bar.getX(),y(lit),bar.getWidth(),y(low)-y(lit));}
+        }
     }
     void resized() override
     {
@@ -116,11 +122,11 @@ void ChainEditor::paint(juce::Graphics& g)
 {
     g.setColour(ink);g.setFont(juce::FontOptions(13));
     g.drawText("Instrument chain: Drum effects + VST3, processed left to right",0,0,getWidth(),22,juce::Justification::centredLeft);
-    g.setColour(muted);g.drawText("Third-party VST3: drop here or on the chain",0,54,getWidth(),26,juce::Justification::centred);
+    g.setColour(muted);g.drawText("Add effect",0,54,getWidth(),26,juce::Justification::centred);
     if(cards.empty())
     {
         g.setColour(bg);g.fillRoundedRectangle(viewport.getBounds().toFloat().reduced(3),6);g.setColour(muted);
-        g.drawFittedText("Drop VST3 audio effects here\n\nEmpty chain: audio passes through unchanged",viewport.getBounds().reduced(22),juce::Justification::centred,4);
+        g.drawFittedText("Add effect\n\nEmpty chain: audio passes through unchanged",viewport.getBounds().reduced(22),juce::Justification::centred,4);
     }
 }
 void ChainEditor::resized()

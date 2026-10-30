@@ -79,7 +79,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
     inline static std::vector<Impl*> receivers;
     Impl(LiveBrowserBridge& b,HWND p):Thread("Drum browser identity"),bridge(b),parent(p),visibility(p)
     {
-        window=CreateWindowExW(WS_EX_NOACTIVATE,L"STATIC",L"Drop Live VST3 effects here",WS_CHILD|WS_BORDER|SS_CENTER|SS_CENTERIMAGE|SS_NOTIFY,0,0,1,1,parent,nullptr,GetModuleHandleW(nullptr),nullptr);
+        window=CreateWindowExW(WS_EX_NOACTIVATE,L"STATIC",L"Add effect",WS_CHILD|WS_BORDER|SS_CENTER|SS_CENTERIMAGE|SS_NOTIFY,0,0,1,1,parent,nullptr,GetModuleHandleW(nullptr),nullptr);
         // A fixed child receives OLE immediately, without covering any card.
         const auto registration=window?RegisterDragDrop(window,this):E_FAIL;
         if(window && FAILED(registration))SetWindowTextW(window,L"Browser drop registration failed - use Load VST3");
@@ -163,7 +163,7 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
             {
                 if(!found.getDynamicObject())found=juce::var(new juce::DynamicObject());
                 auto* object=found.getDynamicObject();object->setProperty("browserItem",true);object->setProperty("browserName",name);
-                if(!found["matches"].isArray() || found["matches"].getArray()->isEmpty())object->setProperty("error",name+": no installed VST3 audio effect. Use Add Drum effect for built-ins; Live devices and instruments are unsupported.");
+                if(!found["matches"].isArray() || found["matches"].getArray()->isEmpty())object->setProperty("error",name+": no installed VST3 audio effect. Use Add effect for built-ins; Live devices and instruments are unsupported.");
             }
             auto* rows=found["matches"].getArray();traceNativeDrag("identity generation="+juce::String(current)+" browser="+juce::String(browser?1:0)+" name="+name+" matches="+juce::String(rows?rows->size():0));
             {const juce::ScopedLock guard(lock);if(current==generation){result=found;completed=current;}}

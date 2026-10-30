@@ -181,6 +181,13 @@ The 30 October 2026 installed-plugin audit found one collision against known nat
 
 Both EQ views have a solid spectrum shaded into the background, behind the EQ response curve and band handles. Play a hit or enable audition Loop to see it. The sound-editor spectrum shows the selected instrument after sound processing and before its chain; each chain EQ shows its own processed output. The spectrum uses a separate -90 to 0 dBFS scale, not the response curve's +/-24 dB scale. Cuts and boosts change the spectrum when audio is playing. Stereo power is combined without phase cancellation. The analyser is visual only: it does not normalise or alter the sound. FFT analysis runs at 15 updates per second on the UI thread while the EQ is shown.
 
-Compact chain tiles leave more space for the waveform. Their two thin output meters show left/right sample peaks with a short decay; red indicates above full scale. They reuse the existing audio validation pass and do not run FFTs. Bypassed tiles have no active output reading.
+Compact chain tiles leave more space for the waveform. Their two thin output meters show left/right sample peaks with a short decay; green shows levels below -12 dBFS, yellow from -12 to -3 dBFS, and red above -3 dBFS (headroom warning, not necessarily clipping). They reuse the existing audio validation pass and do not run FFTs. Bypassed tiles have no active output reading.
 
 Open Compressor, Gate or Limiter to see an input/output transfer graph and a measured peak point. Drag in the graph to set the threshold (Limiter: ceiling). Saturation and Clipper show their transfer curves. Transient and Utility show recent input/output peaks. These graphs help explain where processing changes level; the meters and listening show the result on actual hits. Mix is the rightmost knob wherever available. Parameter identities and saved settings remain unchanged.
+
+
+## Visual refinements (0.13.2)
+
+The effect button and browser target are labelled **Add effect**. EQ spectra interpolate between FFT bins and average a narrow frequency neighbourhood to remove blocky steps; the solid fill fades into the background. Each EQ band has its own colour, with inactive bands dimmed. The response curve remains separate from the measured spectrum.
+
+Saturation now shows its transfer curve alongside the **actual processed stereo output waveform**, blue for left and amber for right. Play or loop a hit to see how Drive, Output and Mix change the shape. The scope shows 512 samples (10.7 ms at 48 kHz), with a fixed +/-1 amplitude scale and a rising zero-crossing trigger. It is a live close-up rather than a preview of the whole sample. Capture stops when the panel is hidden. Transfer graphs use coloured shaded fills; the amber area in dynamics graphs marks the threshold/ceiling region. Repeated footer explanations have been removed from the panels; processing limitations remain documented here.

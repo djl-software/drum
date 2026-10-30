@@ -154,7 +154,7 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
         pump(150);HWND drop=nullptr;
         EnumChildWindows((HWND)editor.getPeer()->getNativeHandle(),[](HWND child,LPARAM target)->BOOL{
             wchar_t text[128]{};GetWindowTextW(child,text,128);
-            if(juce::String(text)=="Drop Live VST3 effects here")*reinterpret_cast<HWND*>(target)=child;
+            if(juce::String(text)=="Add effect")*reinterpret_cast<HWND*>(target)=child;
             return TRUE;
         },reinterpret_cast<LPARAM>(&drop));
         check(drop && IsWindowVisible(drop),"Native browser drop target missing");

@@ -20,6 +20,13 @@ public:
         if(count==0){for(auto& v:db)v=juce::jmax(-100.f,v-3.f);return true;}if(filled<size)return false;
         for(int channel=0;channel<2;++channel){scratch.fill(0);for(int n=0;n<size;++n)scratch[(size_t)n]=(channel?right:left)[(size_t)((cursor+n)%size)];window.multiplyWithWindowingTable(scratch.data(),size);fft.performFrequencyOnlyForwardTransform(scratch.data());for(int n=0;n<=size/2;++n){float magnitude=scratch[(size_t)n]*2.f/size;if(channel==0)power[(size_t)n]=magnitude*magnitude;else {float level=juce::Decibels::gainToDecibels(std::sqrt((power[(size_t)n]+magnitude*magnitude)*.5f),-100.f);db[(size_t)n]=juce::jmax(level,db[(size_t)n]-3.f);}}}return true;
     }
+    // Interpolate FFT bins, then average a narrow logarithmic frequency neighbourhood.
+    // This removes stair steps without changing the measured FFT values.
+    float levelAt(double hz,double rate) const {
+        if(rate<=0 || hz>=rate*.5)return -100;
+        auto interpolate=[&](double f){double bin=juce::jlimit(0.0,(double)size/2,f*size/rate);int lo=(int)bin,hi=juce::jmin(size/2,lo+1);return db[(size_t)lo]+(float)(bin-lo)*(db[(size_t)hi]-db[(size_t)lo]);};
+        float sum=0,weight=0;for(int n=-4;n<=4;++n){float w=5.f-std::abs(n);sum+=w*interpolate(hz*std::pow(2.0,n/48.0));weight+=w;}return sum/weight;
+    }
     std::array<float,size/2+1> db;
 private:
     juce::dsp::FFT fft{11};juce::dsp::WindowingFunction<float> window{size,juce::dsp::WindowingFunction<float>::hann,true};

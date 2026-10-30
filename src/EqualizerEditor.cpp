@@ -70,9 +70,9 @@ void EqualizerEditor::paint(juce::Graphics& g)
     if(spectrum){
         juce::Path fill;fill.startNewSubPath(a.getX(),a.getBottom());const double sampleRate=spectrum->rate.load();
         for(int x=0;x<=(int)a.getWidth();++x){double hz=20*std::pow(1000.0,x/a.getWidth());float level=-100;
-            if(hz<sampleRate*.5){int bin=juce::jlimit(1,drum::SpectrumAnalysis::size/2,(int)std::round(hz*drum::SpectrumAnalysis::size/sampleRate));level=analysis.db[(size_t)bin];}
+            level=analysis.levelAt(hz,sampleRate);
             fill.lineTo(a.getX()+x,a.getBottom()-juce::jlimit(0.f,1.f,(level+90)/90)*a.getHeight());}
-        fill.lineTo(a.getRight(),a.getBottom());fill.closeSubPath();juce::ColourGradient shade(juce::Colour(0xff527a80),a.getX(),a.getY(),bg,a.getX(),a.getBottom(),false);g.setGradientFill(shade);g.fillPath(fill);
+        fill.lineTo(a.getRight(),a.getBottom());fill.closeSubPath();juce::ColourGradient shade(juce::Colour(0xff4cb7d6),a.getX(),a.getY(),bg,a.getX(),a.getBottom(),false);g.setGradientFill(shade);g.fillPath(fill);
         label(g,"Output spectrum: -90 to 0 dBFS",{(int)a.getRight()-170,(int)a.getY()+4,166,14},muted);
     }
     for(double hz:{20.,50.,100.,200.,500.,1000.,2000.,5000.,10000.,20000.})
@@ -96,7 +96,8 @@ void EqualizerEditor::paint(juce::Graphics& g)
     g.setColour(equalizer.enabled?mint:muted);g.strokePath(curve,juce::PathStrokeType(2));
     for(int n=0;n<8;++n)
     {
-        const auto p=point(n);g.setColour(equalizer.enabled && equalizer.bands[(size_t)n].enabled?mint:muted);
+        const auto p=point(n);static const juce::uint32 colours[]={0xfff28b82,0xffffbd69,0xfff4dc72,0xff8cda83,0xff59d9cd,0xff68b6ff,0xffb49bff,0xffed91d1};
+        g.setColour(juce::Colour(colours[n]).withAlpha(equalizer.enabled && equalizer.bands[(size_t)n].enabled?1.f:.55f));
         if(n==selected)g.drawEllipse(p.x-10,p.y-10,20,20,1);
         g.fillEllipse(p.x-7,p.y-7,14,14);g.setColour(bg);g.setFont(juce::FontOptions(10));g.drawText(juce::String(n+1),juce::Rectangle<int>(14,14).withCentre(p.roundToInt()),juce::Justification::centred);
     }

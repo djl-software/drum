@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.13.2 smooths EQ spectra, colours individual EQ bands, adds green/yellow/red tile meters and a live stereo Saturation waveform, and simplifies effect labels and panels.
+
 Version 0.13.1 adds filled output spectra to both EQ views, compact chain tiles with stereo peak meters, graphical built-in effect panels and Mix controls on the right. Analysis runs on the UI thread while the EQ is visible.
 
 Version 0.13.0 adds eight Drum built-in effects to each instrument chain, including the existing eight-band EQ with independent settings. Built-ins and VST3 effects share ordering, bypass and state recall. From 0.13.1, new instruments have an empty factory chain. Chain presets, copy/paste and saved defaults are available. Browser drops require confirmation of the actual VST3 identity to prevent native-device name collisions. See docs/sound-editor.md for controls and limitations; the bundled 0.12.3 PDF predates these changes.
