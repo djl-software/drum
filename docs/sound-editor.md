@@ -1,4 +1,4 @@
-# Drum sound editor (0.12.2)
+# Drum sound editor (0.12.3)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has eight pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
@@ -145,3 +145,7 @@ The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manu
 Every waveform includes adaptive time graticules. The Edit Sound panel uses more of the window, single-line fields and graphs below the waveform. Envelope time and waveform time are separate: MIDI defines the duration of the S hold.
 
 Sample gain turns red only when the completed processed preview exceeds 0 dBFS. Exactly full scale, a high gain setting alone and display zoom do not cause a red warning. The preview includes the amplitude envelope, EQ, attack layer and mixer level, at 80% velocity and a one-second gate; Send views use the selected send. Pending/stale previews clear the warning until a current result arrives. Edited/Send captions use the same strict limit. This is one rendered hit, not a live meter of overlapping notes, Chain effects or external effects. Floating-point audio is retained rather than hard-clipped. Fade in is disabled in Envelope, whose amplitude graph shapes the sample; Trigger/Gate use fades. Neither affects the independent attack layer.
+
+## Shared audition transport (0.12.3)
+
+Play, Loop and BPM now live in the workspace header, visible at the same location above every editing tab. Play triggers one audition with Loop off. Loop latches and highlights; Play starts repeating at one hit per beat and becomes Pause. BPM ranges from 20 to 300, default 120, independently of the host tempo and sample-region loop. Pause fades audition voices without cancelling MIDI voices. Instrument/kit changes and editor closure stop audition repetition. Loop/BPM are editor audition settings, not saved musical parameters.

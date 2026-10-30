@@ -315,6 +315,7 @@ void SampleEngine::prepare(double rate,int blockSize)
 }
 void SampleEngine::release()
 {
+    repeatNote.store(-1);repeatingNote=-1;auditionBeatRemaining=0;
     stopVoices(); current=nullptr; sampleGeneration=UINT64_MAX; hazard.store(nullptr); previewNote.store(-1);
     pitchBend.fill(0); freePhase=0;
 }
@@ -447,7 +448,25 @@ void SampleEngine::updateRenderControls() noexcept
     }
     previousMacros=macroValues;
 }
+void SampleEngine::startAuditionVoice(int note) noexcept
+{
+    const auto previousClock=clock;
+    activity[(size_t)note].fetch_add(uint64_t(1)<<32);
+    startVoice(note,1,0.8f);
+    if(clock!=previousClock) for(auto& v:voices) if(v.sample && v.age==clock) v.preview=true;
+}
 void SampleEngine::render(juce::AudioBuffer<float>& output,int start,int end) noexcept
+{
+    if(repeatingNote<0){renderVoices(output,start,end);return;}
+    const double beatsPerSample=auditionBpm.load()/(60.0*hostRate);
+    while(start<end)
+    {
+        if(auditionBeatRemaining<=0){startAuditionVoice(repeatingNote);auditionBeatRemaining+=1.0;}
+        const int count=juce::jmin(end-start,juce::jmax(1,(int)std::ceil(auditionBeatRemaining/beatsPerSample)));
+        renderVoices(output,start,start+count);start+=count;auditionBeatRemaining-=count*beatsPerSample;
+    }
+}
+void SampleEngine::renderVoices(juce::AudioBuffer<float>& output,int start,int end) noexcept
 {
     for(auto& voice:voices)
     {
@@ -623,6 +642,7 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     if(next!=current)
     {
         if(!next || next->sampleGeneration!=sampleGeneration) stopVoices();
+        if(current && next && current->kitEpoch!=next->kitEpoch)repeatNote.store(-1);
         current=next; sampleGeneration=next?next->sampleGeneration:UINT64_MAX;
         if(current) { updateRenderControls(); updateVoices(); }
     }
@@ -631,6 +651,11 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     if(!current || current->rate!=hostRate || current->kitEpoch!=library.activeKitEpoch()) { stopVoices(); return; }
     const bool stopped=panic.exchange(false);
     if(stopped)stopVoices();
+    if(pausePreview.exchange(false))for(auto& voice:voices)if(voice.preview)fadeVoice(voice);
+    int requestedRepeat=repeatNote.load();
+    if(requestedRepeat>=0 && !current->samples[(size_t)requestedRepeat]){repeatNote.store(-1);requestedRepeat=-1;}
+    if(requestedRepeat!=repeatingNote){repeatingNote=requestedRepeat;auditionBeatRemaining=0;}
+
     {
         auto commands=keyboardQueue.read(keyboardQueue.getNumReady());
         commands.forEach([&](int index) {
@@ -643,10 +668,7 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     }
     if(auto note=previewNote.exchange(-1);note>=0)
     {
-        const auto previousClock=clock;
-        activity[(size_t)note].fetch_add(uint64_t(1)<<32);
-        startVoice(note,1,0.8f);
-        if(clock!=previousClock) for(auto& v:voices) if(v.sample && v.age==clock) v.preview=true;
+        startAuditionVoice(note);
     }
     renderingInstruments=effects && (effects->active() || current->hasEffects);
     if(stopped && effects)effects->reset();

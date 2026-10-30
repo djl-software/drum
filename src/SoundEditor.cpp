@@ -443,8 +443,6 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     noteIndicator.setTooltip("MIDI trigger is the pad assignment. Preview pitch/key is estimated from processed audio, before external effects. A single drum note cannot establish major/minor key. Manual key labels are saved per instrument.");
     auto button=[this](juce::TextButton& b,const char* title,const char* id) {addAndMakeVisible(b); b.setButtonText(title); b.setComponentID(id);};
     button(back,"Back to kit","close-sound-editor"); back.onClick=[this]{if(close)close();};
-    button(play,"Play","edit-play"); play.onClick=[this]{processor.getSampleEngine().audition(note);};
-    button(stop,"Stop","edit-stop"); stop.onClick=[this]{processor.getSampleEngine().stop();};
     button(reset,"Reset page","reset-edit-page"); reset.onClick=[this]{
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
         if(!i || kit->id!=kitId) return;
@@ -529,7 +527,7 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     if(i && !i->controls.solo)for(auto& group:drum::activeKit(libraryState)->groups)for(auto& other:group.instruments)
         if(other.controls.solo)selectedControls.mute=true;
     waveform->setSample(selectedSample,changed);
-    play.setEnabled(i && processor.getSampleEngine().statusFor(i->id).ready); reset.setEnabled(i!=nullptr);
+    reset.setEnabled(i!=nullptr);
     updating=false; refreshPreview();refreshEnvelopes(changed);repaint();
 }
 void SoundEditor::refreshEnvelopes(bool newSelection)
@@ -772,7 +770,7 @@ void SoundEditor::paint(juce::Graphics& g)
 void SoundEditor::resized()
 {
     noteIndicator.setBounds(18,46,getWidth()-36,22);
-    back.setBounds(getWidth()-380,15,125,32); play.setBounds(getWidth()-245,15,65,32); stop.setBounds(getWidth()-170,15,65,32); reset.setBounds(getWidth()-95,15,80,32);
+    back.setBounds(getWidth()-230,15,125,32); reset.setBounds(getWidth()-95,15,80,32);
     const int tabWidth=(getWidth()-36-8*((int)tabs.size()-1))/(int)tabs.size();
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)n].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
     adsrValues.setBounds(getWidth()-146,116,128,24);

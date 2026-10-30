@@ -1,11 +1,11 @@
 {
   "product": "Drum",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "date": "30 October 2026",
   "platform": "Windows VST3",
   "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
-  "cover_caption": "Version 0.12.2 editing preview  |  Instructions, examples and why",
-  "footer": "Version 0.12.2  |  Windows VST3 editing preview",
+  "cover_caption": "Version 0.12.3 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.12.3  |  Windows VST3 editing preview",
   "logo": "../../assets/DJLLogoWhite.png",
   "cover_image": "assets/curves.png",
   "publisher": "DJL Software",
@@ -15,7 +15,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.12.2 editing preview."
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.12.3 editing preview."
         },
         {
           "type": "p",
@@ -77,7 +77,7 @@
         },
         {
           "type": "p",
-          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.12.2. Instrument effect chains need version 0.12.0 or later; an older build is not expected to understand their state. Reopen the Set and confirm sample status, output routing and playback before continuing."
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.12.3. Instrument effect chains need version 0.12.0 or later; an older build is not expected to understand their state. Reopen the Set and confirm sample status, output routing and playback before continuing."
         },
         {
           "type": "p",
@@ -93,7 +93,7 @@
           "items": [
             "Open Drum. Rename Kit 1 using the active-kit name box. Press Enter or click away to keep the name; Escape cancels a name edit.",
             "Select Group 1 and rename it Drums. Click + Instrument, select its card, then click Load sample and choose a short WAV or AIFF drum hit. Wait for Ready. Alternatively, drop a sample into the empty card area.",
-            "Click an instrument pad or its assigned piano key to select and play it. Hold the mouse for Gate/Envelope and release to end the held note. Play in the right panel remains a one-second audition; Stop ends sounding and pending hits.",
+            "Click an instrument pad or its piano key to select and play it. The shared header has Play, Loop and BPM on the main screen and every Edit sound tab. With Loop off, Play triggers one hit. With Loop on, Play repeats once per beat; Pause stops the audition.",
             "Use the Key chooser to assign MIDI 36. Drum calls this C2. In your DAW, draw MIDI note number 36 in a clip, or send that note from a controller.",
             "Play the clip. For a connected MIDI keyboard, enable its input in the DAW and arm the Drum MIDI track or set monitoring to In. The matching pad and piano key light while held; short hits flash briefly. A connection alone does not route MIDI into Drum.",
             "Add a snare and a hat on different free notes. Save the DAW project once playback works."
@@ -128,7 +128,7 @@
           "type": "image",
           "path": "assets/workspace.png",
           "caption": "Eight compact named kit tabs, four square pads per row and the playable 88-key piano. Longer kit names use an ellipsis; hover to read the full name.",
-          "max_height": 250
+          "max_height": 160
         },
         {
           "type": "table",
@@ -170,6 +170,10 @@
         {
           "type": "p",
           "text": "Resize using the bottom-right corner. The minimum editor size is 800 x 600. A larger window makes envelopes and waveforms easier to inspect. Hover over controls for tooltips."
+        },
+        {
+          "type": "p",
+          "text": "Header Play triggers one hit; arm Loop to repeat once per beat. Loop lights when enabled and Play becomes Pause while repeating. BPM is independent of Live tempo and sample loop markers. Changing instruments/kits or closing the editor stops repetition. Audition settings reset to Loop off and 120 BPM when the editor opens."
         }
       ]
     },
@@ -237,7 +241,7 @@
           "items": [
             "Select the destination group. Drag one or more actual audio files from Live's Samples browser or Windows Explorer into empty space in the instrument grid to create slots.",
             "To replace one sound, drop one file directly onto its card, or select the card and click Replace. An empty slot instead shows Load sample.",
-            "Wait for the status message before auditioning. Check the filename displayed on the card and in the selected-instrument panel.",
+            "Wait for the status message before auditioning. Check the filename displayed on the card and in the selected-instrument panel. Default pad names become the filename without its extension; custom names remain unchanged.",
             "Rename the slot if a musical role such as Closed hat is more useful than the filename."
           ]
         },
@@ -448,7 +452,7 @@
         },
         {
           "type": "p",
-          "text": "A large number of long cymbal or loop voices can consume the available pool. Shorten unnecessary tails, reduce per-instrument voices or use suitable choke groups. Stop ends current voices during editing."
+          "text": "A large number of long cymbal or loop voices can consume the available pool. Shorten unnecessary tails, reduce per-instrument voices or use suitable choke groups. Pause stops the repeating audition; incoming MIDI remains independent."
         }
       ]
     },
@@ -1585,8 +1589,8 @@
               "Reset page. Does not remove macro assignments."
             ],
             [
-              "Audition / stop",
-              "Play / Stop. Play uses 80% velocity and a one-second gate where applicable."
+              "Audition transport",
+              "Header Play: one hit with Loop off. Loop latches on/off; Play becomes Pause while repeating. BPM: 20-300, default 120; one hit per beat."
             ]
           ],
           "widths": [
@@ -1615,7 +1619,7 @@
           "type": "table",
           "headers": [
             "Facility",
-            "Scope of version 0.12.2"
+            "Scope of version 0.12.3"
           ],
           "rows": [
             [

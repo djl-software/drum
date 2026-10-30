@@ -258,8 +258,21 @@ public:
                     if(safe && dialog.getResult().existsAsFile()) safe->beginLoad(kitId,id,dialog.getResult());
                 });
         };
-        setup(playSample, "Play", "play-sample"); playSample.onClick=[this] { if(auto* i=instrument()) processor.getSampleEngine().audition(i->note); };
-        setup(stopSample, "Stop", "stop-samples"); stopSample.onClick=[this] { processor.getSampleEngine().stop(); };
+        setup(playSample, "Play", "play-sample"); playSample.onClick=[this] {
+            auto& engine=processor.getSampleEngine();
+            if(loopSample.getToggleState() && engine.auditionLoopRunning())engine.pauseAudition();
+            else if(auto* i=instrument()) {if(loopSample.getToggleState())engine.setAuditionLoop(i->note);else engine.audition(i->note);}
+            updateTransport();
+        };
+        setup(loopSample,"Loop","audition-loop");loopSample.setClickingTogglesState(true);
+        loopSample.setColour(juce::TextButton::buttonOnColourId,accent.darker(0.4f));
+        loopSample.onClick=[this]{if(!loopSample.getToggleState())processor.getSampleEngine().pauseAudition();updateTransport();};
+        loopSample.setTooltip("Repeat the selected drum once per beat. Separate from sample-region looping.");
+        setupSlider(auditionTempo,"audition-bpm",20,300,1," BPM");
+        auditionTempo.setSliderStyle(juce::Slider::IncDecButtons);auditionTempo.setTextBoxStyle(juce::Slider::TextBoxLeft,false,78,28);
+        auditionTempo.setValue(120,juce::dontSendNotification);auditionTempo.setDoubleClickReturnValue(true,120);
+        processor.getSampleEngine().setAuditionBpm(120);
+        auditionTempo.onValueChange=[this]{processor.getSampleEngine().setAuditionBpm(auditionTempo.getValue());};
         setupSlider(volume,"instrument-volume",-60,12,0.1," dB");
         volume.textFromValueFunction=[](double v) { return v<=-60 ? juce::String("-inf") : juce::String(v,1); };
         volume.valueFromTextFunction=[](const juce::String& t) { return t.containsIgnoreCase("inf")?-60.0:t.getDoubleValue(); };
@@ -312,14 +325,14 @@ public:
         for(int n=0;n<128;++n)noteSerials[(size_t)n]=processor.getSampleEngine().noteActivity(n)>>32;
         refresh(); startTimerHz(30);
     }
-    ~Workspace() override { grid.releaseKey();keyboard.releaseKey();stopTimer(); groups.setModel(nullptr); viewport.setViewedComponent(nullptr,false); setLookAndFeel(nullptr); }
+    ~Workspace() override { processor.getSampleEngine().pauseAudition();grid.releaseKey();keyboard.releaseKey();stopTimer(); groups.setModel(nullptr); viewport.setViewedComponent(nullptr,false); setLookAndFeel(nullptr); }
     void paint(juce::Graphics& g) override
     {
         g.fillAll(background);
         g.drawImageWithin(logo,24,20,64,38,juce::RectanglePlacement::centred);
         label(g,"DRUM",{104,17,180,36},29);
         label(g,"KIT WORKSPACE",{106,53,200,18},10,muted);
-        label(g,"INSTRUMENT PREVIEW / v" DRUM_VERSION_STRING,{getWidth()-440,22,225,28},11,muted,juce::Justification::centredRight);
+        label(g,"INSTRUMENT PREVIEW / v" DRUM_VERSION_STRING,{getWidth()-440,57,225,18},11,muted,juce::Justification::centredRight);
         label(g,"ACTIVE KIT",{24,139,86,32},10,accent);
         label(g,juce::String(view.kits.size())+" / 8 kits",{getWidth()-360,139,95,32},12,muted,juce::Justification::centredRight);
         box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
@@ -364,6 +377,7 @@ public:
         const int w=getWidth(), h=getHeight();
         if(w<=0 || h<=0) return;
         example.setBounds(w-194,23,170,31);
+        playSample.setBounds(w-488,23,68,31);loopSample.setBounds(w-412,23,65,31);auditionTempo.setBounds(w-339,23,135,31);
         const int count=(int)view.kits.size(),gap=6,reserved=count<8?84:0;
         const int available=w-48-reserved-gap*juce::jmax(0,count-1);
         std::array<int,8> widths {};int total=0;
@@ -393,8 +407,6 @@ public:
         note.setBounds(right.getX()+18,right.getY()+116,122,29);
         destination.setBounds(right.getX()+148,right.getY()+116,122,29);
         loadSample.setBounds(right.getX()+18,right.getY()+225,108,28);
-        playSample.setBounds(right.getX()+134,right.getY()+225,62,28);
-        stopSample.setBounds(right.getX()+204,right.getY()+225,66,28);
         volume.setBounds(right.getX()+75,right.getY()+264,195,30);
         pan.setBounds(right.getX()+75,right.getY()+300,195,30);
         tuning.setBounds(right.getX()+75,right.getY()+336,195,30);
@@ -516,7 +528,7 @@ private:
         grid.instruments=group().instruments; grid.selected=instrumentId; grid.colour=group().colour; grid.repaint();
         keyboard.kit=kit(); keyboard.selected=instrumentId; keyboard.repaint();
         auto* i=instrument();
-        for(auto* c:std::initializer_list<juce::Component*>{&instrumentName,&note,&destination,&copyInstrument,&deleteInstrument,&instrumentUp,&instrumentDown,&loadSample,&playSample,&stopSample,&volume,&pan,&tuning,&mute,&solo,&choke,&editSound}) c->setVisible(i!=nullptr);
+        for(auto* c:std::initializer_list<juce::Component*>{&instrumentName,&note,&destination,&copyInstrument,&deleteInstrument,&instrumentUp,&instrumentDown,&loadSample,&volume,&pan,&tuning,&mute,&solo,&choke,&editSound}) c->setVisible(i!=nullptr);
         soundEditor.select(view.activeKit,i);
         note.clear(juce::dontSendNotification); destination.clear(juce::dontSendNotification);
         if(i)
@@ -526,7 +538,7 @@ private:
             controlsInstrumentId=i->id;
             if(forceNames || !instrumentName.hasKeyboardFocus(true)) instrumentName.setText(i->name,false);
             auto info=processor.getSampleEngine().statusFor(i->id);
-            playSample.setEnabled(info.ready && !info.loading);
+
             loadSample.setButtonText(i->samplePath.isEmpty()?"Load sample":"Replace");
             loadSample.setTooltip(info.message.isNotEmpty()?info.message:"Choose an audio file");
             if(controlsSelectionChanged || (!volume.isMouseButtonDown() && !volume.hasKeyboardFocus(true))) volume.setValue(i->controls.volumeDb,juce::dontSendNotification);
@@ -544,7 +556,7 @@ private:
             copyInstrument.setEnabled(drum::instrumentCount(kit())<88);
             instrumentUp.setEnabled(group().instruments.front().id!=instrumentId); instrumentDown.setEnabled(group().instruments.back().id!=instrumentId);
         }
-        resized(); repaint();
+        updateTransport();resized(); repaint();
     }
     void scrollToSelected()
     {
@@ -606,6 +618,7 @@ private:
     {
         for(auto& flash:flashes)if(flash>0)--flash;
         updateActivity();
+        updateTransport();
         auto epoch=processor.getSampleEngine().statusRevision();
         if(library.snapshot().revision!=view.revision || epoch!=sampleEpoch)
         {
@@ -633,7 +646,17 @@ private:
     std::array<juce::TextButton,8> kitTabs;
     juce::TextButton addKit,example,copyKit,deleteKit,addGroup,copyGroup,deleteGroup,groupUp,groupDown;
     juce::TextButton addInstrument,copyInstrument,deleteInstrument,instrumentUp,instrumentDown;
-    juce::TextButton loadSample,playSample,stopSample;
+    void updateTransport()
+    {
+        auto* selected=instrument();auto& engine=processor.getSampleEngine();
+        auto identity=view.activeKit+"/"+(selected?selected->id:juce::String());
+        if(identity!=auditionSelection){engine.pauseAudition();auditionSelection=identity;}
+        playSample.setEnabled(selected && engine.statusFor(selected->id).ready);
+        playSample.setButtonText(loopSample.getToggleState() && engine.auditionLoopRunning()?"Pause":"Play");
+    }
+    juce::String auditionSelection;
+    juce::Slider auditionTempo;
+    juce::TextButton loadSample,playSample,loopSample;
     juce::TextButton mute,solo;
     ResetSlider volume,pan,tuning;
     std::unique_ptr<juce::FileChooser> chooser;

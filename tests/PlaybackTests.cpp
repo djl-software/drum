@@ -115,6 +115,46 @@ void runPlaybackTests()
     p.getLibrary().rename(setup.instrument,"Stereo test hit");
     check(p.getSampleEngine().waitForLoading(10000),"Rename sync failed");
     DrumAudioProcessorEditor editor(p); writePreview(editor);
+    // Audition timing follows audio samples, including beats inside a host block.
+    Setup audition;audition.load(fixture("audition.wav",1,48000,480));
+    auto& engine=audition.processor.getSampleEngine();juce::MidiBuffer noMidi;
+    juce::AudioBuffer<float> loopAudio(2,48001);
+    engine.setAuditionBpm(120);engine.setAuditionLoop(36);
+    audition.processor.processBlock(loopAudio,noMidi);
+    near(loopAudio.getSample(0,0),0.2f,"Audition loop first beat missing");
+    near(loopAudio.getSample(0,23999),0,"Audition beat early");
+    near(loopAudio.getSample(0,24000),0.2f,"Audition BPM timing wrong");
+    near(loopAudio.getSample(0,48000),0.2f,"Audition second interval drifted");
+    engine.pauseAudition();audition.processor.processBlock(loopAudio,noMidi);
+    near(loopAudio.getSample(0,24000),0,"Paused audition retriggered");
+    auto serial=engine.noteActivity(36)>>32;
+    engine.audition(36);audition.processor.processBlock(loopAudio,noMidi);
+    check((engine.noteActivity(36)>>32)==serial+1,"Single shot repeated");
+    engine.setAuditionBpm(60);engine.setAuditionLoop(36);
+    audition.processor.processBlock(loopAudio,noMidi);
+    near(loopAudio.getSample(0,24000),0,"60 BPM audition was too fast");
+    near(loopAudio.getSample(0,48000),0.2f,"Changed audition BPM ignored");
+    engine.pauseAudition();
+    // Main and all eight edit tabs use the same live transport components.
+    DrumAudioProcessorEditor auditionEditor(audition.processor);
+    auto findControl=[](auto&& self,juce::Component& root,const juce::String& id)->juce::Component* {
+        if(root.getComponentID()==id)return &root;
+        for(auto* child:root.getChildren())if(auto* result=self(self,*child,id))return result;
+        return nullptr;
+    };
+    auto button=[&](const juce::String& id){auto* b=dynamic_cast<juce::Button*>(findControl(findControl,auditionEditor,id));check(b!=nullptr,"Audition control missing");return b;};
+    auto* play=button("play-sample");auto* repeat=button("audition-loop");
+    const auto position=play->getBounds();
+    button("open-sound-editor")->onClick();
+    for(int tab=0;tab<8;++tab) {
+        button("edit-tab-"+juce::String(tab))->onClick();
+        check(play->isVisible() && play->isEnabled() && play->getBounds()==position,"Edit tab moved or disabled audition controls");
+        serial=engine.noteActivity(36)>>32;play->onClick();audition.processor.processBlock(loopAudio,noMidi);
+        check((engine.noteActivity(36)>>32)==serial+1,"Edit tab Play failed");
+    }
+    repeat->setToggleState(true,juce::dontSendNotification);repeat->onClick();play->onClick();
+    check(play->getButtonText()=="Pause" && engine.auditionLoopRunning(),"Loop Play did not become Pause");
+    play->onClick();check(play->getButtonText()=="Play" && !engine.auditionLoopRunning(),"Pause did not stop repeating");
     std::cout << "Sample loading, MIDI playback, resampling and recall tests passed\n";
 }
 void runVst3PlaybackTest(const juce::String& path)

@@ -63,7 +63,7 @@ private:
     bool updating=false,chainPresent=false;
     int page=0,note=21;
     ChainEditor chain;
-    juce::TextButton back,play,stop,reset;
+    juce::TextButton back,reset;
     juce::Label noteIndicator;
     juce::TextButton slice;
     juce::ToggleButton adsrValues{"ADSR values"};

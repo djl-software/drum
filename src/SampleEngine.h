@@ -65,12 +65,16 @@ public:
     void setMacros(const std::array<float,numMacros>& values) noexcept { macroValues=values; }
     void setOutputChannels(const std::array<int,22>& channels, int mainChannels) noexcept { busChannels=channels; mainWidth=mainChannels; }
     void audition(int note) { if(note>=0 && note<128)previewNote.store(note); }
+    void setAuditionLoop(int note) { repeatNote.store(note>=0 && note<128?note:-1); }
+    void setAuditionBpm(double bpm) { auditionBpm.store(juce::jlimit(20.0,300.0,bpm)); }
+    bool auditionLoopRunning() const { return repeatNote.load()>=0; }
+    void pauseAudition() { repeatNote.store(-1); previewNote.store(-1); pausePreview.store(true); }
     // Message-thread pad/piano presses, consumed without locks by the audio thread.
     void keyboardNote(int note, bool down);
     // Low 17 bits: held MIDI channels + mouse. High 32 bits: note-on serial,
     // retained even when a short MIDI hit begins and ends in a single block.
     uint64_t noteActivity(int note) const { return note>=0 && note<128?activity[(size_t)note].load():0; }
-    void stop() { previewNote.store(-1); panic.store(true); }
+    void stop() { repeatNote.store(-1); previewNote.store(-1); panic.store(true); }
     double tailSeconds() const { return tail.load(); }
 private:
     SampleEngine(KitLibrary&, std::function<void()>, bool startLoader);
@@ -142,6 +146,8 @@ private:
     void updateVoices() noexcept;
     void updateRenderControls() noexcept;
     void render(juce::AudioBuffer<float>&, int start, int end) noexcept;
+    void renderVoices(juce::AudioBuffer<float>&, int start, int end) noexcept;
+    void startAuditionVoice(int note) noexcept;
     void mixEffects(juce::AudioBuffer<float>& output,int offset,int frames) noexcept;
     EffectRack* effects=nullptr;
     juce::AudioPlayHead* playHead=nullptr;
@@ -167,6 +173,11 @@ private:
     juce::AbstractFifo keyboardQueue {128};
     std::array<KeyboardCommand,128> keyboardCommands;
     std::array<std::atomic<uint64_t>,128> activity {};
+    std::atomic<int> repeatNote {-1};
+    std::atomic<double> auditionBpm {120.0};
+    std::atomic<bool> pausePreview {false};
+    int repeatingNote=-1;
+    double auditionBeatRemaining=0;
     std::atomic<bool> panic { false };
     std::atomic<double> tail { 0.0 }, completedRate {0};
     // Worker-only cache. Audio voices receive scalar calibration, never scan bursts.

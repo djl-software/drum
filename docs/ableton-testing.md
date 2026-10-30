@@ -135,3 +135,7 @@ The external prototype successfully received Pro-G and Pro-C 2 browser drops wit
 ## Sample pad naming correction (0.12.2)
 
 The reported sample-drag failure was clarified as a naming issue: audio loaded successfully, but an existing pad retained Instrument 1. Loading onto a default pad now adopts the filename without its extension (trimmed to the 64-character name limit). Automatically named pads follow replacement samples; custom names remain unchanged. Existing saved names are not rewritten on opening; load/drop the sample again to apply the rule.
+
+## Shared audition transport (0.12.3)
+
+Check Play on the main screen and each Edit sound tab. With Loop off there should be one hit. Arm Loop and press Play: the button should read Pause; repeat interval is 500 ms at 120 BPM and one second at 60 BPM. Pause retains the Loop on state but stops audition voices and repetition. Incoming MIDI remains independent. Selecting another instrument or closing the editor stops the audition. Loop is separate from sample-region looping and the host tempo.

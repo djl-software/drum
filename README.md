@@ -36,7 +36,9 @@ Version 0.12.2 adds a **Windows Live browser drag bridge**. Start a VST3 audio-e
 
 Sample loading also names default instrument pads from the filename without its extension. Replacing an automatically named sample updates that name; custom instrument names are preserved.
 
-The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.12.2-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
+Version 0.12.3 unifies audition controls in the header across the main screen and all Edit sound tabs: Play, latching Loop, and 20-300 BPM. Loop off plays one hit; Loop on repeats once per beat with audio-clock timing and Play becomes Pause. Changing instruments/kits or closing the editor stops the audition.
+
+The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.12.3-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
 
 ![Playable instrument pads, four across](docs/images/drum-pads.png)
 
