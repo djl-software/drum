@@ -172,9 +172,9 @@ From 0.13.1, the factory chain for new instruments is empty. Existing saved inst
 
 ## Browser identity and unsupported devices
 
-Live's browser exposes a name to Drum's drag reader, not a proven VST3 device identity. Browser drops therefore show a confirmation listing the actual installed VST3 vendor/name/path before loading. This prevents silently substituting a same-named effect. Direct `.vst3` file drops and Load VST3 identify the file explicitly. Native Live devices and synth instruments cannot be inserted into this audio-effects chain; an unsupported browser drop displays an explanation. Drum does not change Live's browser filters.
+Live's browser exposes a name to Drum's drag reader, not a proven VST3 device identity. Browser drops load a single matching VST3 directly. Multiple matches or known native Live names show a chooser listing the installed vendor/name/path. Direct `.vst3` file drops and Load VST3 identify the file explicitly. Native Live devices and synth instruments cannot be inserted into this audio-effects chain; an unsupported browser drop displays an explanation. Drum does not change Live's browser filters.
 
-The 30 October 2026 installed-plugin audit found one collision against known native Live audio-effect names: Ableton **Limiter** versus Mastering the Mix **LIMITER**. No other duplicate installed VST3 effect names were found after the installation cleanup. The confirmation rule applies to all names, including future installations, rather than relying on that audit as a permanent allow-list.
+The 30 October 2026 installed-plugin audit found one collision against known native Live audio-effect names: Ableton **Limiter** versus Mastering the Mix **LIMITER**. No other duplicate installed VST3 effect names were found after the installation cleanup. The chooser remains for known native names and multiple matches; unknown future native names may require updating the collision list.
 
 
 ## Graphs and output analysis (0.13.1)
@@ -191,3 +191,14 @@ Open Compressor, Gate or Limiter to see an input/output transfer graph and a mea
 The effect button and browser target are labelled **Add effect**. EQ spectra interpolate between FFT bins and average a narrow frequency neighbourhood to remove blocky steps; the solid fill fades into the background. Each EQ band has its own colour, with inactive bands dimmed. The response curve remains separate from the measured spectrum.
 
 Saturation now shows its transfer curve alongside the **actual processed stereo output waveform**, blue for left and amber for right. Play or loop a hit to see how Drive, Output and Mix change the shape. The scope shows 512 samples (10.7 ms at 48 kHz), with a fixed +/-1 amplitude scale and a rising zero-crossing trigger. It is a live close-up rather than a preview of the whole sample. Capture stops when the panel is hidden. Transfer graphs use coloured shaded fills; the amber area in dynamics graphs marks the threshold/ceiling region. Repeated footer explanations have been removed from the panels; processing limitations remain documented here.
+
+
+In 0.13.3 the separate Add effect drop strip is removed. The toolbar reads **Add effect**, **Load VST3...**, **Presets**, side by side. Drag VST3 effects directly onto the chain; the temporary full-window drag surface remains active during browser drags.
+
+EQ spectra now use an 8,192-sample FFT (4,097 bins), giving about 5.9 Hz bin spacing at 48 kHz. Narrower display smoothing preserves more detail around EQ cuts and boosts. The analysis window covers about 171 ms at 48 kHz; the display still refreshes at 15 Hz.
+
+Browser drops with one matching VST3 now load directly. Multiple matches and known native Live device names (such as Limiter) still open a chooser to avoid loading the wrong effect. Native Live devices are still unsupported inside Drum.
+
+Browser shutdown now services synchronous UI/COM replies while its lookup worker exits, avoiding a circular wait during editor destruction. Clicks inside Drum do not start browser identity lookups. This addresses a shutdown deadlock path; host-close behaviour still needs verification in Live.
+
+Implementation reference: [Microsoft UI Automation threading guidance](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-threading) and [COM-aware waits](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cowaitformultiplehandles).

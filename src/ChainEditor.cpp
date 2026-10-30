@@ -122,7 +122,6 @@ void ChainEditor::paint(juce::Graphics& g)
 {
     g.setColour(ink);g.setFont(juce::FontOptions(13));
     g.drawText("Instrument chain: Drum effects + VST3, processed left to right",0,0,getWidth(),22,juce::Justification::centredLeft);
-    g.setColour(muted);g.drawText("Add effect",0,54,getWidth(),26,juce::Justification::centred);
     if(cards.empty())
     {
         g.setColour(bg);g.fillRoundedRectangle(viewport.getBounds().toFloat().reduced(3),6);g.setColour(muted);
@@ -131,8 +130,8 @@ void ChainEditor::paint(juce::Graphics& g)
 }
 void ChainEditor::resized()
 {
-    builtin.setBounds(0,24,140,25);presets.setBounds(148,24,190,25);load.setBounds(getWidth()-126,24,126,25);
-    viewport.setBounds(0,84,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-117));
+    builtin.setBounds(0,24,112,25);load.setBounds(120,24,112,25);presets.setBounds(240,24,96,25);
+    viewport.setBounds(0,58,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-91));
     const int height=190;flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*188+40),height);
     for(size_t i=0;i<cards.size();++i)cards[i]->setBounds((int)i*188,0,176,height);
     status.setBounds(0,getHeight()-29,getWidth(),27);
@@ -193,7 +192,7 @@ void ChainEditor::browserDropped(const juce::var& value)
     if(value["error"].toString().isNotEmpty()){status.setText(value["error"].toString(),juce::dontSendNotification);return;}
     const auto* matches=value["matches"].getArray();if(!matches || matches->isEmpty())return;
     std::vector<juce::File> files;juce::PopupMenu menu;
-    menu.addSectionHeader("Confirm VST3 identity - browser name alone is not proof");
+    menu.addSectionHeader(bool(value["nativeNameClash"])?"Choose VST3 - Live also uses this name":"Choose VST3 effect");
     for(const auto& match:*matches)
     {
         auto path=match["path"].toString();if(!juce::File::isAbsolutePath(path))continue;
@@ -203,7 +202,7 @@ void ChainEditor::browserDropped(const juce::var& value)
     }
     if(files.empty())return;
     if(files.size()==1 && !bool(value["requiresConfirmation"])){addFile(files.front());return;}
-    status.setText("Confirm the VST3 below. Ableton native devices cannot load inside Drum.",juce::dontSendNotification);
+    status.setText("Choose which VST3 effect to add.",juce::dontSendNotification);
     const auto kit=kitId,instrument=instrumentId;
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
         [safe=juce::Component::SafePointer<ChainEditor>(this),files,kit,instrument](int choice){

@@ -8,11 +8,11 @@ public:
     void push(float l,float r) noexcept {if(!enabled.load(std::memory_order_relaxed))return;auto range=fifo.write(1);range.forEach([&](int i){left[(size_t)i]=l;right[(size_t)i]=r;});}
     template<class F> int consume(F&& fn){int count=fifo.getNumReady();auto range=fifo.read(count);range.forEach([&](int i){fn(left[(size_t)i],right[(size_t)i]);});return count;}
 private:
-    juce::AbstractFifo fifo{8192};std::array<float,8192> left{},right{};
+    juce::AbstractFifo fifo{32768};std::vector<float> left=std::vector<float>(32768),right=std::vector<float>(32768);
 };
 class SpectrumAnalysis {
 public:
-    static constexpr int size=2048;
+    static constexpr int size=8192;
     SpectrumAnalysis(){db.fill(-100);}
     void clear(SpectrumTap& tap){tap.consume([](float,float){});left.fill(0);right.fill(0);db.fill(-100);cursor=filled=0;}
     bool update(SpectrumTap& tap){
@@ -25,11 +25,11 @@ public:
     float levelAt(double hz,double rate) const {
         if(rate<=0 || hz>=rate*.5)return -100;
         auto interpolate=[&](double f){double bin=juce::jlimit(0.0,(double)size/2,f*size/rate);int lo=(int)bin,hi=juce::jmin(size/2,lo+1);return db[(size_t)lo]+(float)(bin-lo)*(db[(size_t)hi]-db[(size_t)lo]);};
-        float sum=0,weight=0;for(int n=-4;n<=4;++n){float w=5.f-std::abs(n);sum+=w*interpolate(hz*std::pow(2.0,n/48.0));weight+=w;}return sum/weight;
+        float sum=0,weight=0;for(int n=-4;n<=4;++n){float w=5.f-std::abs(n);sum+=w*interpolate(hz*std::pow(2.0,n/96.0));weight+=w;}return sum/weight;
     }
     std::array<float,size/2+1> db;
 private:
-    juce::dsp::FFT fft{11};juce::dsp::WindowingFunction<float> window{size,juce::dsp::WindowingFunction<float>::hann,true};
+    juce::dsp::FFT fft{13};juce::dsp::WindowingFunction<float> window{size,juce::dsp::WindowingFunction<float>::hann,true};
     std::array<float,size> left{},right{};std::array<float,size*2> scratch{};std::array<float,size/2+1> power{};int cursor=0,filled=0;
 };
 }

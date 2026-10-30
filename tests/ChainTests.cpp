@@ -7,6 +7,7 @@
 #if JUCE_WINDOWS
 #include <windows.h>
 #include "NativeDragVisibility.h"
+#include "BrowserWorkerShutdown.h"
 #undef near
 #endif
 
@@ -151,16 +152,23 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
         }
         check(!IsWindowVisible(child),"Guard destruction left a pinned editor");
         DestroyWindow(child);DestroyWindow(frame);DestroyWindow(host);
+        // A worker can be awaiting a synchronous host-window reply during teardown.
+        struct ClosingLookup final:juce::Thread {
+            HWND target;juce::WaitableEvent started;std::atomic<bool> completed{false};
+            explicit ClosingLookup(HWND h):Thread("Shutdown regression"),target(h){}
+            void run() override{started.signal();SendMessageW(target,WM_GETTEXTLENGTH,0,0);completed.store(true);}
+        };
+        auto shutdownWindow=CreateWindowExW(0,L"STATIC",L"Shutdown reply",0,0,0,1,1,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
+        ClosingLookup lookup(shutdownWindow);lookup.startThread();check(lookup.started.wait(1000),"Shutdown fixture failed to start");
+        auto shutdownStart=juce::Time::getMillisecondCounterHiRes();stopBrowserWorker(lookup);
+        check(lookup.completed.load() && juce::Time::getMillisecondCounterHiRes()-shutdownStart<2000,"Browser shutdown blocked UI response");DestroyWindow(shutdownWindow);
         pump(150);HWND drop=nullptr;
         EnumChildWindows((HWND)editor.getPeer()->getNativeHandle(),[](HWND child,LPARAM target)->BOOL{
             wchar_t text[128]{};GetWindowTextW(child,text,128);
             if(juce::String(text)=="Add effect")*reinterpret_cast<HWND*>(target)=child;
             return TRUE;
         },reinterpret_cast<LPARAM>(&drop));
-        check(drop && IsWindowVisible(drop),"Native browser drop target missing");
-        RECT bounds{};GetWindowRect(drop,&bounds);
-        auto hit=SendMessageW(drop,WM_NCHITTEST,0,MAKELPARAM((bounds.left+bounds.right)/2,(bounds.top+bounds.bottom)/2));
-        check(hit==HTCLIENT,"Native drop target is mouse-transparent");
+        check(!drop,"Removed native Add effect strip is still present");
         HWND surface=nullptr;
         EnumThreadWindows(GetCurrentThreadId(),[](HWND child,LPARAM target)->BOOL{
             wchar_t text[128]{};GetWindowTextW(child,text,128);

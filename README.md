@@ -1,10 +1,12 @@
 # DJL Drum
 
+Version 0.13.3 quadruples EQ spectrum resolution to 8,192 samples and removes the separate drop strip and groups Add effect, Load VST3 and Presets together. Browser drops still use the temporary full-window surface and only prompt for ambiguous matches. Shutdown now services UI replies while the browser worker exits to avoid a circular wait.
+
 Version 0.13.2 smooths EQ spectra, colours individual EQ bands, adds green/yellow/red tile meters and a live stereo Saturation waveform, and simplifies effect labels and panels.
 
 Version 0.13.1 adds filled output spectra to both EQ views, compact chain tiles with stereo peak meters, graphical built-in effect panels and Mix controls on the right. Analysis runs on the UI thread while the EQ is visible.
 
-Version 0.13.0 adds eight Drum built-in effects to each instrument chain, including the existing eight-band EQ with independent settings. Built-ins and VST3 effects share ordering, bypass and state recall. From 0.13.1, new instruments have an empty factory chain. Chain presets, copy/paste and saved defaults are available. Browser drops require confirmation of the actual VST3 identity to prevent native-device name collisions. See docs/sound-editor.md for controls and limitations; the bundled 0.12.3 PDF predates these changes.
+Version 0.13.0 adds eight Drum built-in effects to each instrument chain, including the existing eight-band EQ with independent settings. Built-ins and VST3 effects share ordering, bypass and state recall. From 0.13.1, new instruments have an empty factory chain. Chain presets, copy/paste and saved defaults are available. From 0.13.3, browser drops prompt only for multiple matches or known native-device name clashes. See docs/sound-editor.md for controls and limitations; the bundled 0.12.3 PDF predates these changes.
 
 Version 0.12.5 uses Play/Pause icons and updates the native full-window browser-drop surface to position synchronously and reject activation. The auto-hide correction temporarily defers host hide requests during browser drags, allowing Live's Auto-Hide Plug-In Windows preference to remain enabled; real Live verification is still required. Version 0.12.4 added host-default audition tempo, looping across audio reinitialisation, and in-process browser drops without a helper executable. Effect cards expose real stereo sidechain source/Gain/Mix/Mute controls where supported. See docs/ableton-testing.md for routing details and Live acceptance checks. The bundled 0.12.3 PDF predates these changes.
 
