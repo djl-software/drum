@@ -16,7 +16,7 @@ public:
         button(play,"Play",[this]{if(processor.getPatterns().isRunning())processor.getPatterns().stop();else processor.getPatterns().start(selectedClip);});
         toggle(loop,"Loop",true,[this]{if(refreshing)return;auto edit=current;edit.looping=loop.getToggleState();commit(edit);});
         toggle(draw,"Draw [B]",false,[this]{roll.repaint();});toggle(fold,"Fold",false,[this]{rebuildRows();resized();repaintAll();});toggle(preview,"Preview",true,[]{});
-        addAndMakeVisible(grid);for(auto item:std::initializer_list<std::pair<const char*,int>>{{"Grid off",1},{"1/4",2},{"1/8",3},{"1/16",4},{"1/32",5},{"1/64",6}})grid.addItem(item.first,item.second);grid.setSelectedId(4);grid.onChange=[this]{repaintAll();};toggle(triplet,"Triplet",false,[this]{repaintAll();});
+        addAndMakeVisible(grid);grid.setComponentID("midi-grid");for(auto item:std::initializer_list<std::pair<const char*,int>>{{"Grid off",1},{"1/4",2},{"1/8",3},{"1/16",4},{"1/32",5},{"1/64",6}})grid.addItem(item.first,item.second);grid.setSelectedId(4);grid.onChange=[this]{repaintAll();};toggle(triplet,"Triplet",false,[this]{repaintAll();});
         addAndMakeVisible(tools);const char* titles[]={"Quantise starts","Quantise ends","Legato","Reverse","Invert pitches","Stretch x2","Compress /2","Duplicate notes","Split at grid","Join notes","Activate/deactivate","Randomise velocity","Randomise chance","Humanise timing","Transpose up","Transpose down","Nudge right","Nudge left","Lengthen","Shorten"};for(int n=0;n<20;++n)tools.addItem(titles[n],n+1);tools.setSelectedId(1);
         button(selectButton,"Select...",[this]{selectMenu();});
         button(apply,"Apply",[this]{auto edit=current;drum::MidiEditing::apply(edit,kit,selection,tools.getSelectedId(),snapSize(),amount.getValue()/100);commit(edit);});
@@ -36,14 +36,24 @@ public:
     }
     ~DrumPatternEditor() override{stopTimer();processor.getPatterns().stop();viewport.setViewedComponent(nullptr,false);}
     void open(){auto state=processor.getLibrary().snapshot();if(auto* kit=drum::activeKit(state);kit && kit->patterns.empty()){auto result=processor.getLibrary().addPattern(state.activeKit);selectedClip=result.id;}refresh();setVisible(true);toFront(false);grabKeyboardFocus();}
-    void paint(juce::Graphics& g) override{g.fillAll(bg);g.setColour(accent);g.setFont(22);g.drawText("MIDI",14,5,160,30,juce::Justification::centredLeft);g.setFont(12);g.setColour(juce::Colours::lightgrey);g.drawText(message,14,getHeight()-25,getWidth()-28,22,juce::Justification::centredLeft);}
+    void paint(juce::Graphics& g) override{
+        g.fillAll(bg);g.addTransform(juce::AffineTransform::scale(layoutScale()));g.setColour(accent);g.setFont(22);g.drawText("MIDI",14,5,160,30,juce::Justification::centredLeft);
+        auto panel=[&](juce::Rectangle<int> bounds,const juce::String& title){g.setColour(juce::Colour(0xff192330));g.fillRoundedRectangle(bounds.toFloat(),5);g.setColour(juce::Colour(0xff394957));g.drawRoundedRectangle(bounds.toFloat(),5,1);g.setColour(accent);g.setFont(12);g.drawText(title,bounds.getX()+10,bounds.getY()+4,bounds.getWidth()-20,18,juce::Justification::centredLeft);};
+        panel({14,42,226,144},"CLIP");panel({14,194,226,158},"PLAYBACK / LOOP");panel({14,360,226,82},"MIDI FILES");panel({14,450,226,64},"EXPRESSION LANE");
+        panel({250,42,layoutWidth()-264,76},"GRID / VIEW");panel({250,126,layoutWidth()-264,76},"NOTE EDITING");panel({250,layoutHeight()-86,layoutWidth()-264,58},"NOTE VALUES - selected notes, or all if none selected");
+        g.setFont(12);g.setColour(juce::Colours::lightgrey);g.drawText(message,14,layoutHeight()-24,layoutWidth()-28,22,juce::Justification::centredLeft);
+    }
     void resized() override{
-        int w=getWidth(),h=getHeight();back.setBounds(w-130,8,116,28);clips.setBounds(14,43,148,28);add.setBounds(168,43,68,28);remove.setBounds(242,43,70,28);name.setBounds(320,43,150,28);undo.setBounds(480,43,62,28);redo.setBounds(548,43,62,28);duration.setBounds(622,43,140,28);signature.setBounds(770,43,68,28);
-        play.setBounds(14,79,58,28);loop.setBounds(76,79,60,28);draw.setBounds(140,79,82,28);fold.setBounds(226,79,58,28);preview.setBounds(288,79,78,28);grid.setBounds(372,79,88,28);triplet.setBounds(466,79,74,28);loopStart.setBounds(550,79,142,28);loopEnd.setBounds(700,79,142,28);
-        tools.setBounds(14,115,174,28);amount.setBounds(196,115,140,28);apply.setBounds(344,115,60,28);drag.setBounds(414,115,98,28);exportButton.setBounds(520,115,88,28);importButton.setBounds(616,115,88,28);selectButton.setBounds(714,115,96,28);
-        velocity.setBounds(14,151,142,28);chance.setBounds(164,151,142,28);deviation.setBounds(314,151,142,28);release.setBounds(464,151,142,28);laneChoice.setBounds(616,151,155,28);rootNote.setBounds(780,151,58,28);scale.setBounds(846,151,148,28);
-        int laneHeight=82;int top=210;int notesHeight=juce::jmax(80,h-top-laneHeight-42);keys.setBounds(14,top,keyWidth,notesHeight);ruler.setBounds(14+keyWidth,184,w-28-keyWidth,26);viewport.setBounds(14+keyWidth,top,w-28-keyWidth,notesHeight);lane.setBounds(14+keyWidth,top+notesHeight+4,w-28-keyWidth,laneHeight);
-        roll.setSize(juce::jmax(viewport.getWidth()-16,(int)std::ceil(current.end()*pixelsPerBeat)+32),juce::jmax(viewport.getHeight()-16,(int)rows.size()*rowHeight));repaintAll();
+        int w=layoutWidth(),h=layoutHeight();back.setBounds(w-130,8,116,28);
+        clips.setBounds(24,68,112,28);add.setBounds(142,68,88,28);name.setBounds(24,102,130,28);remove.setBounds(160,102,70,28);duration.setBounds(24,142,136,28);signature.setBounds(166,142,64,28);
+        play.setBounds(24,220,62,28);loop.setBounds(92,220,62,28);preview.setBounds(156,220,74,28);loopStart.setBounds(24,254,206,28);loopEnd.setBounds(24,288,206,28);
+        drag.setBounds(24,386,94,28);exportButton.setBounds(124,386,100,28);importButton.setBounds(124,416,100,22);
+        laneChoice.setBounds(24,476,206,28);
+        int x=260;draw.setBounds(x,68,82,28);fold.setBounds(x+84,68,58,28);grid.setBounds(x+148,68,84,28);triplet.setBounds(x+236,68,76,28);rootNote.setBounds(x+320,68,56,28);scale.setBounds(x+382,68,w-x-392,28);
+        tools.setBounds(x,152,170,28);amount.setBounds(x+176,152,138,28);apply.setBounds(x+320,152,60,28);selectButton.setBounds(x+388,152,86,28);undo.setBounds(x+482,152,62,28);redo.setBounds(x+550,152,62,28);
+        int fieldWidth=(w-284)/4;velocity.setBounds(x,h-62,fieldWidth-6,28);chance.setBounds(x+fieldWidth,h-62,fieldWidth-6,28);deviation.setBounds(x+fieldWidth*2,h-62,fieldWidth-6,28);release.setBounds(x+fieldWidth*3,h-62,fieldWidth-6,28);
+        int top=234,laneHeight=76;int notesHeight=juce::jmax(80,h-top-laneHeight-96);keys.setBounds(250,top,keyWidth,notesHeight);ruler.setBounds(250+keyWidth,208,w-264-keyWidth,26);viewport.setBounds(250+keyWidth,top,w-264-keyWidth,notesHeight);lane.setBounds(250+keyWidth,top+notesHeight+4,w-264-keyWidth,laneHeight);
+        roll.setSize(juce::jmax(viewport.getWidth()-16,(int)std::ceil(current.end()*pixelsPerBeat)+32),juce::jmax(viewport.getHeight()-16,(int)rows.size()*rowHeight));for(auto* child:getChildren())child->setTransform(juce::AffineTransform::scale(layoutScale()));repaintAll();
     }
     bool keyPressed(const juce::KeyPress& key) override{
         bool command=key.getModifiers().isCommandDown();int code=key.getKeyCode();auto character=juce::CharacterFunctions::toLowerCase(key.getTextCharacter());
@@ -59,6 +69,9 @@ public:
         if(code==juce::KeyPress::rightKey){transform(key.getModifiers().isShiftDown()?19:17);return true;}if(code==juce::KeyPress::leftKey){transform(key.getModifiers().isShiftDown()?20:18);return true;}if(code==juce::KeyPress::upKey){transform(15);return true;}if(code==juce::KeyPress::downKey){transform(16);return true;}return false;
     }
 private:
+    float layoutScale() const{return juce::jmax(.1f,juce::jmin(1.0f,getWidth()/1000.0f,getHeight()/640.0f));}
+    int layoutWidth() const{return (int)std::round(getWidth()/layoutScale());}
+    int layoutHeight() const{return (int)std::round(getHeight()/layoutScale());}
     static constexpr int keyWidth=170;
     struct DragButton:juce::TextButton{std::function<void()> begin;bool started=false;void mouseDown(const juce::MouseEvent& e) override{started=false;juce::TextButton::mouseDown(e);}void mouseDrag(const juce::MouseEvent& e) override{juce::TextButton::mouseDrag(e);if(!started && e.getDistanceFromDragStart()>5){started=true;if(begin)begin();}}};
     struct Viewport:juce::Viewport{std::function<void()> changed;void visibleAreaChanged(const juce::Rectangle<int>&) override{if(changed)changed();}};
@@ -114,7 +127,7 @@ private:
     juce::Rectangle<float> noteRect(const drum::PatternHit& hit)const{int row=rowFor(hit.instrumentId);if(row<0)return {};return {(float)(hit.beat()*pixelsPerBeat),(float)(row*rowHeight+2),juce::jmax(3.0f,(float)(hit.duration*pixelsPerBeat)),(float)(rowHeight-4)};}
     const drum::PatternHit* hitAt(juce::Point<float> point)const{for(auto it=current.hits.rbegin();it!=current.hits.rend();++it)if(noteRect(*it).contains(point))return &*it;return nullptr;}
     void previewHit(const drum::PatternHit& hit){if(preview.getToggleState())if(auto* i=drum::findInstrument(kit,hit.instrumentId))processor.getSampleEngine().audition(i->note);}
-    void addNote(juce::Point<float> point,bool bypass=false){int row=(int)(point.y/rowHeight);if(row<0 || row>=(int)rows.size() || current.id.isEmpty())return;auto edit=current;drum::PatternHit hit;hit.instrumentId=rows[(size_t)row];hit.start=juce::jlimit(0.0,current.end()-1.0/960,snapBeat(point.x/pixelsPerBeat,bypass));hit.duration=juce::jmin(lastLength,current.end()-hit.start);hit.velocity=(int)velocity.getValue();hit.chance=chance.getValue()/100;hit.deviation=(int)deviation.getValue();hit.releaseVelocity=(int)release.getValue();edit.hits.push_back(hit);selection={hit.id};commit(edit);previewHit(hit);}
+    void addNote(juce::Point<float> point,bool bypass=false){int row=(int)(point.y/rowHeight);if(row<0 || row>=(int)rows.size() || current.id.isEmpty())return;auto edit=current;drum::PatternHit hit;hit.instrumentId=rows[(size_t)row];hit.start=juce::jlimit(0.0,current.end()-1.0/960,snapBeat(point.x/pixelsPerBeat,bypass));hit.duration=juce::jmin(snapSize()>0?snapSize():lastLength,current.end()-hit.start);hit.velocity=(int)velocity.getValue();hit.chance=chance.getValue()/100;hit.deviation=(int)deviation.getValue();hit.releaseVelocity=(int)release.getValue();edit.hits.push_back(hit);selection={hit.id};commit(edit);previewHit(hit);}
     void eraseSelection(){if(selection.empty())return;auto edit=current;std::erase_if(edit.hits,[&](const auto& h){return selection.contains(h.id);});selection.clear();commit(edit);}
     void rename(){if(refreshing || current.id.isEmpty())return;auto edit=current;edit.name=name.getText().trim();commit(edit);}
     void property(int which,double value){if(refreshing || current.id.isEmpty())return;auto edit=current;for(auto& h:edit.hits)if(drum::MidiEditing::chosen(h,selection)){if(which==0)h.velocity=(int)value;else if(which==1)h.chance=value;else if(which==2)h.deviation=(int)value;else h.releaseVelocity=(int)value;}if(which==1){std::set<juce::String> groups;for(const auto& h:edit.hits)if(h.groupMode==1 && drum::MidiEditing::chosen(h,selection))groups.insert(h.chanceGroup);for(auto& h:edit.hits)if(groups.contains(h.chanceGroup))h.chance=value;}commit(edit);}

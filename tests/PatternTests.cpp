@@ -32,5 +32,10 @@ void runPatternTests(){
     roll->mouseDown(mouse(*roll,{60,13},{60,13}));roll->mouseDrag(mouse(*roll,{160,13},{60,13}));roll->mouseUp(mouse(*roll,{160,13},{60,13}));check(edited().hits[0].beat()==1.5,"Dragging did not move the MIDI note");
     roll->mouseDown(mouse(*roll,{174,13},{174,13}));roll->mouseDrag(mouse(*roll,{224,13},{174,13}));roll->mouseUp(mouse(*roll,{224,13},{174,13}));check(edited().hits[0].duration==.75,"Dragging note edge did not resize it");
     editor.keyPressed(juce::KeyPress('Z',juce::ModifierKeys(juce::ModifierKeys::ctrlModifier),'z'));check(edited().hits[0].duration==.25,"MIDI undo failed");editor.keyPressed(juce::KeyPress('Z',juce::ModifierKeys(juce::ModifierKeys::ctrlModifier|juce::ModifierKeys::shiftModifier),'z'));check(edited().hits[0].duration==.75,"MIDI redo failed");
+    // New notes follow the chosen grid, even after selecting/resizing a longer note.
+    auto* grid=dynamic_cast<juce::ComboBox*>(control(editor,"midi-grid"));check(grid,"Grid selector missing");
+    grid->setSelectedId(5,juce::sendNotificationSync);roll->mouseDoubleClick(mouse(*roll,{275,13},{275,13}));check(edited().hits.back().duration==.125,"1/32 grid created a note of the wrong length");
+    grid->setSelectedId(6,juce::sendNotificationSync);roll->mouseDoubleClick(mouse(*roll,{325,13},{325,13}));check(edited().hits.back().duration==.0625,"1/64 grid created a note of the wrong length");
+    editor.keyPressed(juce::KeyPress('3',juce::ModifierKeys(juce::ModifierKeys::ctrlModifier),'3'));roll->mouseDoubleClick(mouse(*roll,{375,13},{375,13}));check(std::abs(edited().hits.back().duration-1.0/24)<1.e-8,"Triplet grid note length incorrect");
     auto png=juce::File::getCurrentWorkingDirectory().getChildFile("drum-pattern-editor.png");png.deleteFile();{juce::FileOutputStream output(png);juce::PNGImageFormat().writeImageToStream(editor.createComponentSnapshot(editor.getLocalBounds()),output);}
 }

@@ -1,10 +1,12 @@
-# MIDI editor - 0.16.0
+# MIDI editor - 0.16.1
 
 Open a kit and choose **MIDI**. Use + Clip to add a clip, select another using the clip chooser, and type a name into the adjacent field. Save kit stores all clips alongside the instruments and effects. The whole kit also recalls with the DAW Set.
 
+Clip, playback/loop and MIDI files are grouped in the left column. Grid/view and note editing tools sit above the piano roll. Note values sit below the expression lane. Each group has a labelled border.
+
 ## Writing and editing notes
 
-Double-click an empty row to add a note. Double-click a note to delete it. Drag the body to move it in time or to another instrument. Drag the right edge to change its duration. The next new note uses the last selected note's length. **B** toggles Draw: single-click adds/removes notes. **Alt** temporarily bypasses snapping when adding, moving or resizing.
+Double-click an empty row to add a note. Double-click a note to delete it. Drag the body to move it in time or to another instrument. Drag the right edge to change its duration. New notes use the selected grid length, including triplets (1/32 creates a 1/32 note). With Grid off, new notes use the last selected note's length. **B** toggles Draw: single-click adds/removes notes. **Alt** temporarily bypasses snapping when adding, moving or resizing.
 
 Click selects one note. Shift-click adds/removes notes from the selection; Ctrl-click adds to it. Drag a rectangle in empty space for marquee selection. Ctrl-drag duplicates notes. Ctrl+A selects all; Delete removes selected notes. The **Select...** menu supports inversion, matching instruments, inactive notes, chance/deviation conditions, every second/fourth note, and velocity/chance/duration/time ranges.
 
