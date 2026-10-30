@@ -131,3 +131,7 @@ No extra Live tracks are needed for internal VST3 chains. Native Live effects st
 4. Native Live devices and non-VST3 entries must not create an effect. If a browser entry cannot be resolved, use Load VST3.
 
 The external prototype successfully received Pro-G and Pro-C 2 browser drops with correct names despite empty OLE data. Integrated-host acceptance is a separate check; do not treat the prototype as proof of the complete plugin workflow.
+
+## Sample pad naming correction (0.12.2)
+
+The reported sample-drag failure was clarified as a naming issue: audio loaded successfully, but an existing pad retained Instrument 1. Loading onto a default pad now adopts the filename without its extension (trimmed to the 64-character name limit). Automatically named pads follow replacement samples; custom names remain unchanged. Existing saved names are not rewritten on opening; load/drop the sample again to apply the rule.

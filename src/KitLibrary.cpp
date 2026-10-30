@@ -287,7 +287,18 @@ Result KitLibrary::assignSample(const juce::String& kitId, const juce::String& i
     return edit([&](State& s) {
         auto* k = find(s.kits, kitId); if (!k) return Result::fail("Kit no longer exists.");
         auto* g = containing(*k, instrumentId); if (!g) return Result::fail("Instrument no longer exists.");
-        find(g->instruments, instrumentId)->samplePath = path;
+        auto* instrument = find(g->instruments, instrumentId);
+        const auto suffix = instrument->name.fromFirstOccurrenceOf("Instrument ", false, false);
+        const bool placeholder = instrument->name.startsWith("Instrument ")
+            && suffix.isNotEmpty() && suffix.containsOnly("0123456789");
+        const auto previousName = juce::File::isAbsolutePath(instrument->samplePath)
+            ? juce::File(instrument->samplePath).getFileNameWithoutExtension().trim().substring(0,64) : juce::String();
+        if (juce::File::isAbsolutePath(path) && (placeholder || instrument->name == previousName))
+        {
+            auto name = juce::File(path).getFileNameWithoutExtension().trim().substring(0,64);
+            if (name.isNotEmpty()) instrument->name = name;
+        }
+        instrument->samplePath = path;
         return Result::success(instrumentId);
     });
 }

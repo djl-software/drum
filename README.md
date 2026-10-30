@@ -34,6 +34,8 @@ Version 0.12.1 removes the embedded plugin browser and gives Chain the full widt
 
 Version 0.12.2 adds a **Windows Live browser drag bridge**. Start a VST3 audio-effect drag while Chain is visible, then release over its named drop target. A bundled helper reads the browser row and resolves its name against Live's installed VST3 database; multiple matching paths offer a chooser. No Control Surface script or extra MIDI track is needed. Native Live devices, VST2, instruments and presets still use other workflows. Explorer drops and Load VST3 remain available.
 
+Sample loading also names default instrument pads from the filename without its extension. Replacing an automatically named sample updates that name; custom instrument names are preserved.
+
 The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.12.2-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
 
 ![Playable instrument pads, four across](docs/images/drum-pads.png)
