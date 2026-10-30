@@ -3,11 +3,21 @@
 #include "KitLibrary.h"
 #include "SampleEngine.h"
 #include "EffectRack.h"
+#include "GlobalKitStore.h"
 
 class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater
 {
 public:
-    DrumAudioProcessor();
+    explicit DrumAudioProcessor(bool trackInstance=false);
+    bool isMidiTrack() const{return trackInstance;}
+    DrumAudioProcessor* libraryEditorProcessor() const{return libraryPreview.get();}
+    drum::Result openSharedLibrary();
+    bool sharedLibraryDirty() const{return libraryPreview && sharedStore.hasChanges(libraryPreview->getLibrary());}
+    void closeSharedLibrary(){previewActive.store(false);if(libraryPreview){libraryPreview->getSampleEngine().pauseAudition();libraryPreview->effects.hideEditors();}}
+    std::function<drum::Result(const juce::String&,const juce::String&)> useLibrarySound;
+    std::function<drum::Result()> saveSharedLibrary,reloadSharedLibrary;
+    juce::String libraryStatus() const {const juce::ScopedLock lock(migrationLock);return migrationStatus;}
+
     ~DrumAudioProcessor() override;
     drum::KitLibrary& getLibrary() { return library; }
     drum::SampleEngine& getSampleEngine() { return sampleEngine; }
@@ -32,7 +42,21 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 private:
+    const bool trackInstance;
     drum::KitLibrary library;
+    drum::GlobalKitStore sharedStore;
+    std::unique_ptr<DrumAudioProcessor> libraryPreview;
+    std::atomic<bool> previewActive{false};
+    juce::AudioBuffer<float> previewBuffer;
+    juce::MidiBuffer previewMidi;
+    mutable juce::CriticalSection migrationLock;
+    std::unique_ptr<juce::XmlElement> legacyKits;
+    juce::String migrationStatus;
+    bool migrationAttempted=false;
+    std::atomic<bool> libraryLoaded{false};
+    void migrateLegacyKits();
+    static std::unique_ptr<juce::XmlElement> trackFromLibrary(const juce::XmlElement&);
+
     std::array<juce::AudioParameterFloat*,drum::numMacros> macros {};
     drum::EffectRack effects { library, [this] { triggerAsyncUpdate(); }, [this](int samples) { setLatencySamples(samples); } };
     drum::SampleEngine sampleEngine { library, [this] { triggerAsyncUpdate(); } };

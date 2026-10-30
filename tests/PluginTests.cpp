@@ -20,11 +20,18 @@ void runEqualizerTests();
 void runPadTests();
 void runChainTests(const juce::String&,const juce::String&);
 void runBuiltinTests();
+void runTrackLibraryTests();
 void runChainSmoke(const juce::String&);
 void runVst3PlaybackTest(const juce::String&);
 
 int main(int argc, char** argv)
 {
+    auto isolatedLibrary=juce::File::getCurrentWorkingDirectory().getChildFile("test-shared-"+juce::Uuid().toString()+"/kits.xml").getFullPathName();
+#if JUCE_WINDOWS
+    _putenv_s("DJL_DRUM_TEST_LIBRARY",isolatedLibrary.toRawUTF8());
+#else
+    setenv("DJL_DRUM_TEST_LIBRARY",isolatedLibrary.toRawUTF8(),1);
+#endif
     juce::ScopedJuceInitialiser_GUI initialiseJuce;
     try
     {
@@ -92,6 +99,7 @@ int main(int argc, char** argv)
         runEqualizerTests();
         runPadTests();
         runBuiltinTests();
+        runTrackLibraryTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
     }

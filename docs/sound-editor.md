@@ -1,4 +1,6 @@
-# Drum sound editor (0.12.3)
+# Drum sound editor
+
+From 0.14.0, sound editing is available in both the MIDI track and shared kit library. Track edits stay in the Live Set; library edits are shared when saved with **Save library**. See [MIDI tracks and the shared library](midi-tracks.md).
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has eight pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 

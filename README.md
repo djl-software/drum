@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.14.0 separates the shared kit library from each MIDI track. Put one Drum instance on each Ableton MIDI track, open **Kit library**, select a sound and choose **Add to track**. Each copy includes its settings and effect chain and can be edited independently. See [MIDI tracks and the shared library](docs/midi-tracks.md) for setup, saving and migration.
+
 Version 0.13.4 maps kit instruments to consecutive keyboard keys from A0 (MIDI 21), following group and pad order. Adding, copying, slicing, moving or deleting sounds closes gaps and shifts later keys. Sidechain sources follow their instruments. Existing libraries are reordered on load.
 
 Version 0.13.3 quadruples EQ spectrum resolution to 8,192 samples and removes the separate drop strip and groups Add effect, Load VST3 and Presets together. Browser drops still use the temporary full-window surface and only prompt for ambiguous matches. Shutdown now services UI replies while the browser worker exits to avoid a circular wait.

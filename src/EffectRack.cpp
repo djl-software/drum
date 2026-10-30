@@ -315,6 +315,11 @@ std::array<float,2> EffectRack::peaks(const juce::String& slot) const
     if(it==nodes.end() || it->second->saved.bypassed || !it->second->processor())return {};
     auto* p=it->second->processor();return {p->outputPeaks[0].load(std::memory_order_relaxed),p->outputPeaks[1].load(std::memory_order_relaxed)};
 }
+void EffectRack::hideEditors()
+{
+    const juce::ScopedLock guard(managementLock);
+    for(auto& [id, runtime]:nodes)if(runtime->window)runtime->window->setVisible(false);
+}
 void EffectRack::openEditor(const juce::String& slot)
 {
     const juce::ScopedLock guard(managementLock);auto it=nodes.find(slot);if(it==nodes.end() || !it->second->processor())return;

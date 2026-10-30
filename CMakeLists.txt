@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DJLDrum VERSION 0.13.4 LANGUAGES C CXX)
+project(DJLDrum VERSION 0.14.0 LANGUAGES C CXX)
 if(APPLE)
   enable_language(OBJC OBJCXX)
 endif()
@@ -30,7 +30,7 @@ juce_add_plugin(DJLDrum
   HARDENED_RUNTIME_ENABLED TRUE)
 juce_add_binary_data(DJLDrumAssets NAMESPACE DJLAssets HEADER_NAME DJLAssets.h
   SOURCES assets/DJLLogoWhite.png)
-target_sources(DJLDrum PRIVATE src/PluginProcessor.cpp src/PluginEditor.cpp src/KitLibrary.cpp src/SampleEngine.cpp src/SoundEditor.cpp src/WaveformData.cpp src/EnvelopeEditor.cpp src/TonalAnalysis.cpp src/EqualizerEditor.cpp src/EffectRack.cpp src/BuiltinEffects.cpp src/ChainEditor.cpp src/LiveBrowserBridge.cpp)
+target_sources(DJLDrum PRIVATE src/GlobalKitStore.cpp src/PluginProcessor.cpp src/PluginEditor.cpp src/KitLibrary.cpp src/SampleEngine.cpp src/SoundEditor.cpp src/WaveformData.cpp src/EnvelopeEditor.cpp src/TonalAnalysis.cpp src/EqualizerEditor.cpp src/EffectRack.cpp src/BuiltinEffects.cpp src/ChainEditor.cpp src/LiveBrowserBridge.cpp)
 target_compile_definitions(DJLDrum PUBLIC
   DRUM_VERSION_STRING="${PROJECT_VERSION}"
   JUCE_PLUGINHOST_VST3=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
@@ -41,7 +41,7 @@ if(WIN32)
 endif()
 if(BUILD_TESTING)
   juce_add_console_app(drum_tests PRODUCT_NAME "Drum Processor Tests")
-  target_sources(drum_tests PRIVATE tests/PluginTests.cpp tests/ManagementTests.cpp tests/PlaybackTests.cpp tests/ControlTests.cpp tests/EditingTests.cpp tests/WaveformTests.cpp tests/PreviewTests.cpp tests/ChannelAttackTests.cpp tests/EnvelopeTests.cpp tests/EqualizerTests.cpp tests/PadTests.cpp tests/ChainTests.cpp tests/BuiltinTests.cpp)
+  target_sources(drum_tests PRIVATE tests/PluginTests.cpp tests/ManagementTests.cpp tests/PlaybackTests.cpp tests/ControlTests.cpp tests/EditingTests.cpp tests/WaveformTests.cpp tests/PreviewTests.cpp tests/ChannelAttackTests.cpp tests/EnvelopeTests.cpp tests/EqualizerTests.cpp tests/PadTests.cpp tests/ChainTests.cpp tests/BuiltinTests.cpp tests/TrackLibraryTests.cpp)
   target_include_directories(drum_tests PRIVATE src)
   target_link_libraries(drum_tests PRIVATE DJLDrum juce::juce_audio_utils juce::juce_dsp)
   target_compile_definitions(drum_tests PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1)

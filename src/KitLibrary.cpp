@@ -28,6 +28,12 @@ int freeNote(const Kit& kit, int preferred = firstNote)
 }
 // Notes are derived from the flattened group/pad order. Resolve sidechain
 // references through the previous note map before reusing any vacated key.
+void flattenTrack(Kit& kit)
+{
+    if(kit.groups.size()<2)return;
+    for(size_t n=1;n<kit.groups.size();++n)for(auto& instrument:kit.groups[n].instruments)kit.groups[0].instruments.push_back(std::move(instrument));
+    kit.groups.resize(1);kit.groups[0].name="Sounds";
+}
 void compactKeyboard(Kit& kit)
 {
     std::array<int,128> moved;moved.fill(-1);int next=firstNote;
@@ -121,7 +127,7 @@ juce::String noteName(int note)
     static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
     return juce::String(names[note % 12]) + juce::String(note / 12 - 1);
 }
-KitLibrary::KitLibrary() { state.kits.push_back(makeKit("Kit 1")); state.activeKit = state.kits.front().id; }
+KitLibrary::KitLibrary(bool track):trackLayout(track) { state.kits.push_back(makeKit("Kit 1")); state.activeKit = state.kits.front().id; }
 State KitLibrary::snapshot() const { const juce::ScopedLock guard(lock); return state; }
 Result KitLibrary::edit(const std::function<Result(State&)>& operation)
 {
@@ -130,7 +136,7 @@ Result KitLibrary::edit(const std::function<Result(State&)>& operation)
     auto result = operation(candidate);
     if (!result.ok) return result;
     if (!validate(candidate)) return Result::fail("This change would exceed a limit or create an invalid assignment.");
-    for(auto& kit:candidate.kits)compactKeyboard(kit);
+    for(auto& kit:candidate.kits){if(trackLayout)flattenTrack(kit);compactKeyboard(kit);}
     candidate.revision = state.revision + 1;
     const bool keyboardChanged=keyboardLayout(activeKit(candidate))!=keyboardLayout(activeKit(state));
     candidate.kitEpoch = state.kitEpoch + (candidate.activeKit != state.activeKit || keyboardChanged ? 1 : 0);
@@ -338,6 +344,10 @@ Result KitLibrary::setControls(const juce::String& kitId, const juce::String& in
         find(g->instruments,instrumentId)->controls=controls; return Result::success(instrumentId);
     });
 }
+Result KitLibrary::importInstrument(const juce::String& kitId,const juce::String& groupId,const Instrument& source)
+{
+    return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit)return Result::fail("Track no longer exists.");auto* group=find(kit->groups,groupId);if(!group)return Result::fail("Track group no longer exists.");int note=freeNote(*kit);if(note<0)return Result::fail("This track already has 88 sounds.");auto copy=source;copy.id=newId();copy.note=note;for(auto& effect:copy.effects){effect.id=newId();effect.sidechainNote=-1;effect.sidechainMute=false;}group->instruments.push_back(copy);return Result::success(copy.id);});
+}
 Result KitLibrary::addSampleInstrument(const juce::String& kitId, const juce::String& groupId, const juce::String& path)
 {
     return edit([&](State& s) {
@@ -524,7 +534,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         candidate.kits.push_back(std::move(kit));
     }
     if (!validate(candidate)) return false;
-    for(auto& kit:candidate.kits)compactKeyboard(kit);
+    for(auto& kit:candidate.kits){if(trackLayout)flattenTrack(kit);compactKeyboard(kit);}
     const juce::ScopedLock guard(lock); candidate.revision = state.revision + 1; candidate.kitEpoch = state.kitEpoch + 1; state = std::move(candidate); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
 }
 }

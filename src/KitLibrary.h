@@ -49,7 +49,7 @@ juce::String noteName(int);
 class KitLibrary
 {
 public:
-    KitLibrary();
+    explicit KitLibrary(bool trackLayout=false);
     State snapshot() const;
     uint64_t activeKitEpoch() const { return activeEpoch.load(); }
     Result addKit(bool example = false);
@@ -74,12 +74,14 @@ public:
     // Capture live effect settings before copying a kit/group/instrument.
     std::function<void()> beforeClone;
     std::function<void()> afterRestore;
+    Result importInstrument(const juce::String& kitId,const juce::String& groupId,const Instrument& source);
     Result addSampleInstrument(const juce::String& kitId, const juce::String& groupId, const juce::String& path);
     Result sliceInstrument(const juce::String& kitId,const juce::String& instrumentId,int regions);
     std::unique_ptr<juce::XmlElement> toXml() const;
     bool restore(const juce::XmlElement&);
 private:
     Result edit(const std::function<Result(State&)>&);
+    const bool trackLayout;
     mutable juce::CriticalSection lock;
     State state;
     std::atomic<uint64_t> activeEpoch { 0 };

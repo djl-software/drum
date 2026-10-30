@@ -31,6 +31,7 @@ public:
     std::vector<EffectSlot> copyChain(const juce::String&,const juce::String&);
     void retry(const juce::String& slot);
     void openEditor(const juce::String& slot);
+    void hideEditors(); // Message thread only.
     bool supportsSidechain(const juce::String& slot) const;
     Result sidechain(const juce::String& kit,const juce::String& instrument,const juce::String& slot,int note,double gain,double mix,bool mute);
     juce::String status(const juce::String& slot) const;
