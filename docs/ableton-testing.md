@@ -155,3 +155,7 @@ The Chain panel now exposes actual sidechain routing for supported stereo effect
 Windows Live browser drops now use an in-process native OLE target in the fixed strip above the cards. No helper executable is launched, no global mouse hook is installed, and no overlay covers existing cards. A hook limited to Live's UI thread records the drag start; a COM worker resolves the browser row and reads the VST3 entry from Live's database. A drop arriving before resolution completes is queued. This remains dependent on Live's UI accessibility and database layout. Native Live devices are unsupported. Normal VST3 file drops remain available on the cards, and Load VST3 remains available.
 
 Acceptance: drag quickly into the fixed strip, add two different effects consecutively, remove one, reopen the editor and repeat. Existing cards should remain visible. Check Pro-L 2 bypass during looping and while Live changes latency. Native browser drops require real-host acceptance; the former C# helper tests do not validate the replacement.
+
+### Native strip hit-test correction
+
+The first 0.12.4 native strip omitted Windows SS_NOTIFY. STATIC controls without that style return HTTRANSPARENT, allowing mouse/drop hit-testing to pass through the receiver. The strip now opts into hit-testing; startup shows a visible diagnostic if OLE registration or the Live-thread mouse hook fails. The native test host checks that the actual child HWND exists, is visible and returns HTCLIENT. This does not replace real Live browser-drop acceptance.

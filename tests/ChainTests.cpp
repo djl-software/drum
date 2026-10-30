@@ -3,6 +3,10 @@
 #include "ChainEditor.h"
 #include <iostream>
 #include <stdexcept>
+#if JUCE_WINDOWS
+#include <windows.h>
+#undef near
+#endif
 
 namespace
 {
@@ -99,6 +103,23 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
     // File drops append real VST3 effects without an embedded plugin browser.
     DrumAudioProcessorEditor editor(setup.processor);editor.setSize(1280,900);editor.addToDesktop(0);editor.setVisible(true);pump();click(editor,"open-sound-editor");click(editor,"edit-tab-7");
     auto* chain=dynamic_cast<ChainEditor*>(find(editor,"plugin-chain"));check(chain && chain->isVisible(),"Chain tab not visible");
+#if JUCE_WINDOWS
+    // Running the test host under its Ableton test name enables the native
+    // receiver. Exercise Windows' actual hit test, not just JUCE callbacks.
+    if(juce::File::getSpecialLocation(juce::File::currentExecutableFile).getFileName().startsWith("Ableton Live"))
+    {
+        pump(150);HWND drop=nullptr;
+        EnumChildWindows((HWND)editor.getPeer()->getNativeHandle(),[](HWND child,LPARAM target)->BOOL{
+            wchar_t text[128]{};GetWindowTextW(child,text,128);
+            if(juce::String(text)=="Drop Live VST3 effects here")*reinterpret_cast<HWND*>(target)=child;
+            return TRUE;
+        },reinterpret_cast<LPARAM>(&drop));
+        check(drop && IsWindowVisible(drop),"Native browser drop target missing");
+        RECT bounds{};GetWindowRect(drop,&bounds);
+        auto hit=SendMessageW(drop,WM_NCHITTEST,0,MAKELPARAM((bounds.left+bounds.right)/2,(bounds.top+bounds.bottom)/2));
+        check(hit==HTCLIENT,"Native drop target is mouse-transparent");
+    }
+#endif
     juce::StringArray dropped{effectPath};check(chain->isInterestedInFileDrag(dropped),"VST3 drop rejected");chain->filesDropped(dropped,700,60);pump(100);setup.settle();pump();
     auto uiSlots=setup.instrument(setup.a).effects;check(uiSlots.size()==1,"File drop failed to insert effect");
     check(find(editor,"chain-browser")==nullptr && find(editor,"chain-search")==nullptr,"Removed plugin list is still present");

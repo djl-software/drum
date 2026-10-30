@@ -49,12 +49,14 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
     inline static std::vector<Impl*> receivers;
     Impl(LiveBrowserBridge& b,HWND p):Thread("Drum browser identity"),bridge(b),parent(p)
     {
-        window=CreateWindowExW(WS_EX_NOACTIVATE,L"STATIC",L"Drop Live VST3 effects here",WS_CHILD|WS_BORDER|SS_CENTER|SS_CENTERIMAGE,0,0,1,1,parent,nullptr,GetModuleHandleW(nullptr),nullptr);
+        window=CreateWindowExW(WS_EX_NOACTIVATE,L"STATIC",L"Drop Live VST3 effects here",WS_CHILD|WS_BORDER|SS_CENTER|SS_CENTERIMAGE|SS_NOTIFY,0,0,1,1,parent,nullptr,GetModuleHandleW(nullptr),nullptr);
         // A fixed child receives OLE immediately, without covering any card.
-        if(window)RegisterDragDrop(window,this);
+        const auto registration=window?RegisterDragDrop(window,this):E_FAIL;
+        if(window && FAILED(registration))SetWindowTextW(window,L"Browser drop registration failed - use Load VST3");
         receivers.push_back(this);
         DWORD thread=GetWindowThreadProcessId(GetAncestor(parent,GA_ROOTOWNER),nullptr);
         hook=SetWindowsHookExW(WH_MOUSE,mouse,nullptr,thread);startThread();
+        if(window && !hook)SetWindowTextW(window,L"Browser drag tracking unavailable - use Load VST3");
     }
     ~Impl() override
     {
