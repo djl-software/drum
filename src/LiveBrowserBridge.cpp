@@ -49,7 +49,9 @@ juce::var resolveLiveEffect(const juce::String& name)
 }
 struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
 {
-    LiveBrowserBridge& bridge;HWND window=nullptr,parent=nullptr;HHOOK hook=nullptr;
+    LiveBrowserBridge& bridge;HWND window=nullptr,overlay=nullptr,parent=nullptr;HHOOK hook=nullptr;
+    bool overlayArmed=false;
+    juce::StringArray incomingFiles,pendingFiles;
     juce::CriticalSection lock;POINT point{};uint64_t generation=0,work=0,completed=0,pendingDrop=0;
     juce::String context,pendingContext;juce::var result;std::atomic<bool> enabled {false};std::atomic<ULONG> references {1};
     double pressedAt=0;bool dragAccepted=false;uint64_t expired=0;
@@ -61,6 +63,13 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
         // A fixed child receives OLE immediately, without covering any card.
         const auto registration=window?RegisterDragDrop(window,this):E_FAIL;
         if(window && FAILED(registration))SetWindowTextW(window,L"Browser drop registration failed - use Load VST3");
+        overlay=CreateWindowExW(WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_LAYERED,L"STATIC",L"Drum plugin drop surface",WS_POPUP|SS_NOTIFY,0,0,1,1,GetAncestor(parent,GA_ROOT),nullptr,GetModuleHandleW(nullptr),nullptr);
+        if(overlay)
+        {
+            const auto layered=SetLayeredWindowAttributes(overlay,0,1,LWA_ALPHA);const auto overlayRegistration=RegisterDragDrop(overlay,this);
+            traceNativeDrag("surface layered="+juce::String(layered?1:0)+" registration="+juce::String((juce::int64)overlayRegistration));
+            if(!layered || FAILED(overlayRegistration))SetWindowTextW(overlay,L"Drum plugin drop surface unavailable");
+        }
         receivers.push_back(this);
         DWORD thread=GetWindowThreadProcessId(GetAncestor(parent,GA_ROOTOWNER),nullptr);
         hook=SetWindowsHookExW(WH_MOUSE,mouse,nullptr,thread);startThread();
@@ -72,15 +81,22 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
         if(hook)UnhookWindowsHookEx(hook);std::erase(receivers,this);
         signalThreadShouldExit();notify();waitForThreadToExit(-1);
         if(window){RevokeDragDrop(window);DestroyWindow(window);}
+        if(overlay){RevokeDragDrop(overlay);DestroyWindow(overlay);}
     }
     static LRESULT CALLBACK mouse(int code,WPARAM message,LPARAM data)
     {
-        if(code>=0 && message==WM_LBUTTONDOWN)
+        if(code==HC_ACTION && message==WM_LBUTTONDOWN)
         {
             const auto pt=reinterpret_cast<MOUSEHOOKSTRUCT*>(data)->pt;
             // Hooks are local to Live's UI thread, never global input hooks.
             for(auto* receiver:receivers)if(receiver->enabled)
-            {const juce::ScopedLock guard(receiver->lock);receiver->point=pt;++receiver->generation;receiver->pressedAt=juce::Time::getMillisecondCounterHiRes();receiver->pendingDrop=0;receiver->notify();}
+            {
+                const juce::ScopedLock guard(receiver->lock);receiver->point=pt;++receiver->generation;receiver->pressedAt=juce::Time::getMillisecondCounterHiRes();receiver->pendingDrop=0;
+                RECT bounds{};GetWindowRect(receiver->parent,&bounds);receiver->overlayArmed=!PtInRect(&bounds,pt);
+                if(receiver->overlay && receiver->overlayArmed)
+                    SetWindowPos(receiver->overlay,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_SHOWWINDOW);
+                receiver->notify();
+            }
         }
         return CallNextHookEx(nullptr,code,message,data);
     }
@@ -122,11 +138,18 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
     ULONG STDMETHODCALLTYPE Release() override{return --references;}
     HRESULT STDMETHODCALLTYPE DragEnter(IDataObject* data,DWORD,POINTL,DWORD* effect) override
     {
+        incomingFiles.clear();FORMATETC filesFormat{CF_HDROP,nullptr,DVASPECT_CONTENT,-1,TYMED_HGLOBAL};STGMEDIUM medium{};
+        if(data && SUCCEEDED(data->GetData(&filesFormat,&medium)))
+        {
+            auto drop=static_cast<HDROP>(medium.hGlobal);const auto count=DragQueryFileW(drop,0xffffffff,nullptr,0);
+            for(UINT n=0;n<count && n<256;++n){const auto size=DragQueryFileW(drop,n,nullptr,0);std::vector<wchar_t> path((size_t)size+1);DragQueryFileW(drop,n,path.data(),size+1);incomingFiles.add(juce::String(path.data()));}
+            ReleaseStgMedium(&medium);
+        }
         ComPtr<IEnumFORMATETC> formats;FORMATETC format{};ULONG fetched=0;
         bool hasFormats=data && SUCCEEDED(data->EnumFormatEtc(DATADIR_GET,&formats)) && formats && formats->Next(1,&format,&fetched)==S_OK;
         if(hasFormats && format.ptd)CoTaskMemFree(format.ptd);
         const juce::ScopedLock guard(lock);
-        dragAccepted=enabled && !hasFormats && generation>expired && juce::Time::getMillisecondCounterHiRes()-pressedAt<20000;
+        dragAccepted=enabled && (!incomingFiles.isEmpty() || (!hasFormats && generation>expired && juce::Time::getMillisecondCounterHiRes()-pressedAt<20000));
         traceNativeDrag("enter enabled="+juce::String(enabled?1:0)+" formats="+juce::String(hasFormats?1:0)+" generation="+juce::String(generation)+" expired="+juce::String(expired)+" accepted="+juce::String(dragAccepted?1:0));
         *effect=dragAccepted?DROPEFFECT_COPY:DROPEFFECT_NONE;return S_OK;
     }
@@ -135,24 +158,33 @@ struct LiveBrowserBridge::Impl final : juce::Thread, IDropTarget
     HRESULT STDMETHODCALLTYPE Drop(IDataObject*,DWORD,POINTL,DWORD* effect) override
     {
         const juce::ScopedLock guard(lock);*effect=enabled && dragAccepted?DROPEFFECT_COPY:DROPEFFECT_NONE;
-        if(enabled && dragAccepted){pendingDrop=generation;pendingContext=context;}dragAccepted=false;return S_OK;
+        if(enabled && dragAccepted){pendingContext=context;if(incomingFiles.isEmpty())pendingDrop=generation;else pendingFiles=incomingFiles;}dragAccepted=false;overlayArmed=false;if(overlay)ShowWindow(overlay,SW_HIDE);return S_OK;
     }
     void poll(const juce::String& next,juce::Rectangle<int> bounds,bool visible)
     {
-        juce::var delivered;
+        juce::var delivered;juce::StringArray files;
         {
             const juce::ScopedLock guard(lock);
-            if(context!=next || !visible){pendingDrop=0;result=juce::var{};}
+            if(context!=next || !visible){pendingDrop=0;pendingFiles.clear();result=juce::var{};}
             context=next;enabled=visible;
+            if(pendingContext==context){files=pendingFiles;pendingFiles.clear();}
             if(tracedGeneration!=generation){tracedGeneration=generation;traceNativeDrag("mouse generation="+juce::String(generation)+" x="+juce::String(point.x)+" y="+juce::String(point.y));}
             if(!pendingDrop && !(GetAsyncKeyState(VK_LBUTTON)&0x8000) && juce::Time::getMillisecondCounterHiRes()-pressedAt>300)expired=generation;
+            if(!visible || expired==generation)overlayArmed=false;
             if(pendingDrop && completed==pendingDrop){traceNativeDrag("deliver generation="+juce::String(pendingDrop));if(pendingContext==context)delivered=result;pendingDrop=0;result=juce::var{};}
         }
         if(window)
         {
             SetWindowPos(window,nullptr,bounds.getX(),bounds.getY(),bounds.getWidth(),bounds.getHeight(),SWP_NOACTIVATE|SWP_NOZORDER|(visible?SWP_SHOWWINDOW:SWP_HIDEWINDOW));
         }
+        if(overlay)
+        {
+            RECT client{};GetClientRect(parent,&client);POINT origin{};ClientToScreen(parent,&origin);
+            SetWindowPos(overlay,HWND_TOP,origin.x,origin.y,client.right,client.bottom,SWP_NOACTIVATE|(visible && overlayArmed?SWP_SHOWWINDOW:SWP_HIDEWINDOW));
+        }
         if(!delivered.isVoid() && bridge.onDrop)bridge.onDrop(delivered);
+        if(!files.isEmpty())for(auto* component=&bridge.owner;component;component=component->getParentComponent())
+            if(auto* target=dynamic_cast<juce::FileDragAndDropTarget*>(component);target && target->isInterestedInFileDrag(files)){target->filesDropped(files,0,0);break;}
     }
 };
 #else

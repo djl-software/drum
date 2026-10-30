@@ -118,6 +118,17 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
         RECT bounds{};GetWindowRect(drop,&bounds);
         auto hit=SendMessageW(drop,WM_NCHITTEST,0,MAKELPARAM((bounds.left+bounds.right)/2,(bounds.top+bounds.bottom)/2));
         check(hit==HTCLIENT,"Native drop target is mouse-transparent");
+        HWND surface=nullptr;
+        EnumThreadWindows(GetCurrentThreadId(),[](HWND child,LPARAM target)->BOOL{
+            wchar_t text[128]{};GetWindowTextW(child,text,128);
+            if(juce::String(text)=="Drum plugin drop surface")*reinterpret_cast<HWND*>(target)=child;
+            return TRUE;
+        },reinterpret_cast<LPARAM>(&surface));
+        check(surface && !IsWindowVisible(surface),"Full-window drop surface missing or blocking idle controls");
+        COLORREF key=0;BYTE alpha=0;DWORD flags=0;
+        check(GetLayeredWindowAttributes(surface,&key,&alpha,&flags) && alpha>0 && alpha<5,"Drop surface obscures the plugin cards");
+        RECT client{},area{};GetClientRect((HWND)editor.getPeer()->getNativeHandle(),&client);GetClientRect(surface,&area);
+        check(area.right==client.right && area.bottom==client.bottom,"Drop surface does not cover the editor");
     }
 #endif
     juce::StringArray dropped{effectPath};check(chain->isInterestedInFileDrag(dropped),"VST3 drop rejected");chain->filesDropped(dropped,700,60);pump(100);setup.settle();pump();

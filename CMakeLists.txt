@@ -63,6 +63,13 @@ if(BUILD_TESTING)
     set(drum_test_fx "$<TARGET_FILE_DIR:DrumChainTestEffect_VST3>/../..")
   endif()
   add_test(NAME vst3_instrument_chains COMMAND drum_tests --chains "${drum_test_fx}" "${drum_vst3_path}")
+  if(WIN32)
+    set(drum_native_test_host "${CMAKE_CURRENT_BINARY_DIR}/Ableton Live Drum Test.exe")
+    add_custom_command(TARGET drum_tests POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:drum_tests>" "${drum_native_test_host}")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/native-browser-tests")
+    add_test(NAME native_browser_target COMMAND "${drum_native_test_host}" --chains "${drum_test_fx}" "${drum_vst3_path}")
+    set_tests_properties(native_browser_target PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/native-browser-tests")
+  endif()
 
 endif()
 # Keep Windows resource versions current after a project version change.

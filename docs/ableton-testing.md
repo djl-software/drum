@@ -163,3 +163,9 @@ The first 0.12.4 native strip omitted Windows SS_NOTIFY. STATIC controls without
 ### Live acceptance, 30 October 2026
 
 With the diagnostic 0.12.4 build, the trace identified ValhallaVintageVerb, accepted its empty-format browser drag on the labelled native strip and delivered generation 19. The user confirmed that its card appeared. The user then dragged a different VST3 effect onto the same strip and confirmed a second card appeared while Drum stayed visible. Drops onto the wider card area and the previously reported rapid-drag track-selection behavior are not confirmed fixed by these observations.
+
+### Full-window external drop receiver and rotary dials
+
+While Chain is visible, a mouse-down originating outside Drum immediately arms a transparent, non-activating native OLE surface over the entire editor. The surface does not wait for the asynchronous browser-name lookup and queues a completed drop until lookup finishes. It is hidden after the drop, cancellation/release grace period, or leaving Chain. Ordinary clicks and internal card reordering start inside Drum and do not arm it. Existing file drops are forwarded to the appropriate JUCE file-drop handler. No separate helper executable is involved. Rotary controls use a circular body, contrasting pointer and value arc.
+
+The native regression host checks that the full-editor surface is registered, hidden while idle, nearly transparent, and covers the client area. It is now part of CTest as native_browser_target. Real Live checks are still required for fast drags across the arrangement, drops over existing cards and normal control clicks immediately afterward.
