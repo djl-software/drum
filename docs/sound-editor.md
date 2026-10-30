@@ -1,4 +1,4 @@
-# Drum sound editor (0.12.1)
+# Drum sound editor (0.12.2)
 
 Select an instrument in the kit workspace and click **Edit sound**. The editor has eight pages; scroll within a page to reach additional controls. **Back to kit** returns to the instrument cards. Use Back to kit before switching kits. All editing is non-destructive and saved in the DAW project; sample files remain external.
 
@@ -106,7 +106,7 @@ Edited and Send waveforms include the attack layer; Source does not. Zoom into t
 
 ## Chain: per-instrument VST3 effects
 
-Open **Chain** and drop a `.vst3` audio-effect file/bundle from Explorer into the full-width row. Alternatively use **Load VST3...** to choose an installed module. Drum no longer has an embedded plugin list. In the Windows Live browser drag check, the event arrived with no exported formats, file path or text identifying the plugin; direct Live-list dragging is therefore unsupported. Native Live devices and instrument plugins cannot load here.
+Open **Chain** and drop a `.vst3` audio-effect file/bundle from Explorer into the full-width row. Alternatively use **Load VST3...** to choose an installed module. Drum no longer has an embedded plugin list. On Windows Live, start a VST3 audio-effect drag with Chain visible and release over the named drop target. The bundled browser bridge resolves the source row against Live's installed plugin database; ambiguous paths offer a chooser. No Control Surface is needed. Explorer and Load VST3 remain fallbacks when a Live version or browser layout cannot be identified. Native Live devices and instrument plugins cannot load here.
 
 Audio runs left to right through up to 16 effects, after the built-in sample/attack processing and instrument volume/pan, before output and send routing. Empty, fully bypassed or unavailable chains pass through. **Open** displays the effect's own editor, **Bypass** skips it, **Remove** deletes it, and dragging its header or pressing **< / >** changes order. EQ before compression changes what drives the compressor; EQ after compression shapes its result. Compare both at matched levels.
 

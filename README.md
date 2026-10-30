@@ -30,9 +30,11 @@ Version 0.11.1 calibrates **Attack level 0 dB** to a full-scale generated peak b
 
 Version 0.12.0 adds **Chain**, with up to 16 VST3 audio effects per instrument. Drag effects from Drum's browser or drop `.vst3` modules, open their own editors, reorder, bypass or remove them. Audio passes through in card order, then reaches the instrument output and sends; empty chains are transparent. Effect settings recall with the project and copied instruments have independent instances. Plugin latency is compensated across the kit. The waveform remains a clearly labelled preview before Chain.
 
-Version 0.12.1 removes the embedded plugin browser and gives Chain the full width. Drop `.vst3` modules from Explorer or use the small **Load VST3...** button. Live supplied no plugin identity or file-path data in the browser drag test, so direct Live Plug-ins-list dragging is unsupported.
+Version 0.12.1 removes the embedded plugin browser and gives Chain the full width. Drop `.vst3` modules from Explorer or use the small **Load VST3...** button. Live supplied no plugin identity or file-path data in the browser drag test, so the standard external-drop route alone cannot identify the effect.
 
-The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.12.1-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
+Version 0.12.2 adds a **Windows Live browser drag bridge**. Start a VST3 audio-effect drag while Chain is visible, then release over its named drop target. A bundled helper reads the browser row and resolves its name against Live's installed VST3 database; multiple matching paths offer a chooser. No Control Surface script or extra MIDI track is needed. Native Live devices, VST2, instruments and presets still use other workflows. Explorer drops and Load VST3 remain available.
+
+The complete [illustrated PDF manual](output/pdf/DJL-Drum-User-Manual-0.12.2-Windows.pdf) covers setup, every workflow/control, sound recipes, troubleshooting and beginner-friendly explanations of why to use each feature. Its Meter-style layout is available as the reusable [DJL manual layout skill](skills/djl-manual-layout/SKILL.md).
 
 ![Playable instrument pads, four across](docs/images/drum-pads.png)
 

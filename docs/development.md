@@ -163,3 +163,13 @@ Windows Release validation: all three CTest suites and 47 Steinberg validator ch
 Removed the module browser, search, folder scanning and folder preferences from ChainEditor. A small native file chooser remains beside the full-width flow. Module file drops, reorder, bypass, removal and state are unchanged. UI tests assert the list is absent, the flow begins at x=0, and repeated external module drops still insert independent effects.
 
 A user-performed drag from the installed Live Plug-ins list into a Windows OLE drop probe reached DragEnter but exported no IDataObject formats. Direct queries for FileDrop, FileNameW/FileName, UnicodeText/Text, URL, shell item IDs and virtual-file descriptors/contents all returned absent/null. This is evidence that the standard external-drop route supplies no usable plugin identity on this installation. No Live-specific bridge or private-process inspection has been added, and the product does not claim direct Live-browser drag support.
+
+## Windows Live browser adapter (0.12.2)
+
+The standard external IDataObject contains no exported formats on Live 12.4.15. Both cached and freshly enumerated Python BrowserItem.is_selected returned false for all 124 catalogue entries. The read-only diagnostic Control Surface is not required by the product.
+
+A separate .NET Framework Windows helper observes left-button drag origins only within the owning Live process, reads the ContentBrowser row through UI Automation and queries Live-plugins-1.db read-only using bound SQL. It accepts enabled VST3 audio-effect records with existing absolute module paths. Multiple matches remain explicit choices. Names alone do not import Live presets or native devices. Browser accessibility and the database schema are host-version dependencies.
+
+The editor supplies an instance-specific temporary folder, parent HWND, visible drop bounds and kit/instrument context. A native child drop surface appears only during a recognised drag. It returns a context-tagged event, then hides. The editor rejects stale contexts and stops the owned helper on destruction. Audio processing never calls accessibility, database or IPC APIs. No network service, input injection or persistent Control Surface configuration is used.
+
+The resolver fixture tests VST3/effect filtering, disabled and missing modules, Unicode names, ambiguous matches, SQL binding and unchanged database bytes. Live-host drag acceptance remains a manual test.

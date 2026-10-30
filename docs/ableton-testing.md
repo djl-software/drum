@@ -122,3 +122,12 @@ The native test Set was saved and reopened on 27 October 2026. Both instruments,
 5. Test high-latency modes and reverb/delay tails, plus any chosen outputs/sends. The waveform and pitch/key readout show built-in processing before Chain.
 
 No extra Live tracks are needed for internal VST3 chains. Native Live effects still require Live routing. Live's browser drag exported neither a file path nor plugin identity in the Windows check. Use Load VST3 or a .vst3 file drop instead.
+
+## Windows browser bridge review (0.12.2)
+
+1. Keep Edit sound > Chain visible. Drag Pro-G or Pro-C 2 from Live’s browser onto the named target. Choose a module if duplicate installations are offered.
+2. Check the effect is appended once; open it and audition only the intended instrument. Save/reopen and verify settings.
+3. Cancel a drag, change instrument or close the editor during a drag: no unintended effect should be added. Normal card buttons, reorder and Explorer file drops must still work.
+4. Native Live devices and non-VST3 entries must not create an effect. If a browser entry cannot be resolved, use Load VST3.
+
+The external prototype successfully received Pro-G and Pro-C 2 browser drops with correct names despite empty OLE data. Integrated-host acceptance is a separate check; do not treat the prototype as proof of the complete plugin workflow.

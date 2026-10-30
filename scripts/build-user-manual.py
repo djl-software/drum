@@ -26,10 +26,10 @@ for page,name in pages.items():
             default=number(float(initial)*scale)+unit
         rows.append([label,values,default])
     data["chapters"].append({"title":"Control reference: "+name,"blocks":[
-        {"type":"p","text":"Values are from the 0.12.1 control registry. Defaults apply to a new instrument or a page reset. A macro mapping can override the stored base value."},
+        {"type":"p","text":"Values are from the 0.12.2 control registry. Defaults apply to a new instrument or a page reset. A macro mapping can override the stored base value."},
         {"type":"table","headers":["Control","Range / choices","Default"],"rows":rows,"widths":[.31,.48,.21]}
     ]})
-out=ROOT/"output/pdf/DJL-Drum-User-Manual-0.12.1-Windows.pdf"
+out=ROOT/"output/pdf/DJL-Drum-User-Manual-0.12.2-Windows.pdf"
 temp=ROOT/"tmp/pdfs/drum-manual-expanded.json";temp.parent.mkdir(parents=True,exist_ok=True)
 temp.write_text(json.dumps(data,indent=2),encoding="utf-8")
 renderer=runpy.run_path(str(ROOT/"skills/djl-manual-layout/scripts/build_manual.py"))

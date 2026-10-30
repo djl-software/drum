@@ -1,5 +1,6 @@
 #pragma once
 #include "EffectRack.h"
+#include "LiveBrowserBridge.h"
 
 class ChainEditor final : public juce::Component, public juce::DragAndDropContainer,
     public juce::DragAndDropTarget, public juce::FileDragAndDropTarget, private juce::Timer
@@ -20,7 +21,8 @@ private:
     void addFile(const juce::File&,int position=-1);
     void apply(const drum::Result&);
     int insertionAt(juce::Point<int>) const;
-    void timerCallback() override {if(isShowing())refresh();}
+    void timerCallback() override;
+    void browserDropped(const juce::var&);
     drum::KitLibrary& library;
     drum::EffectRack& effects;
     juce::String kitId,instrumentId;
@@ -31,4 +33,5 @@ private:
     std::vector<drum::EffectSlot> slots;
     std::vector<std::unique_ptr<Card>> cards;
     std::unique_ptr<juce::FileChooser> chooser;
+    std::unique_ptr<LiveBrowserBridge> browserBridge;
 };

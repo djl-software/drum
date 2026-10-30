@@ -1,11 +1,11 @@
 {
   "product": "Drum",
-  "version": "0.12.1",
-  "date": "29 October 2026",
+  "version": "0.12.2",
+  "date": "30 October 2026",
   "platform": "Windows VST3",
   "scope": "KITS  /  SOUND EDITING  /  DAW ROUTING",
-  "cover_caption": "Version 0.12.1 editing preview  |  Instructions, examples and why",
-  "footer": "Version 0.12.1  |  Windows VST3 editing preview",
+  "cover_caption": "Version 0.12.2 editing preview  |  Instructions, examples and why",
+  "footer": "Version 0.12.2  |  Windows VST3 editing preview",
   "logo": "../../assets/DJLLogoWhite.png",
   "cover_image": "assets/curves.png",
   "publisher": "DJL Software",
@@ -15,7 +15,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.12.1 editing preview."
+          "text": "Drum is a sample-based drum instrument for a VST3-compatible DAW. It organises your sounds into named kits, groups and instruments, with a dedicated editor for each sound. This manual covers the Windows 64-bit version 0.12.2 editing preview."
         },
         {
           "type": "p",
@@ -35,7 +35,7 @@
         },
         {
           "type": "p",
-          "text": "Screenshots show the real 0.12.1 interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
+          "text": "Screenshots show the real Drum interface with demonstration audio and settings. Scroll below the waveform to reach controls that are outside the visible area. The final reference lists all editing values and defaults."
         },
         {
           "type": "p",
@@ -43,7 +43,7 @@
         },
         {
           "type": "p",
-          "text": "DJL Software · Manual updated 29 October 2026. Keep the version of this guide with the build it describes."
+          "text": "DJL Software · Manual updated 30 October 2026. Keep the version of this guide with the build it describes."
         }
       ]
     },
@@ -77,7 +77,7 @@
         },
         {
           "type": "p",
-          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.12.1. Instrument effect chains need version 0.12.0 or later; an older build is not expected to understand their state. Reopen the Set and confirm sample status, output routing and playback before continuing."
+          "text": "Keep a backup of important Sets before using a new development build. Existing Drum settings migrate into 0.12.2. Instrument effect chains need version 0.12.0 or later; an older build is not expected to understand their state. Reopen the Set and confirm sample status, output routing and playback before continuing."
         },
         {
           "type": "p",
@@ -1121,7 +1121,7 @@
           "type": "steps",
           "items": [
             "Select an instrument, open Edit sound, then Chain. The chain uses the full width; there is no separate plugin list inside Drum.",
-            "Drop a .vst3 effect file or bundle from Windows Explorer into the chain. Alternatively press Load VST3 and choose the installed module. Modules containing several effects offer a chooser.",
+            "In Windows Live, drag a VST3 audio effect from the browser onto Chain. Release over the named drop target to append it. If multiple installed modules match, choose the intended path. Explorer .vst3 drops and Load VST3 also work.",
             "Press Open on a card to show the effect's own controls. Play the instrument while adjusting it. Close that window when finished; its settings remain.",
             "Drag a card header to change order, or use its < and > buttons. Bypass temporarily skips that effect; Remove deletes the slot and its settings. Save the DAW project to retain the chain."
           ]
@@ -1136,7 +1136,7 @@
         },
         {
           "type": "p",
-          "text": "Live's Plug-ins browser did not export a plugin identity or file path in the Windows drag test. Direct browser dragging into Drum is therefore unsupported. Use Explorer or Load VST3. Native Live devices such as EQ Eight and Compressor still require Live routing."
+          "text": "The Windows bridge reads the browser row at the start of a drag and matches it to Live's installed VST3 database. Keep the supplied helper inside Drum's VST3 bundle. No Control Surface script is needed. Native Live devices such as EQ Eight still require Live routing."
         }
       ]
     },
@@ -1167,8 +1167,8 @@
           ],
           "rows": [
             [
-              "Cannot drag from Live's plugin list",
-              "Live supplies no loadable plugin file through this drag. Drop the installed .vst3 module from Explorer or choose Load VST3."
+              "No named browser drop target",
+              "Keep Chain visible before starting the drag. Use an installed VST3 audio effect; native devices, VST2, instruments and presets are not supported by the bridge. If Live's browser layout/database differs, use Explorer or Load VST3."
             ],
             [
               "Unsupported audio layout",
@@ -1615,7 +1615,7 @@
           "type": "table",
           "headers": [
             "Facility",
-            "Scope of version 0.12.1"
+            "Scope of version 0.12.2"
           ],
           "rows": [
             [

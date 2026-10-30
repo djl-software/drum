@@ -65,9 +65,11 @@ ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library
     addAndMakeVisible(viewport);viewport.setViewedComponent(&flow,false);viewport.setScrollBarsShown(false,true);viewport.setComponentID("chain-flow");
     addAndMakeVisible(status);status.setFont(juce::FontOptions(11));status.setColour(juce::Label::textColourId,muted);
     status.setText("Drop a VST3 effect into the chain, or use Load VST3.",juce::dontSendNotification);
-    startTimerHz(5);
+    browserBridge=std::make_unique<LiveBrowserBridge>(*this);
+    browserBridge->onDrop=[this](const juce::var& value){browserDropped(value);};
+    startTimerHz(10);
 }
-ChainEditor::~ChainEditor(){stopTimer();viewport.setViewedComponent(nullptr,false);}
+ChainEditor::~ChainEditor(){stopTimer();browserBridge.reset();viewport.setViewedComponent(nullptr,false);}
 void ChainEditor::select(const juce::String& kit,const juce::String& instrument)
 {
     if(kitId==kit && instrumentId==instrument)return;kitId=kit;instrumentId=instrument;slots.clear();cards.clear();refresh();
@@ -148,4 +150,30 @@ void ChainEditor::apply(const drum::Result& result)
     status.setText(result.ok?"Chain saved with this instrument. Drag headers to change the processing order.":result.message,juce::dontSendNotification);
     // A button may have called us; retire its card after the callback returns.
     juce::MessageManager::callAsync([safe=juce::Component::SafePointer<ChainEditor>(this)]{if(safe)safe->refresh();});
+}
+
+void ChainEditor::timerCallback()
+{
+    if(isShowing())refresh();
+    browserBridge->poll(kitId+"/"+instrumentId,viewport.getBounds());
+}
+void ChainEditor::browserDropped(const juce::var& value)
+{
+    const auto* matches=value["matches"].getArray();if(!matches || matches->isEmpty())return;
+    std::vector<juce::File> files;juce::PopupMenu menu;
+    for(const auto& match:*matches)
+    {
+        auto path=match["path"].toString();if(!juce::File::isAbsolutePath(path))continue;
+        juce::File file(path);if(!file.hasFileExtension("vst3") || !file.exists())continue;
+        if(!match["id"].toString().startsWith("device:vst3:audiofx:"))continue;
+        files.push_back(file);menu.addItem((int)files.size(),match["vendor"].toString()+" "+match["name"].toString()+" — "+path);
+    }
+    if(files.empty())return;
+    if(files.size()==1){addFile(files.front());return;}
+    status.setText("Multiple installed VST3 matches. Choose the effect to add.",juce::dontSendNotification);
+    const auto kit=kitId,instrument=instrumentId;
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
+        [safe=juce::Component::SafePointer<ChainEditor>(this),files,kit,instrument](int choice){
+            if(safe && safe->kitId==kit && safe->instrumentId==instrument && choice>0 && choice<=(int)files.size())safe->addFile(files[(size_t)choice-1]);
+        });
 }
