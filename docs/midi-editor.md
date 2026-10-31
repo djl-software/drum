@@ -60,7 +60,7 @@ References: [Notes](https://www.ableton.com/en/live-manual/12/editing-midi/), [C
 
 ## Named instruments in Ableton Live
 
-The companion automatically requests the saved **DJL Drum Link** MIDI Effect Rack before a newly loaded top-level Drum instance. It waits for stopped playback and inactive browser hot-swap. The installer places the preset in `User Library/Presets/MIDI Effects/MIDI Effect Rack/DJL Drum/DJL Drum Link.adg`. **Use kit** on the kit screen refreshes the current kit publication and requests another setup attempt if needed; it no longer exports a file or opens Explorer. The current kit in Drum supplies the instrument names and mapping. Existing racks are reused; a misplaced existing rack must be moved immediately before Drum rather than duplicated. Keep its rack name and key zones unchanged. It contains 88 empty chains, one for each key from MIDI 21 to 108, with no extra instruments, samples or audio effects. Unoccupied keys show `(unused)`.
+The companion automatically requests the saved **DJL Drum Link** MIDI Effect Rack before a newly loaded top-level Drum instance. It waits for stopped playback and inactive browser hot-swap. The installer places the preset in `User Library/Presets/MIDI Effects/MIDI Effect Rack/DJL Drum/DJL Drum Link.adg`. **Update** on the kit screen refreshes the current kit publication and requests another setup attempt if needed; it no longer exports a file or opens Explorer. The current kit in Drum supplies the instrument names and mapping. Existing racks are reused; a misplaced existing rack must be moved immediately before Drum rather than duplicated. Keep its rack name and key zones unchanged. It contains 88 empty chains, one for each key from MIDI 21 to 108, with no extra instruments, samples or audio effects. Unoccupied keys show `(unused)`.
 
 Install the bundled `DJL_Drum_Link` folder under your Ableton User Library's `Remote Scripts` folder. Restart Live, then select **DJL Drum Link** in an unused Control Surface slot under Settings > Link, Tempo & MIDI. Leave Input and Output as **None**. One script serves all Drum tracks. See [Ableton's installation instructions](https://help.ableton.com/hc/en-us/articles/209072009-Installing-third-party-remote-scripts).
 
@@ -85,3 +85,9 @@ The native note-ID remapping path still needs an in-Live acceptance check after 
 If the companion is disabled, the rack retains its last names and still passes notes on the assigned key range. Stale/malformed publications and edited racks containing effects are ignored. Do not stack mapping racks or insert another device between the mapping rack and Drum. No controller/MPE events or audio are processed by the companion.
 
 Automatic insertion uses Live's browser API and still needs an in-Live acceptance check. If Live has not indexed the installed preset, setup waits; the status bar reports this. Auto-insertion currently targets top-level track devices; nested Drum instances still need the saved rack placed manually in the same chain.
+
+### Repair an older Live Set's connection
+
+Older Sets can retain only Drum's original sixteen macros, omitting its newer instance identifier. In 0.16.9, enable **Configure** on Live's Drum device, open Drum and click **Update**, then disable Configure. This exposes the connection parameter without changing any sound controls. Check that names follow a rename, then enable **Setup > Automatically update Ableton clips** before reordering. The companion now reports a missing identifier in Live's status bar and log instead of silently leaving the track unpaired. This procedure still requires an in-Live acceptance check.
+
+Do not expect earlier disconnected reorders to be reconstructed. Restore a known matching kit/clip order before enabling remapping.

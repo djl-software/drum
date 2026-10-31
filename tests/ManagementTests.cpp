@@ -30,6 +30,21 @@ void screenshot(juce::Component& editor, const char* name)
 void runManagementTests()
 {
     {
+        struct GestureProbe final : juce::AudioProcessorParameter::Listener {
+            int values=0, starts=0, ends=0;
+            void parameterValueChanged(int,float) override {++values;}
+            void parameterGestureChanged(int,bool starting) override {starting?++starts:++ends;}
+        } probe;
+        DrumAudioProcessor track(true);
+        juce::AudioProcessorParameter* link=nullptr;
+        for(auto* parameter:track.getParameters())if(parameter->getName(64).startsWith("DJL Link "))link=parameter;
+        check(link!=nullptr,"Missing Live connection parameter");
+        link->addListener(&probe);track.useLiveKit();track.useLiveKit();link->removeListener(&probe);
+        check(probe.values==2 && probe.starts==2 && probe.ends==2,"Update does not expose a complete Configure gesture");
+        for(int n=0;n<drum::numMacros;++n)check(track.macro(n).get()==.5f,"Connection repair modified musical macros");
+        check(!track.autoRemapLiveClips(),"Connection repair enabled clip modifications without selecting the option");
+    }
+    {
         drum::KitLibrary ordered;auto initial=ordered.snapshot();auto k=initial.activeKit,g=drum::activeKit(initial)->groups[0].id;
         auto h=ordered.addGroup(k).id,a=ordered.addInstrument(k,g).id,b=ordered.addInstrument(k,h).id,c=ordered.addInstrument(k,h).id;
         auto item=[&](const juce::String& id){auto state=ordered.snapshot();return *drum::findInstrument(*drum::activeKit(state),id);};

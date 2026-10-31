@@ -34,9 +34,24 @@ DrumAudioProcessor::DrumAudioProcessor(bool track)
         // The instance token lives in the name, not the restored value.
         // Live only exposes automatable parameters to its Control Surface API.
         // A duplicate instance therefore cannot publish over its source's mapping.
-        addParameter(new juce::AudioParameterFloat(juce::ParameterID("liveLink",1),liveKitLink->parameterName(),juce::NormalisableRange<float>(0,1),0,juce::AudioParameterFloatAttributes().withAutomatable(true)));
+        liveLinkParameter=new juce::AudioParameterFloat(juce::ParameterID("liveLink",1),liveKitLink->parameterName(),juce::NormalisableRange<float>(0,1),0,juce::AudioParameterFloatAttributes().withAutomatable(true));
+        addParameter(liveLinkParameter);
     }
 
+}
+
+void DrumAudioProcessor::useLiveKit()
+{
+    if(!liveKitLink)return;
+    // Existing Live Sets retain their configured parameter list across upgrades.
+    // A real gesture lets Configure mode discover the new identity parameter.
+    // Its value has no audio or identity meaning; never touch a musical macro.
+    if(liveLinkParameter){
+        liveLinkParameter->beginChangeGesture();
+        liveLinkParameter->setValueNotifyingHost(liveLinkParameter->get() < .5f ? 1.0f : 0.0f);
+        liveLinkParameter->endChangeGesture();
+    }
+    liveKitLink->requestSetup();
 }
 
 DrumAudioProcessor::~DrumAudioProcessor() { liveKitLink.reset(); patternPlayer->stop();previewActive.store(false);if(libraryPreview)libraryPreview->getSampleEngine().shutdown();sampleEngine.shutdown();cancelPendingUpdate(); }

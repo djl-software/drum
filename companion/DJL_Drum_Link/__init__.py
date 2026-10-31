@@ -60,6 +60,8 @@ class DrumLink(ControlSurface):
                 # Read only this track's instance request files; no global guessing.
                 for device in devices:
                     token = token_for(device)
+                    if str(device.class_name) == "PluginDevice" and str(device.name) == "DJL Drum" and not token:
+                        errors.append("Track '%s': Drum connection parameter missing. Enable Configure on Live's Drum device, click Update in Drum, then turn Configure off." % str(track.name))
                     if token:
                         try:
                             with open(os.path.join(self._folder,token+".json"),"r",encoding="utf-8-sig") as stream:

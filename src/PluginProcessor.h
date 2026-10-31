@@ -29,7 +29,7 @@ public:
 
     bool autoRemapLiveClips() const{return liveKitLink && liveKitLink->autoRemap.load();}
     void setAutoRemapLiveClips(bool value){if(liveKitLink){liveKitLink->autoRemap=value;liveKitLink->publish();triggerAsyncUpdate();}}
-    void useLiveKit(){if(liveKitLink)liveKitLink->requestSetup();}
+    void useLiveKit();
     void publishLiveKit(){if(liveKitLink)liveKitLink->publish();}
     ~DrumAudioProcessor() override;
     drum::KitLibrary& getLibrary() { return library; }
@@ -57,6 +57,7 @@ public:
     void setStateInformation(const void*, int) override;
 private:
     std::unique_ptr<drum::LiveKitLink> liveKitLink;
+    juce::AudioParameterFloat* liveLinkParameter = nullptr;
     const bool trackInstance;
     std::atomic<bool> kitOpened{false};
     juce::File currentDocument;

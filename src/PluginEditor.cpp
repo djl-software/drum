@@ -277,7 +277,7 @@ public:
             menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&liveSetupButton),[safe](int selected){if(safe && selected==1){safe->processor.setAutoRemapLiveClips(!safe->processor.autoRemapLiveClips());safe->status=safe->processor.autoRemapLiveClips()?"Auto-remap enabled: future kit moves update linked Live clips. Deleted instruments' notes are muted.":"Automatic Live clip updates off.";safe->repaint();}});
         };
         setup(useKitButton,"Update","use-kit-live");useKitButton.setTooltip("Connect this kit using the saved DJL Drum Link rack in Live. The companion inserts it if needed when playback is stopped.");useKitButton.onClick=[this]{
-            processor.useLiveKit();status="Kit connection requested. DJL Drum Link will use its saved rack; stop playback to allow insertion.";statusError=false;repaint();
+            processor.useLiveKit();status="Connection requested. If unlinked: enable Configure on Live's Drum device, click Update here, then disable Configure.";statusError=false;repaint();
         };
         setup(saveDocumentButton,processor.isMidiTrack()?"Save kit":"Save library as","save-document");saveDocumentButton.onClick=[this]{if(processor.isMidiTrack())saveNamedKit();else chooseDocument(true);};
         setup(saveAsButton,"Save kit as","save-document-as");saveAsButton.onClick=[this]{chooseDocument(true);};
