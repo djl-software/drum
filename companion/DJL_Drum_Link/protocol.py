@@ -4,9 +4,10 @@ import re
 
 PREFIX = "DJL Link "
 RACK_NAME = "DJL Drum Link v1 - Drum note names"
+RACK_NAMES = {RACK_NAME, "DJL Drum Link"}
 
 def token_for(device):
-    found = [str(p.name)[len(PREFIX):] for p in device.parameters if str(p.name).startswith(PREFIX)]
+    found = [str(getattr(p, "original_name", p.name))[len(PREFIX):] for p in device.parameters if str(getattr(p, "original_name", p.name)).startswith(PREFIX)]
     if len(found) != 1 or not re.fullmatch(r"[0-9a-fA-F]{16}", found[0]):
         return None
     return found[0]

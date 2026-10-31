@@ -5,7 +5,7 @@ import json
 import os
 import time
 from _Framework.ControlSurface import ControlSurface
-from .protocol import RACK_NAME, token_for, names_from, update_rack
+from .protocol import RACK_NAMES, token_for, names_from, update_rack
 
 
 def create_instance(c_instance):
@@ -18,6 +18,7 @@ class DrumLink(ControlSurface):
         self._folder = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~/Library")), "DJL", "Drum", "LiveLink")
         self._last_poll = 0
         self._last_status = None
+        self._last_diagnostic = None
         self.log_message("DJL Drum Link started")
 
     def _pairs(self, devices, depth=0):
@@ -25,7 +26,7 @@ class DrumLink(ControlSurface):
             return
         devices = list(devices)
         for index, device in enumerate(devices):
-            if str(device.name) == RACK_NAME and str(device.class_name) == "MidiEffectGroupDevice":
+            if str(device.name) in RACK_NAMES and str(device.class_name) == "MidiEffectGroupDevice":
                 if index+1 < len(devices):
                     token = token_for(devices[index+1])
                     if token:
@@ -41,8 +42,15 @@ class DrumLink(ControlSurface):
             return
         self._last_poll = now
         connected, errors = 0, []
+        diagnostic = []
         try:
             for track in self.song().tracks:
+                devices = list(track.devices)
+                for index, device in enumerate(devices):
+                    if "DJL" in str(device.name) or "Drum Link" in str(device.name):
+                        entry = {"index": index, "name": str(device.name), "class": str(device.class_name), "chains": len(getattr(device,"chains",()))}
+                        entry["parameters"] = [{"name": str(p.name), "original": str(getattr(p,"original_name",p.name))} for p in device.parameters][:24]
+                        diagnostic.append(entry)
                 for rack, token in self._pairs(track.devices):
                     try:
                         path = os.path.join(self._folder, token+".json")
@@ -54,6 +62,13 @@ class DrumLink(ControlSurface):
                         connected += 1
                     except Exception as exc:
                         errors.append(str(exc))
+            if diagnostic != self._last_diagnostic:
+                self._last_diagnostic = diagnostic
+                os.makedirs(self._folder, exist_ok=True)
+                path = os.path.join(self._folder,"diagnostic.json")
+                with open(path+".tmp", "w", encoding="utf-8") as stream:
+                    json.dump({"timestamp": now, "devices": diagnostic}, stream)
+                os.replace(path+".tmp",path)
             status = {"connected": connected, "errors": errors[:8]}
             if status != self._last_status:
                 self._last_status = status

@@ -22,6 +22,12 @@ class LinkTests(unittest.TestCase):
             if kind=="outside": data["notes"][1]["note"]=128
             if kind=="identity": data["notes"][1]["id"]="kick"
             with self.assertRaises(ValueError): p.names_from(data,"0123456789abcdef",101)
+    def test_live_preset_filename_alias(self):
+        self.assertIn("DJL Drum Link",p.RACK_NAMES)
+        self.assertIn(p.RACK_NAME,p.RACK_NAMES)
+        device=Item(parameters=[Item(name="Renamed",original_name="DJL Link 0123456789abcdef")])
+        self.assertEqual(p.token_for(device),"0123456789abcdef")
+
     def test_instances_and_parameter_value(self):
         a=Item(parameters=[Item(name="DJL Link 0123456789abcdef",value=0)])
         b=Item(parameters=[Item(name="DJL Link abcdef0123456789",value=1)])
