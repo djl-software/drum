@@ -71,6 +71,7 @@ public:
     Result duplicateInstrument(const juce::String& kitId, const juce::String& instrumentId);
     Result removeInstrument(const juce::String& kitId, const juce::String& instrumentId);
     Result moveInstrument(const juce::String& kitId, const juce::String& instrumentId, const juce::String& groupId);
+    Result positionInstrument(const juce::String& kitId, const juce::String& instrumentId, int position);
     Result reorderInstrument(const juce::String& kitId, const juce::String& instrumentId, int direction);
     // Compatibility check: keys are derived from group/instrument order.
     Result assignNote(const juce::String& kitId, const juce::String& instrumentId, int note);

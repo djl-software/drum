@@ -17,7 +17,7 @@ juce::Component* control(juce::Component& root, const juce::String& id)
 }
 void click(juce::Component& root, const char* id)
 {
-    auto* b=dynamic_cast<juce::TextButton*>(control(root,id)); check(b && b->isEnabled(),"Missing or disabled UI action"); b->onClick();
+    auto* b=dynamic_cast<juce::TextButton*>(control(root,id)); if(!b || !b->isEnabled())throw std::runtime_error(std::string("Missing or disabled UI action: ")+id); b->onClick();
 }
 void screenshot(juce::Component& editor, const char* name)
 {
@@ -156,5 +156,32 @@ void runManagementTests()
     good(processor.getLibrary().activateKit(denseKit));
     DrumAudioProcessorEditor denseEditor(processor); denseEditor.setSize(1080,860); screenshot(denseEditor,"drum-layout-dense.png");
     DrumAudioProcessor empty; DrumAudioProcessorEditor emptyEditor(empty); screenshot(emptyEditor,"drum-layout-empty.png");
+    // The top-level editor swaps sibling screens and keeps the current kit intact.
+    {
+        DrumAudioProcessor track(true);track.newKit();auto before=track.getLibrary().snapshot();auto kitId=before.activeKit;
+        good(track.getLibrary().rename(kitId,"Toolbar save test"));
+        auto first=track.getLibrary().addInstrument(kitId,before.kits[0].groups[0].id).id;
+        auto second=track.getLibrary().addInstrument(kitId,before.kits[0].groups[0].id).id;
+        auto third=track.getLibrary().addInstrument(kitId,before.kits[0].groups[0].id).id;
+        DrumAudioProcessorEditor main(track);main.setSize(1280,900);main.setVisible(true);
+        check(control(main,"kit-menu")->isVisible() && control(main,"library-menu")->isVisible(),"File menus not visible");
+        check(!control(main,"open-patterns")->isVisible(),"MIDI toolbar button still visible");
+        auto* update=dynamic_cast<juce::TextButton*>(control(main,"use-kit-live"));check(update && update->getButtonText()=="Update","Update is not labelled correctly");
+        click(main,"save-document");check(track.documentFile().getFileName()=="Toolbar save test.drumkit" && track.documentFile().existsAsFile(),"Save did not use kit name automatically");
+        auto* pads=control(main,"instrument-grid");int side=(pads->getWidth()-36)/4;auto now=juce::Time::getCurrentTime();juce::Point<float> start{float(side/2),float(side/2)},finish{float(2*(side+12)+side/2),float(side/2)};
+        auto event=[&](juce::Point<float> pos){return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),pos,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,pads,pads,now,start,now,1,false);};
+        pads->mouseDown(event(start));pads->mouseDrag(event(finish));pads->mouseUp(event(finish));
+        auto moved=track.getLibrary().snapshot().kits[0].groups[0].instruments;
+        check(moved[0].id==second && moved[1].id==third && moved[2].id==first,"Pad drag did not insert and shift intervening pads");
+        check(moved[0].note==21 && moved[1].note==22 && moved[2].note==23,"Pad drag left gaps in MIDI assignments");
+        screenshot(main,"drum-toolbar-kit.png");click(main,"open-kit-library");
+        juce::TextButton* back=nullptr;std::function<void(juce::Component&)> findBack=[&](juce::Component& c){if(auto* b=dynamic_cast<juce::TextButton*>(&c);b && b->getComponentID()=="kit-menu" && b->getButtonText()=="Back to kit" && b->isVisible())back=b;for(auto* child:c.getChildren())findBack(*child);};findBack(main);
+        check(back!=nullptr,"Library is not a screen in the main editor");
+        auto* libraryScreen=back->getParentComponent();auto countBefore=drum::instrumentCount(track.getLibrary().snapshot().kits[0]);
+        click(*libraryScreen,"add-instrument");click(*libraryScreen,"use-library-sound");
+        check(drum::instrumentCount(track.getLibrary().snapshot().kits[0])==countBefore+1,"Library screen could not add its instrument to the kit");
+        screenshot(main,"drum-toolbar-library.png");back->onClick();
+        check(track.getLibrary().snapshot().activeKit==kitId && control(main,"kit-menu")->isVisible(),"Library navigation lost the current kit");
+    }
     std::cout << "Management, persistence and UI wiring tests passed\n";
 }

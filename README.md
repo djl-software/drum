@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.8 reorganises the toolbar into **Update**, **Kit** and **Library** menus. Library is a full screen in Drum, with Back to kit. Pads can be dragged to reorder within their group; MIDI keys follow the new order. Save uses the kit name automatically. The MIDI editor button is hidden temporarily; its code and saved clips remain.
+
 Version 0.16.7 aligns MIDI trigger-note labels with Live (MIDI 21 = A-1, MIDI 60 = C3). Key assignments and playback are unchanged. The companion also loads the saved mapping rack automatically when Drum is loaded (while stopped); **Use kit** refreshes setup without opening Explorer.
 
 Version 0.16.6 adds **Setup > Automatically update Ableton clips**, an opt-in companion feature for following instrument moves in Session and Arrangement MIDI clips. Deleted instruments' notes are muted; existing note IDs and expression are retained. See [Live setup](docs/midi-editor.md#named-instruments-in-ableton-live).

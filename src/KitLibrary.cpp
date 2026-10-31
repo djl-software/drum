@@ -299,6 +299,18 @@ Result KitLibrary::moveInstrument(const juce::String& kitId, const juce::String&
         std::erase_if(from->instruments, [&](const Instrument& i) { return i.id == instrumentId; }); return Result::success(instrumentId);
     });
 }
+Result KitLibrary::positionInstrument(const juce::String& kitId,const juce::String& instrumentId,int position)
+{
+    return edit([&](State& state){
+        auto* kit=find(state.kits,kitId);if(!kit)return Result::fail("Kit no longer exists.");
+        auto* group=containing(*kit,instrumentId);if(!group)return Result::fail("Instrument no longer exists.");
+        if(position<0 || position>=(int)group->instruments.size())return Result::fail("Invalid instrument position.");
+        auto from=std::find_if(group->instruments.begin(),group->instruments.end(),[&](const Instrument& i){return i.id==instrumentId;});
+        auto to=group->instruments.begin()+position;
+        if(from<to)std::rotate(from,from+1,to+1);else if(from>to)std::rotate(to,from,from+1);
+        return Result::success(instrumentId);
+    });
+}
 Result KitLibrary::reorderInstrument(const juce::String& kitId, const juce::String& instrumentId, int direction)
 {
     return edit([&](State& s) {

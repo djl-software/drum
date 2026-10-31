@@ -10,6 +10,9 @@ public:
     void resized() override;
 private:
     class Workspace;
-    std::unique_ptr<Workspace> workspace;
+    std::unique_ptr<Workspace> workspace, libraryWorkspace;
+    DrumAudioProcessor& processor;
+    bool showingLibrary=false;
+    void showLibraryScreen(bool);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrumAudioProcessorEditor)
 };

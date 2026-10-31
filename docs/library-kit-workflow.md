@@ -49,3 +49,14 @@ The MIDI editor stores up to sixteen clips per kit, up to 8192 notes and 1024 qu
 An exported clip belongs to the DAW and is an independent copy. After changing the kit mapping, replace it with a fresh MIDI export. With the Live companion connected, **Setup > Automatically update Ableton clips** can follow subsequent instrument moves in the linked track's Session and Arrangement clips. Enable it before editing the kit. Other DAWs and exported files remain independent; see `midi-editor.md` for scope and deletion behaviour.
 
 The editor and saved format are shared by VST3 and desktop standalone builds. MPE, clip automation and Live's MIDI generators are outside the Notes-editor scope chosen for this update. The tablet application remains future work.
+
+
+## Toolbar and screen navigation (0.16.8)
+
+The kit screen starts with **Update**, **Kit** and **Library**. Update refreshes the current kit's Live connection. Kit opens a conventional dropdown with New, Load, Save and Save as. Library opens the library screen or runs its New/Load/Save actions. Library takes the place of the kit screen within the same Drum window, using the same group, pad, editing and keyboard layout. **Back to kit** returns to the current kit; library edits are saved to the shared collection first, or kept open with an error if saving fails.
+
+Drag a pad onto another pad in the current group to move it to that position. The intervening pads shift and MIDI keys are reassigned contiguously. The marker above the target pad shows the drop position. For another group, use the existing destination-group control. Instrument settings, effects and internal MIDI identities stay with the moved pad. External clip remapping still requires the Live companion and its enabled Setup option.
+
+**Kit > Save** saves to `<kit name>.drumkit`, in the current kit's folder or the portable Kits folder for a new kit. Renaming the kit changes the next Save filename and leaves the previous saved file in place. Replacing another existing file asks first. Save as still allows choosing a destination.
+
+The MIDI toolbar button is temporarily hidden. Stored MIDI clips and the editor implementation are retained.
