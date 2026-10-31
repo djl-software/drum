@@ -135,11 +135,16 @@ void tonalTests()
     check(!drum::analyseTonal(audio,48000,[]{return true;}).complete,"Analysis cancellation ignored");
     check(drum::camelotCode(22)=="3A" && drum::camelotCode(21)=="8A" && drum::camelotCode(0)=="8B","Camelot mapping incorrect");
     check(drum::musicalNote(69)=="A4","Note octave incorrect");
+    juce::AudioBuffer<float> padded(1,480000);padded.clear();for(int n=0;n<10000;++n){double t=n/48000.0;padded.setSample(0,n,(float)(.5*std::exp(-12*t)*std::sin(juce::MathConstants<double>::twoPi*(55*t+30*.02*(1-std::exp(-t/.02))))));}auto kick=drum::analyseTonal(padded,48000);check(kick.midi>30 && kick.midi<38,"Padded kick lost its tail pitch");check(std::isfinite(drum::tuningToKey(kick,21)),"Pitched kick cannot auto tune");
+
 }
 }
 void runEnvelopeTests()
 {
     shapeTests();tonalTests();
+    const auto diagnostics=juce::SystemStats::getEnvironmentVariable("DJL_DRUM_ANALYSE_FILES",{});
+    if(diagnostics.isNotEmpty()){juce::AudioFormatManager formats;formats.registerBasicFormats();for(const auto& path:juce::StringArray::fromLines(juce::File(diagnostics).loadFileAsString())){std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(juce::File(path)));if(!reader)continue;juce::AudioBuffer<float> audio((int)reader->numChannels,(int)reader->lengthInSamples);reader->read(&audio,0,audio.getNumSamples(),0,true,true);auto a=drum::analyseTonal(audio,reader->sampleRate);std::cout<<juce::File(path).getFileName()<<": midi="<<a.midi<<" range="<<a.lowMidi<<".."<<a.highMidi<<" key="<<a.key<<" confidence="<<a.confidence<<" shiftToA="<<drum::tuningToKey(a,21)<<"\n";}}
+
     DrumAudioProcessor p;auto& library=p.getLibrary();auto state=library.snapshot();const auto kit=state.activeKit,group=drum::activeKit(state)->groups.front().id;
     const auto id=library.addInstrument(kit,group).id;
     auto file=juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav");
@@ -148,12 +153,14 @@ void runEnvelopeTests()
     DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");click(editor,"edit-tab-1");settle(editor);
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
     auto& soundEditor=control<SoundEditor>(editor,"sound-editor");
-    click(editor,"edit-tab-8");check(control<juce::Component>(editor,"key-spectrum").isVisible(),"Key spectrum not visible on Key tab");
+    click(editor,"edit-tab-8");check(control<juce::TextButton>(editor,"edit-tab-8").getButtonText()=="Tune","Tune tab name incorrect");check(control<juce::TextButton>(editor,"edit-tab-8").getX()>control<juce::TextButton>(editor,"edit-tab-2").getX() && control<juce::TextButton>(editor,"edit-tab-8").getX()<control<juce::TextButton>(editor,"edit-tab-3").getX(),"Tune tab order incorrect");check(control<juce::Component>(editor,"key-spectrum").isVisible(),"Key spectrum not visible on Key tab");
     control<juce::Slider>(editor,"key-coarse").setValue(3,juce::sendNotificationSync);control<juce::Slider>(editor,"key-fine").setValue(17.5,juce::sendNotificationSync);
     near(current().tuning,3,.001,"Key coarse did not affect instrument tuning");near(current().sound.detune,17.5,.001,"Key fine did not affect playback detune");settle(editor);capture(editor,"drum-key-tab.png");
     juce::MemoryBlock keyState;p.getStateInformation(keyState);DrumAudioProcessor recalledKey;recalledKey.setStateInformation(keyState.getData(),(int)keyState.getSize());auto recalledState=recalledKey.getLibrary().snapshot();auto recalledControls=drum::findInstrument(*drum::activeKit(recalledState),id)->controls;near(recalledControls.tuning,3,.001,"Key tuning was not saved");near(recalledControls.sound.detune,17.5,.001,"Key fine tuning was not saved");
     control<juce::ComboBox>(editor,"target-key").setSelectedId(3,juce::dontSendNotification);click(editor,"auto-tune");
     check(std::abs(current().tuning-3)>.1 || std::abs(current().sound.detune-17.5)>.1,"Auto Tune button did not change tuning");settle(editor);capture(editor,"drum-auto-tune.png");
+    p.getSampleEngine().audition(21);juce::AudioBuffer<float> cursorAudio(2,4800);juce::MidiBuffer cursorMidi;p.getSampleEngine().process(cursorAudio,cursorMidi);check(p.getSampleEngine().playbackPosition(21).active,"Waveform cursor fixture inactive");capture(editor,"drum-tune-cursor.png");p.getSampleEngine().stop();p.getSampleEngine().process(cursorAudio,cursorMidi);
+
     std::array<float,drum::numMacros> keyMacros{};auto tunedPreview=drum::SampleEngine::renderPreview(p.getSampleEngine().waveformFor(id),current(),keyMacros,120,48000);check(tunedPreview.sample!=nullptr,"Tuned preview missing");auto tunedPitch=drum::analyseTonal(tunedPreview.sample->audio,48000);near(std::remainder(tunedPitch.midi-2,12.0),0,.08,"Auto Tune playback missed target D");
     click(editor,"reset-edit-page");near(current().tuning,0,.001,"Key reset did not reset coarse");near(current().sound.detune,0,.001,"Key reset did not reset fine");click(editor,"edit-tab-1");
     auto refresh=[&]{auto s=library.snapshot();soundEditor.select(kit,drum::findInstrument(*drum::activeKit(s),id));};

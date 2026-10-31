@@ -317,6 +317,7 @@ void SampleEngine::prepare(double rate,int blockSize)
 }
 void SampleEngine::release()
 {
+    for(auto& head:playbackHeads)head.store(0,std::memory_order_relaxed);
     // Hosts may release/reprepare after an effect latency change (including
     // bypass). Keep the user's loop request; explicit Pause/editor close stops it.
     repeatingNote=-1;auditionBeatRemaining=0;
@@ -641,6 +642,16 @@ void SampleEngine::mixEffects(juce::AudioBuffer<float>& output,int offset,int fr
         for(int send=0;send<6;++send)if(c.sends[(size_t)send]>0)write(send+16,c.sends[(size_t)send]);
     }
 }
+void SampleEngine::publishPlaybackHeads() noexcept
+{
+    std::array<uint64_t,128> ages{},heads{};
+    for(const auto& v:voices)if(v.sample && v.age>=ages[(size_t)v.note]){
+        ages[(size_t)v.note]=v.age;
+        const float position=(float)juce::jlimit(0.0,1.0,v.position/v.sample->audio.getNumSamples());
+        heads[(size_t)v.note]=(uint64_t)std::bit_cast<uint32_t>((float)v.elapsed)<<32 | std::bit_cast<uint32_t>(position);
+    }
+    for(size_t n=0;n<128;++n)playbackHeads[n].store(heads[n],std::memory_order_relaxed);
+}
 void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuffer& midi) noexcept
 {
     Bank* next=nullptr;
@@ -654,7 +665,7 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     }
     else if(current && macroValues!=previousMacros) {updateRenderControls();updateVoices();}
     output.clear();
-    if(!current || current->rate!=hostRate || current->kitEpoch!=library.activeKitEpoch()) { stopVoices(); return; }
+    if(!current || current->rate!=hostRate || current->kitEpoch!=library.activeKitEpoch()) { stopVoices(); publishPlaybackHeads(); return; }
     const bool stopped=panic.exchange(false);
     if(stopped)stopVoices();
     if(pausePreview.exchange(false))for(auto& voice:voices)if(voice.preview)fadeVoice(voice);
@@ -707,6 +718,7 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
             if(captureSpectrum && spectrumNote>=firstNote && spectrumNote<firstNote+maxInstruments){const int channel=(spectrumNote-firstNote)*2;for(int n=0;n<count;++n)eqSpectrum.push(instrumentAudio.getSample(channel,n),instrumentAudio.getSample(channel+1,n));}
             if(chainActive)effects->process(instrumentAudio,current->kitEpoch,playHead,nonRealtime);mixEffects(output,base,count);}
     }
+    publishPlaybackHeads();
     freePhase+=output.getNumSamples()/hostRate;
 }
 }

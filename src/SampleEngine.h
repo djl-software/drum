@@ -12,6 +12,7 @@
 #include <deque>
 #include <map>
 #include <tuple>
+#include <bit>
 
 namespace drum
 {
@@ -57,6 +58,11 @@ public:
         const std::function<bool()>& cancelled = {});
     double previewTempo() const { return displayedTempo.load(); }
     double previewSampleRate() const { return displayedRate.load(); }
+    struct PlaybackPosition { bool active=false;float source=0,seconds=0; };
+    PlaybackPosition playbackPosition(int note) const {
+        if(note<0 || note>=128)return {};const auto bits=playbackHeads[(size_t)note].load(std::memory_order_relaxed);
+        return {bits!=0,std::bit_cast<float>((uint32_t)bits),std::bit_cast<float>((uint32_t)(bits>>32))};
+    }
     uint64_t statusRevision() const { return statusEpoch.load(); }
     // For deterministic offline tests. Never call from processBlock.
     bool waitForLoading(int timeoutMs);
@@ -179,6 +185,8 @@ private:
     juce::AbstractFifo keyboardQueue {128};
     std::array<KeyboardCommand,128> keyboardCommands;
     std::array<std::atomic<uint64_t>,128> activity {};
+    std::array<std::atomic<uint64_t>,128> playbackHeads {};
+    void publishPlaybackHeads() noexcept;
     std::atomic<int> repeatNote {-1};
     std::atomic<uint64_t> repeatEpoch {0};
     std::atomic<double> auditionBpm {120.0};

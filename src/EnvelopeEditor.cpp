@@ -66,7 +66,7 @@ EnvelopeEditor::EnvelopeEditor(juce::String id,juce::String heading,juce::Colour
     adsr.onClick=[this]{finish();if(onUseAdsr)onUseAdsr();};undo.onClick=[this]{finish();if(onUndo)onUndo();};redo.onClick=[this]{finish();if(onRedo)onRedo();};
     addAndMakeVisible(depth);depth.setComponentID(getComponentID()+"-amount");depth.setName("Envelope amount");
     depth.setSliderStyle(juce::Slider::LinearHorizontal);depth.setTextBoxStyle(juce::Slider::TextBoxRight,false,70,22);
-    depth.setColour(juce::Slider::trackColourId,colour);depth.setColour(juce::Slider::thumbColourId,colour);
+    depth.setColour(juce::Slider::trackColourId,juce::Colour(0xff67dfc5));depth.setColour(juce::Slider::thumbColourId,juce::Colour(0xff67dfc5));
     depth.onValueChange=[this]{if(!updating && onAmount)onAmount(depth.getValue());};
     depth.setDoubleClickReturnValue(true,0);
     depth.onDragStart=[this]{if(onBeginGesture)onBeginGesture();};depth.onDragEnd=[this]{if(onEndGesture)onEndGesture();};
@@ -153,6 +153,8 @@ void EnvelopeEditor::paint(juce::Graphics& g)
             const int steps=std::clamp((int)((right.ms-left.ms)/span*a.getWidth()),1,1200);
             for(int step=1;step<=steps;++step){const double t=(double)step/steps;path.lineTo(position({left.ms+(right.ms-left.ms)*t,drum::envelopeSegment(left.level,right,t)}));}
         }
+        auto fill=path;fill.lineTo(position(shape.points[(size_t)shape.count-1]).x,a.getBottom());fill.lineTo(position(shape.points[0]).x,a.getBottom());fill.closeSubPath();
+        g.setGradientFill(juce::ColourGradient(c.withAlpha(.26f),a.getX(),a.getY(),c.withAlpha(.02f),a.getX(),a.getBottom(),false));g.fillPath(fill);
         g.setColour(c);g.strokePath(path,juce::PathStrokeType(2));
         if(limit<offset+span){const auto end=position({limit,0}).x;g.setColour(juce::Colours::orange.withAlpha(0.7f));g.drawVerticalLine((int)end,a.getY(),a.getBottom());label(g,"Sample end",{(int)end-68,(int)a.getBottom()-18,68,15},9,muted);}
         const auto hold=position(shape.points[(size_t)shape.hold]);float dash[]{3,3};g.setColour(muted.withAlpha(0.7f));g.drawDashedLine({{hold.x,a.getY()},{hold.x,a.getBottom()}},dash,2);

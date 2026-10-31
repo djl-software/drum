@@ -93,7 +93,7 @@ void EqualizerEditor::paint(juce::Graphics& g)
         const float y=a.getCentreY()-(float)std::clamp(db,-24.0,24.0)/48*a.getHeight();
         if(x==0)curve.startNewSubPath(a.getX(),y);else curve.lineTo(a.getX()+x,y);
     }
-    g.setColour(equalizer.enabled?mint:muted);g.strokePath(curve,juce::PathStrokeType(2));
+    g.setColour(equalizer.enabled?juce::Colour(0xfff1b95b):muted);g.strokePath(curve,juce::PathStrokeType(2));
     for(int n=0;n<8;++n)
     {
         const auto p=point(n);static const juce::uint32 colours[]={0xfff28b82,0xffffbd69,0xfff4dc72,0xff8cda83,0xff59d9cd,0xff68b6ff,0xffb49bff,0xffed91d1};

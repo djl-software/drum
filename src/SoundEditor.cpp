@@ -2,6 +2,7 @@
 
 namespace
 {
+const juce::Colour waveColour(0xfff1b95b), spectrumColour(0xff6cb5ff), playheadColour(0xffff76bd);
 const juce::Colour bg(0xff10151f),panel(0xff19212e),ink(0xffe5ebf5),muted(0xff8d9bb0),mint(0xff67dfc5);
 using SoundMember=double drum::SoundParameters::*;
 SoundMember oppositeMarker(SoundMember member)
@@ -249,7 +250,7 @@ public:
             draw(muted.darker(0.35f));
             g.saveState();
             if(sourceMode())g.reduceClipRegion(juce::Rectangle<float>(x(trimStart()),(float)area.getY(),x(trimEnd())-x(trimStart()),(float)area.getHeight()).getSmallestIntegerContainer());
-            draw(mint);g.restoreState();
+            draw(waveColour);g.restoreState();
             if(channels==2)
             {
                 text(g,"L",{area.getX()+4,area.getY()+2,20,16},10,muted);
@@ -271,6 +272,10 @@ public:
             g.drawVerticalLine((int)x(trimEnd())-1,(float)area.getY(),(float)area.getBottom());
             text(g,"START",{(int)x(trimStart())+4,area.getY()+17,48,16},10,mint);
             text(g,"END",{(int)x(trimEnd())-30,area.getY()+17,28,16},10,mint);
+        }
+        if(source){const auto head=owner.processor.getSampleEngine().playbackPosition(owner.note);
+            if(head.active){const double position=sourceMode()?(reversed()?1-head.source:head.source):head.seconds/(source->audio.getNumSamples()/source->rate);
+                if(position>=offset && position<=offset+1/zoom){const float px=x(position);g.setColour(playheadColour);g.fillRect(px-1,(float)area.getY(),2.0f,(float)area.getHeight());juce::Path flag;flag.addTriangle(px-5,(float)area.getY(),px+5,(float)area.getY(),px,(float)area.getY()+7);g.fillPath(flag);}}
         }
         g.restoreState();
         text(g,owner.path.isEmpty()?"Drop an audio sample here":juce::File(owner.path).getFileName(),{10,getHeight()-25,getWidth()-620,20},11,muted);
@@ -446,7 +451,7 @@ public:
         auto plot=getLocalBounds().reduced(44,0).withTrimmedTop(40).withTrimmedBottom(32);if(plot.getHeight()<20)return;
         const float width=plot.getWidth()/12.0f;const char* names[]{"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
         for(int n=0;n<12;++n){auto column=juce::Rectangle<float>(plot.getX()+n*width,(float)plot.getY(),width,(float)plot.getHeight());g.setColour((n==1||n==3||n==6||n==8||n==10)?juce::Colour(0xff111e2b):juce::Colour(0xff1b2b38));g.fillRect(column);g.setColour(juce::Colour(0xff314151));g.drawVerticalLine((int)column.getX(),column.getY(),column.getBottom());
-            if(!busy){const float power=analysis.noteEnergy[(size_t)n];const float level=power>0?juce::jlimit(0.0f,1.0f,(48+10*std::log10(power))/48):0;auto bar=column.reduced(6,0).withTop(column.getBottom()-level*column.getHeight());g.setGradientFill(juce::ColourGradient(mint,bar.getCentreX(),bar.getY(),mint.withAlpha(.1f),bar.getCentreX(),bar.getBottom(),false));g.fillRect(bar);}
+            if(!busy){const float power=analysis.noteEnergy[(size_t)n];const float level=power>0?juce::jlimit(0.0f,1.0f,(48+10*std::log10(power))/48):0;auto bar=column.reduced(6,0).withTop(column.getBottom()-level*column.getHeight());g.setGradientFill(juce::ColourGradient(spectrumColour,bar.getCentreX(),bar.getY(),juce::Colour(0xff8764d5).withAlpha(.2f),bar.getCentreX(),bar.getBottom(),false));g.fillRect(bar);}
             g.setColour(ink);g.setFont(juce::FontOptions(14));g.drawText(names[n],juce::Rectangle<int>((int)column.getX(),plot.getBottom()+5,(int)width,24),juce::Justification::centred);
         }
         for(int db=0;db>=-48;db-=12){int y=plot.getY()+juce::roundToInt(-db/48.0f*plot.getHeight());g.setColour(juce::Colour(0xff3b4d5b));g.drawHorizontalLine(y,(float)plot.getX(),(float)plot.getRight());text(g,juce::String(db),{4,y-9,36,18},11,muted);}
@@ -470,7 +475,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
         if(result.ok){for(int n=0;n<3;++n)if(page==(n==2?2:1))recordEnvelope(n,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
         message=result.ok?"Page reset. The source file is unchanged.":result.message; refresh();
     };
-    const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer","Chain","Key"};
+    const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer","Chain","Tune"};
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
     auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);slider.setSliderStyle(juce::Slider::LinearHorizontal);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint);slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,ink);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
@@ -504,9 +509,9 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
         if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
         waveform->showEdited();message=result.ok?"Eight-band stereo EQ saved. Filter envelope shapes the separate tone filter.":result.message;refresh();
     };
-    envelopes[0]=std::make_unique<EnvelopeEditor>("envelope-amp","Amplitude",mint);
+    envelopes[0]=std::make_unique<EnvelopeEditor>("envelope-amp","Amplitude",waveColour);
     envelopes[1]=std::make_unique<EnvelopeEditor>("envelope-pitch","Pitch (st)",juce::Colour(0xff9bbdff));
-    envelopes[2]=std::make_unique<EnvelopeEditor>("envelope-filter","Filter (oct)",juce::Colour(0xffffc17a));
+    envelopes[2]=std::make_unique<EnvelopeEditor>("envelope-filter","Filter (oct)",juce::Colour(0xffbd97ff));
     for(int n=0;n<3;++n)
     {
         addAndMakeVisible(*envelopes[(size_t)n]);
@@ -530,7 +535,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
         if(result.ok) processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
         message=result.ok?"Created a new group of slices on free keys. The original instrument is preserved.":result.message;refresh();
     };
-    setPage(0);startTimerHz(15);
+    setPage(0);startTimerHz(30);
 }
 SoundEditor::~SoundEditor() {stopTimer();viewport.setViewedComponent(nullptr,false);}
 void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
@@ -826,7 +831,8 @@ void SoundEditor::resized()
     noteIndicator.setBounds(18,46,getWidth()-36,22);
     back.setBounds(getWidth()-230,15,125,32); reset.setBounds(getWidth()-95,15,80,32);
     const int tabWidth=(getWidth()-36-8*((int)tabs.size()-1))/(int)tabs.size();
-    for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)n].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
+    constexpr int order[]{0,1,2,8,3,4,5,6,7};
+    for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)order[n]].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
     adsrValues.setBounds(getWidth()-146,116,128,24);
     eqTab.setBounds(getWidth()-446,116,126,24);filterTab.setBounds(getWidth()-312,116,154,24);
     const int graphHeight=page==1 || page==2?180:0;

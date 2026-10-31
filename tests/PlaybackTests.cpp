@@ -78,6 +78,9 @@ void runPlaybackTests()
     near(output.getSample(0,1),0.25f,"Stereo left incorrect"); near(output.getSample(1,1),0.5f,"Stereo right incorrect");
     p.getSampleEngine().stop(); p.processBlock(output,midi); near(output.getMagnitude(0,128),0,"UI stop failed");
     p.getSampleEngine().audition(21); p.processBlock(output,midi); near(output.getSample(0,0),0.2f,"Audition failed");
+    auto head=p.getSampleEngine().playbackPosition(21);check(head.active && head.source>0 && head.seconds>0,"Playback cursor not published for audition");
+    const auto previousHead=head;p.processBlock(output,midi);head=p.getSampleEngine().playbackPosition(21);check(head.seconds>previousHead.seconds && head.source>previousHead.source,"Playback cursor did not advance");
+    p.getSampleEngine().stop();p.processBlock(output,midi);check(!p.getSampleEngine().playbackPosition(21).active,"Playback cursor remained after stop");
     auto layout=p.getBusesLayout(); layout.outputBuses.set(0,juce::AudioChannelSet::mono()); check(p.setBusesLayout(layout),"Mono layout failed");
     p.prepareToPlay(48000,128); output.setSize(1,128); midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0); p.processBlock(output,midi);
     near(output.getSample(0,0),0.375f,"Stereo-to-mono mix incorrect");

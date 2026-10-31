@@ -33,12 +33,12 @@ juce::String tileKey(const TonalAnalysis& a,double transpose)
     if(!a.complete)return "Analysing...";
     const int shift=(int)std::round(transpose);
     if(a.key>=0){const int key=((a.key%12+shift)%12+12)%12+(a.key>=12?12:0);return juce::String(names[key%12])+(key>=12?"m":"")+" / "+camelotCode(key);}
-    if(a.midi>=0 && !a.varying){const int root=((int)std::round(a.midi+transpose)%12+12)%12;return juce::String(names[root])+" (note; key uncertain)";}
+    if(a.midi>=0){const int root=((int)std::round(a.midi+transpose)%12+12)%12;return juce::String(names[root])+(a.varying?" (varies; key uncertain)":" (note; key uncertain)");}
     return "Key uncertain";
 }
 double tuningToKey(const TonalAnalysis& a,int target)
 {
-    if(target<0 || target>=24 || (a.key<0 && (a.midi<0 || a.varying)))return std::numeric_limits<double>::quiet_NaN();
+    if(target<0 || target>=24 || (a.key<0 && a.midi<0))return std::numeric_limits<double>::quiet_NaN();
     const double source=a.key>=0?a.key%12:a.midi;
     double shift=std::fmod(target%12-source,12.0);if(shift>6)shift-=12;if(shift< -6)shift+=12;return shift;
 }
@@ -61,12 +61,21 @@ TonalAnalysis analyseTonal(const juce::AudioBuffer<float>& audio,double rate,con
         phase+=ratio;if(phase>=1){phase-=1;dc+=0.001*(value-dc);value-=dc;data.push_back((float)value);energy+=value*value;if(other){secondaryDc+=.001*(otherValue-secondaryDc);secondary.push_back((float)(otherValue-secondaryDc));}}
     }
     result.complete=true;if(data.size()<96 || energy/data.size()<1e-10)return result;
-    const int window=std::min(2048,(int)data.size()),maxLag=std::min((int)(analysisRate/25),window/2),length=window-maxLag;
+    // Exclude silent padding before choosing analysis windows. Otherwise a short
+    // hit in a long file gets almost no pitch windows, despite audible tone.
+    const int block=120;double peakBlock=0;std::vector<double> levels;
+    for(size_t start=0;start<data.size();start+=block){double sum=0;for(size_t n=start;n<std::min(data.size(),start+block);++n)sum+=data[n]*data[n]+(secondary.empty()?0:secondary[n]*secondary[n]);levels.push_back(sum);peakBlock=std::max(peakBlock,sum);}
+    int firstActive=0,lastActive=(int)levels.size()-1;
+    while(firstActive<lastActive && levels[(size_t)firstActive]<peakBlock*.0001)++firstActive;
+    while(lastActive>firstActive && levels[(size_t)lastActive]<peakBlock*.0001)--lastActive;
+    const int begin=firstActive*block,end=std::min((int)data.size(),(lastActive+1)*block);
+    if(end-begin>=96){data=std::vector<float>(data.begin()+begin,data.begin()+end);if(!secondary.empty())secondary=std::vector<float>(secondary.begin()+begin,secondary.begin()+end);}
+    const int window=std::min(1024,(int)data.size()),maxLag=std::min((int)(analysisRate/25),window/2),length=window-maxLag;
     std::vector<double> pitches,confidences;
-    for(int frame=0;frame<12;++frame)
+    for(int frame=0;frame<32;++frame)
     {
         if(cancelled && cancelled())return {};
-        const int offset=(int)((data.size()-window)*frame/11);const float* p=data.data()+offset;
+        const int offset=(int)((data.size()-window)*frame/31);const float* p=data.data()+offset;
         double localEnergy=0;for(int n=0;n<window;++n)localEnergy+=p[n]*p[n];
         if(localEnergy/window<energy/data.size()*0.025)continue;
         double prev2=correlate(p,length,1),prev=correlate(p,length,2);
