@@ -261,3 +261,5 @@ Envelope time positions match the waveform's milliseconds. Horizontal zoom and p
 Amplitude shows Velocity to volume; Pitch shows Velocity to pitch and Pitch bend range. Random pan is common to both. Optional ADSR values also follow the selected envelope. The duplicate Fine tuning box has been removed here; Fine remains on Tune and still changes the same stored setting.
 
 These numeric controls, including Pitch depth, use value boxes with a shaded level bar. Drag to adjust without jumping to the clicked position, scroll for increments, or click the number to type. Double-click resets the value to its default. Existing macro locks and custom-envelope ADSR protection still apply.
+
+Filter and Tune now replace the waveform with their graphs at the same size as the Sample waveform. The Filter EQ response and output spectrum share a +24 to -60 dB display range; band gain limits remain unchanged.

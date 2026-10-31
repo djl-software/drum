@@ -811,6 +811,7 @@ void SoundEditor::setPage(int value)
     eqTab.setToggleState(!filterEnvelopePage,juce::dontSendNotification);filterTab.setToggleState(filterEnvelopePage,juce::dontSendNotification);
     slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5 && page!=7);chain.setVisible(page==7);viewport.setVisible(page!=7);
     keySpectrum->setVisible(page==8);keyCoarse.setVisible(page==8);keyFine.setVisible(page==8);keyCoarseLabel.setVisible(page==8);keyFineLabel.setVisible(page==8);keyStatus.setVisible(page==8);if(page==8)viewport.setVisible(false);
+    waveform->setVisible(page!=2 && page!=8);waveformDivider->setVisible(page!=2 && page!=8);
     resized(); repaint();
 }
 void SoundEditor::paint(juce::Graphics& g)
@@ -840,19 +841,19 @@ void SoundEditor::resized()
     ampOverlay.setBounds(18,116,112,24);pitchOverlay.setBounds(136,116,112,24);
     adsrValues.setBounds(getWidth()-146,116,128,24);
     eqTab.setBounds(getWidth()-446,116,126,24);filterTab.setBounds(getWidth()-312,116,154,24);
-    int graphHeight=page==2?180:0;
+    int graphHeight=0;
     const int graphWidth=getWidth()-36;
     const int waveTop=150;
-    const int reserved=page==8?340:page==2?!filterEnvelopePage?12:116:(page==0 || page==1)?148:page==7?310:160;
+    const int reserved=(page==0 || page==1 || page==2 || page==8)?148:page==7?310:160;
     const int minimumWaveHeight=page==7?160:184;
-    const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),(page==0 || page==1)?getHeight():waveformHeight);
+    const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),(page==0 || page==1 || page==2 || page==8)?getHeight():waveformHeight);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
     const int graphTop=waveTop+12+height;
     if(page==1){graphHeight=52;for(int n=0;n<2;++n)envelopes[(size_t)n]->setBounds(18,waveTop,graphWidth,height+64);}
-    if(page==2){envelopes[2]->setBounds(18,graphTop,graphWidth,graphHeight);equalizer.setBounds(18,graphTop,graphWidth,graphHeight);}
+    if(page==2){envelopes[2]->setBounds(18,waveTop,graphWidth,height);equalizer.setBounds(18,waveTop,graphWidth,height);}
     const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
-    if(page==8){int keyBottom=getHeight()-38;int spectrumHeight=juce::jmax(110,keyBottom-controlsTop-102);keySpectrum->setBounds(18,controlsTop,graphWidth,spectrumHeight);int row=controlsTop+spectrumHeight+6;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,30);}
+    if(page==8){keySpectrum->setBounds(18,waveTop,graphWidth,height);int row=controlsTop;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,30);}
     chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=page==0?4:page==1?5:width>=1000?3:2,gap=page==1?10:16,cell=(width-gap*(columns-1))/columns;

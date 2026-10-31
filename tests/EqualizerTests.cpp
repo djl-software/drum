@@ -56,7 +56,7 @@ void runEqualizerTests()
     processor.getSampleEngine().requestLoad(kit,id,juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav"));check(processor.getSampleEngine().waitForLoading(10000),"EQ sample load failed");processor.getSampleEngine().prepare(48000);
     c=current();c.sound.equalizer={};check(library.setControls(kit,id,c).ok,"Reset EQ failed");
     DrumAudioProcessorEditor editor(processor);editor.setVisible(true);editor.setSize(1280,900);click(editor,"open-sound-editor");click(editor,"edit-tab-2");
-    auto& graph=control<EqualizerEditor>(editor,"eight-band-eq");check(graph.isVisible(),"EQ graph hidden");
+    auto& graph=control<EqualizerEditor>(editor,"eight-band-eq");check(graph.isVisible(),"EQ graph hidden");check(!control<juce::Component>(editor,"sample-waveform").isVisible() && graph.getBounds()==control<juce::Component>(editor,"sample-waveform").getBounds(),"EQ did not replace full waveform area");
     const juce::Point<float> down{graph.getWidth()*0.5f,graph.getHeight()*0.5f},target=down+juce::Point<float>{40,-20};
     check(editor.getComponentAt(editor.getLocalPoint(&graph,down.roundToInt()))==&graph,"EQ mouse hit intercepted");
     graph.mouseDown(event(graph,down,down));graph.mouseDrag(event(graph,target,down));graph.mouseUp(event(graph,target,down));

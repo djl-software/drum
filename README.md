@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.23 expands Filter and Tune graphs into the waveform area. Filter displays +24 to -60 dB.
+
 Version 0.16.22 shows envelope controls only for the selected Amplitude/Pitch mode, keeps Random pan common, removes duplicate fine tuning, and uses compact value-bar boxes.
 
 Version 0.16.21 overlays editable amplitude and pitch envelopes on the waveform, selected using buttons above it, with a shared time axis and zoom/pan.

@@ -55,7 +55,7 @@ juce::Point<float> EqualizerEditor::point(int n) const
 {
     const auto a=plot();const auto& b=equalizer.bands[(size_t)n];
     const double y=drum::eqHasGain(b.type)?b.gain:std::log2(b.q/0.70710678)*6;
-    return {a.getX()+(float)(std::log(b.frequency/20)/std::log(1000.0))*a.getWidth(),a.getCentreY()-(float)std::clamp(y,-24.0,24.0)/48*a.getHeight()};
+    return {a.getX()+(float)(std::log(b.frequency/20)/std::log(1000.0))*a.getWidth(),a.getY()+(24-(float)std::clamp(y,-60.0,24.0))/84*a.getHeight()};
 }
 void EqualizerEditor::resized()
 {
@@ -71,9 +71,9 @@ void EqualizerEditor::paint(juce::Graphics& g)
         juce::Path fill;fill.startNewSubPath(a.getX(),a.getBottom());const double sampleRate=spectrum->rate.load();
         for(int x=0;x<=(int)a.getWidth();++x){double hz=20*std::pow(1000.0,x/a.getWidth());float level=-100;
             level=analysis.levelAt(hz,sampleRate);
-            fill.lineTo(a.getX()+x,a.getBottom()-juce::jlimit(0.f,1.f,(level+90)/90)*a.getHeight());}
+            fill.lineTo(a.getX()+x,a.getBottom()-juce::jlimit(0.f,1.f,(level+60)/84)*a.getHeight());}
         fill.lineTo(a.getRight(),a.getBottom());fill.closeSubPath();juce::ColourGradient shade(juce::Colour(0xff4cb7d6),a.getX(),a.getY(),bg,a.getX(),a.getBottom(),false);g.setGradientFill(shade);g.fillPath(fill);
-        label(g,"Output spectrum: -90 to 0 dBFS",{(int)a.getRight()-170,(int)a.getY()+4,166,14},muted);
+        label(g,"Output spectrum: -60 to +24 dBFS",{(int)a.getRight()-170,(int)a.getY()+4,166,14},muted);
     }
     for(double hz:{20.,50.,100.,200.,500.,1000.,2000.,5000.,10000.,20000.})
     {
@@ -81,16 +81,16 @@ void EqualizerEditor::paint(juce::Graphics& g)
         g.setColour(muted.withAlpha(0.2f));g.drawVerticalLine((int)x,a.getY(),a.getBottom());
         label(g,hz>=1000?juce::String(hz/1000,0)+"k":juce::String(hz,0),{(int)x-12,(int)a.getBottom()+2,34,16});
     }
-    for(int db=-24;db<=24;db+=12)
+    for(int db=-60;db<=24;db+=12)
     {
-        const int y=(int)(a.getCentreY()-db/48.0f*a.getHeight());g.setColour(muted.withAlpha(db==0?0.4f:0.15f));g.drawHorizontalLine(y,a.getX(),a.getRight());
+        const int y=(int)(a.getY()+(24-db)/84.0f*a.getHeight());g.setColour(muted.withAlpha(db==0?0.4f:0.15f));g.drawHorizontalLine(y,a.getX(),a.getRight());
         label(g,juce::String(db),{3,y-8,30,16});
     }
     juce::Path curve;
     for(int x=0;x<=(int)a.getWidth();++x)
     {
         const double hz=20*std::pow(1000.0,x/a.getWidth()),db=20*std::log10(std::max(1e-9,drum::eqMagnitude(equalizer,hz,rate)));
-        const float y=a.getCentreY()-(float)std::clamp(db,-24.0,24.0)/48*a.getHeight();
+        const float y=a.getY()+(24-(float)std::clamp(db,-60.0,24.0))/84*a.getHeight();
         if(x==0)curve.startNewSubPath(a.getX(),y);else curve.lineTo(a.getX()+x,y);
     }
     g.setColour(equalizer.enabled?juce::Colour(0xfff1b95b):muted);g.strokePath(curve,juce::PathStrokeType(2));
@@ -117,7 +117,7 @@ void EqualizerEditor::mouseDrag(const juce::MouseEvent& e)
     else
     {
         b.frequency=std::clamp(20*std::pow(1000.0,(e.position.x-a.getX())/a.getWidth()),20.0,20000.0);
-        const double value=std::clamp((a.getCentreY()-e.position.y)/a.getHeight()*48.0,-24.0,24.0);
+        const double value=std::clamp(24.0-(e.position.y-a.getY())/a.getHeight()*84.0,-24.0,24.0);
         if(drum::eqHasGain(b.type))b.gain=value;else b.q=std::clamp(0.70710678*std::pow(2.0,value/6),0.1,18.0);
     }
     save();

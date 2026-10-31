@@ -136,7 +136,7 @@ void runPreviewTests()
     for(int page=0;page<7;++page)
     {
         click(editor,"edit-tab-"+juce::String(page));control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);settle(editor);
-        check(wave.isVisible() && wave.getHeight()>=184,"Waveform disappeared between tabs");
+        check(wave.isVisible()==(page!=2 && page!=8) && wave.getHeight()>=184,"Graph/waveform visibility incorrect between tabs");
         check(control<juce::Label>(editor,"waveform-status").getText()==initialStatus,"Tab switch changed preview signal");
         capture(editor,"drum-preview-tab-"+juce::String(page)+".png");
     }
@@ -192,7 +192,7 @@ void runPreviewTests()
     auto& channels=control<juce::ComboBox>(editor,"waveform-channels");
     channels.setSelectedId(3,juce::sendNotificationSync);auto leftView=pixels(editor);
     channels.setSelectedId(4,juce::sendNotificationSync);check(pixels(editor)!=leftView,"Right channel view matches the different left signal");
-    click(editor,"edit-tab-2");capture(editor,"drum-waveform-right.png");
+    click(editor,"edit-tab-3");capture(editor,"drum-waveform-right.png");
     channels.setSelectedId(1,juce::sendNotificationSync);
     auto& divider=control<juce::Component>(editor,"waveform-divider");
     auto dragEvent=[&](int distance) {
