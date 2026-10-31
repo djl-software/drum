@@ -1,4 +1,4 @@
-# MIDI editor - 0.16.1
+# MIDI editor - 0.16.2
 
 Open a kit and choose **MIDI**. Use + Clip to add a clip, select another using the clip chooser, and type a name into the adjacent field. Save kit stores all clips alongside the instruments and effects. The whole kit also recalls with the DAW Set.
 
@@ -28,7 +28,7 @@ Right-click for Set loop to selection, Duplicate loop, or time edits. A marquee 
 
 ## Velocity, chance and note tools
 
-Use the expression lane chooser for velocity, chance, velocity deviation or release velocity. Drag a marker vertically to edit the selected notes. The number controls apply to the selection, or to all notes when nothing is selected. Chance is the probability that a note plays on each loop. Velocity deviation varies its loudness around the chosen velocity. Release velocity is stored/exported, although Drum's sampler currently does not modulate its sound from release velocity.
+The **Lanes** menu sits inline with the bottom note values. Tick velocity, chance, velocity deviation and/or release velocity to show several lanes together. Click outside the menu to close it. Use Hide/Show to collapse and restore the current lane selection. Untick lanes or choose Hide all to recover piano-roll space; hiding lanes does not remove their values. Drag the top border of each lane up/down to resize it. Each lane shows a numbered value axis, horizontal value lines and vertical time divisions aligned with the notes. Drag a marker vertically to edit the selected notes. The number controls apply to the selection, or to all notes when nothing is selected. Chance is the probability that a note plays on each loop. Velocity deviation varies its loudness around the chosen velocity. Release velocity is stored/exported, although Drum's sampler currently does not modulate its sound from release velocity.
 
 Context-menu chance groups can play all grouped notes together, or choose one using their chance values as weights. Ungroup restores independent decisions. Group decisions are made per preview loop.
 
@@ -41,3 +41,14 @@ Drag MIDI to the DAW or Explorer, or use Export. Export contains the current key
 Import reads tick-based `.mid`/`.midi` files into the current clip. It maps each note to the instrument currently assigned that MIDI key; unmatched keys are skipped and reported. Import replaces the current clip notes and can be undone. Drum does not create instruments automatically for unmatched keys.
 
 This is Drum's own Notes editor. Its drum-oriented rows are limited to the kit's assigned instruments. It does not embed Live's editor, multi-track editing, tuning-system engine, MPE, automation or Max for Live tools.
+
+
+## Agreed compatibility target (31 October 2026)
+
+Standard MIDI (`.mid`) is the agreed interchange format; Ableton Live Clip (`.alc`) import is outside this target. Use the Live 12 manual as the behavioural reference for separate Notes, Envelopes and MPE views. Pressure belongs to the MPE view, not the Notes lane selector.
+
+The current 0.16.2 update changes Notes lanes only. Envelopes/MPE editing and lossless MIDI event import/export are still outstanding. The current importer reads notes matched to kit keys; it does not preserve controller events, channel assignment, tempo maps or MPE. Do not use it for a lossless expressive MIDI round trip yet.
+
+Acceptance for the follow-on work must compare imported/exported event timestamps and values, channels, note-on/off velocities, overlapping notes, controller/program messages, pitch bend, aftertouch, tempo and signature events, and MPE channel relationships. Unknown or unsupported content must be retained or explicitly reported, never silently discarded. Test at multiple source tick resolutions and with multitrack files. Notes edits must keep associated per-note expression aligned. MIDI playback support must be tested separately from file preservation; retaining a controller does not guarantee the sampler responds to it.
+
+References: [Notes](https://www.ableton.com/en/live-manual/12/editing-midi/), [Clip Envelopes](https://www.ableton.com/en/live-manual/12/clip-envelopes/), [MPE](https://www.ableton.com/en/live-manual/12/editing-mpe/), [MIDI and Live Clips](https://www.ableton.com/en/live-manual/12/managing-files-and-sets/#midi-files).

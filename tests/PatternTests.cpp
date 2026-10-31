@@ -37,5 +37,10 @@ void runPatternTests(){
     grid->setSelectedId(5,juce::sendNotificationSync);roll->mouseDoubleClick(mouse(*roll,{275,13},{275,13}));check(edited().hits.back().duration==.125,"1/32 grid created a note of the wrong length");
     grid->setSelectedId(6,juce::sendNotificationSync);roll->mouseDoubleClick(mouse(*roll,{325,13},{325,13}));check(edited().hits.back().duration==.0625,"1/64 grid created a note of the wrong length");
     editor.keyPressed(juce::KeyPress('3',juce::ModifierKeys(juce::ModifierKeys::ctrlModifier),'3'));roll->mouseDoubleClick(mouse(*roll,{375,13},{375,13}));check(std::abs(edited().hits.back().duration-1.0/24)<1.e-8,"Triplet grid note length incorrect");
+    auto* lanes=control(editor,"midi-expression-lanes");auto* laneSelector=control(editor,"midi-lane-selector");check(lanes && laneSelector,"Expression lane controls missing");
+    check(laneSelector->getY()==editor.getHeight()-62,"Lane selector is not inline with bottom values");int oneHeight=lanes->getHeight();editor.setExpressionLaneVisible(1,true);check(lanes->getHeight()>oneHeight,"Multiple expression lanes not displayed");
+    auto beforeChance=edited().hits[0].chance;lanes->mouseDown(mouse(*lanes,{320,135},{320,135}));lanes->mouseUp(mouse(*lanes,{320,135},{320,135}));check(edited().hits[0].chance<beforeChance && edited().hits[0].velocity==100,"Chance lane edited the wrong property");
+    auto beforeHeight=lanes->getHeight();lanes->mouseDown(mouse(*lanes,{250,2},{250,2}));lanes->mouseDrag(mouse(*lanes,{250,-18},{250,2}));lanes->mouseUp(mouse(*lanes,{250,-18},{250,2}));check(lanes->getHeight()>beforeHeight,"Expression lane resize failed");
+    editor.setExpressionLaneVisible(0,false);editor.setExpressionLaneVisible(1,false);check(!lanes->isVisible() && lanes->getHeight()==0,"Hide all lanes did not collapse them");editor.setExpressionLaneVisible(0,true);editor.setExpressionLaneVisible(1,true);
     auto png=juce::File::getCurrentWorkingDirectory().getChildFile("drum-pattern-editor.png");png.deleteFile();{juce::FileOutputStream output(png);juce::PNGImageFormat().writeImageToStream(editor.createComponentSnapshot(editor.getLocalBounds()),output);}
 }
