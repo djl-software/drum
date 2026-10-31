@@ -165,7 +165,7 @@ void runEnvelopeTests()
     click(editor,"reset-edit-page");near(current().tuning,0,.001,"Key reset did not reset coarse");near(current().sound.detune,0,.001,"Key reset did not reset fine");click(editor,"edit-tab-1");
     auto refresh=[&]{auto s=library.snapshot();soundEditor.select(kit,drum::findInstrument(*drum::activeKit(s),id));};
     auto& amp=control<EnvelopeEditor>(editor,"envelope-amp");auto& pitch=control<EnvelopeEditor>(editor,"envelope-pitch");auto& filter=control<EnvelopeEditor>(editor,"envelope-filter");
-    check(amp.isVisible() && pitch.isVisible() && !filter.isVisible(),"Envelope graphs shown on wrong page");
+    check(amp.isVisible() && !pitch.isVisible() && !filter.isVisible(),"Envelope graphs shown on wrong page");
     auto& wave=control<juce::Component>(editor,"sample-waveform");const auto waveBounds=wave.getBounds();
     auto c=current();c.sound.ampAttack=80;c.sound.ampDecay=200;c.sound.ampSustain=0.4;c.sound.ampRelease=200;c.sound.pitchAttack=80;c.sound.pitchDecay=200;c.sound.pitchSustain=0.2;
     check(library.setControls(kit,id,c).ok,"Envelope fixture controls failed");refresh();
@@ -173,9 +173,9 @@ void runEnvelopeTests()
     auto onLine=[&](EnvelopeEditor& graph,const drum::EnvelopeShape& shape,int segment,double fraction)
     {
         const auto a=shape.points[segment-1],b=shape.points[segment];const double ms=a.ms+(b.ms-a.ms)*fraction;
-        const auto plot=graph.getPlotBounds();return juce::Point<float>{plot.getX()+(float)(ms/(shape.points[shape.count-1].ms*1.1))*plot.getWidth(),
-            plot.getBottom()-(float)drum::envelopeSegment(a.level,b,fraction)*plot.getHeight()};
+        return graph.pointFor({ms,drum::envelopeSegment(a.level,b,fraction)});
     };
+    click(editor,"overlay-pitch");settle(editor);check(pitch.isVisible() && !amp.isVisible(),"Pitch overlay selection failed");
     auto line=onLine(pitch,drum::adsrShape(80,200,0.2,100),2,0.5);
     check(editor.getComponentAt(editor.getLocalPoint(&pitch,line.roundToInt()))==&pitch,"Envelope line is intercepted by another component");
     pitch.mouseDown(event(pitch,line,line));pitch.mouseUp(event(pitch,line,line));
@@ -195,6 +195,7 @@ void runEnvelopeTests()
     point.mouseDown(event(point,centre,centre,juce::ModifierKeys::rightButtonModifier));check(current().sound.envelopes[1].hold==2,"Set hold point failed");
     check(!control<juce::Slider>(editor,"edit-pitchAttack").isEnabled(),"Legacy ADSR overwrites custom points");
     control<juce::Slider>(editor,"envelope-pitch-amount").setValue(-7,juce::sendNotificationSync);check(current().sound.pitchAmount==-7,"Graph depth slider failed");
+    click(editor,"overlay-amplitude");settle(editor);
     auto& ampHandle=control<juce::Component>(editor,"envelope-amp-point-1");
     check(editor.getComponentAt(editor.getLocalPoint(&ampHandle,ampHandle.getLocalBounds().getCentre()))==&ampHandle,"Amplitude point cannot receive mouse events");
     drag(ampHandle,{10,12});check(current().sound.mode==2 && current().sound.envelopes[0].count==4,"Amplitude drag failed to activate processing");
@@ -230,21 +231,21 @@ void runEnvelopeTests()
     check(!ampA.isEnabled() && control<juce::TextButton>(editor,"envelope-amp-activate").getButtonText()=="Unlink timing","Mapped amplitude has no clear unlock action");
     click(editor,"envelope-amp-activate");check(ampA.isEnabled() && current().macros[0].target==0 && current().macros[1]==c.macros[1] && current().sound.ampDecay==10000 && current().sound.mode==0,"Unlink changed unrelated settings or lost current timing");
     auto source=p.getSampleEngine().waveformFor(id);auto dry=drum::SampleEngine::renderPreview(source,current(),{},120,48000);
-    drag(ampA,{60,20});auto wet=drum::SampleEngine::renderPreview(source,current(),{},120,48000);
+    drag(ampA,{60,amp.getPlotBounds().getHeight()*.35f});auto wet=drum::SampleEngine::renderPreview(source,current(),{},120,48000);
     check(current().sound.mode==2 && current().sound.envelopes[0].count==4 && wet.sample && dry.sample && wet.sample->peak<dry.sample->peak*0.8f,"Unlocked amplitude drag did not shape playback");
-    check(wave.getBottom()<amp.getY(),"Waveform is not above amplitude controls");
+    check(wave.getX()==amp.getX() && wave.getY()==amp.getY(),"Amplitude is not superimposed on waveform");
     // Each graph has independent, gesture-sized history and obeys the original
     // file's duration even when the playable region has been trimmed much shorter.
     const double fullMs=1000.0*source->audio.getNumSamples()/source->rate;
     for(int n=0;n<3;++n)
     {
         const juce::String prefix=n==0?"envelope-amp":n==1?"envelope-pitch":"envelope-filter";
-        click(editor,n==2?"edit-tab-2":"edit-tab-1");if(n==2)click(editor,"filter-envelope-tab");
+        click(editor,n==2?"edit-tab-2":"edit-tab-1");if(n==2)click(editor,"filter-envelope-tab");else click(editor,n==0?"overlay-amplitude":"overlay-pitch");
         c=current();c.macros={};c.sound.start=0.2;c.sound.end=0.3;c.sound.envelopes[(size_t)n]=drum::adsrShape(100,150,0.4,150);
         check(library.setControls(kit,id,c).ok,"Navigation fixture failed");refresh();
         auto& graph=control<EnvelopeEditor>(editor,prefix.toRawUTF8());
         auto& handle=control<juce::Component>(editor,(prefix+"-point-1").toRawUTF8());
-        check(handle.getY()>control<juce::TextButton>(editor,(prefix+"-reset").toRawUTF8()).getBottom(),"Envelope toolbar overlaps top-level point grip");
+        check(!handle.getBounds().intersects(control<juce::TextButton>(editor,(prefix+"-reset").toRawUTF8()).getBounds()),"Envelope toolbar overlaps top-level point grip");
         const auto before=current();auto anchor=handle.getBounds().getCentre().toFloat();const auto initialX=anchor.x;
         juce::MouseWheelDetails wheel{};wheel.deltaY=0.4f;
         graph.mouseWheelMove(event(graph,anchor,anchor,juce::ModifierKeys::ctrlModifier),wheel);
@@ -255,7 +256,7 @@ void runEnvelopeTests()
         graph.mouseDown(event(graph,anchor,anchor,juce::ModifierKeys::middleButtonModifier));
         graph.mouseDrag(event(graph,anchor+juce::Point<float>{20,0},anchor,juce::ModifierKeys::middleButtonModifier));graph.mouseUp(event(graph,anchor,anchor));
         check(handle.getBounds().getCentreX()>panned+10,"Middle drag did not pan envelope");
-        check(current()==before,"Navigation changed sound");click(editor,(prefix+"-fit").toRawUTF8());
+        check(current()==before,"Navigation changed sound");if(n==2)click(editor,(prefix+"-fit").toRawUTF8());else {click(editor,"waveform-fit");settle(editor);}
         auto downPoint=handle.getLocalBounds().getCentre().toFloat(),startPosition=handle.getPosition().toFloat();
         handle.mouseDown(event(handle,downPoint,downPoint));
         for(int move:{10,20,35})handle.mouseDrag(event(handle,startPosition+downPoint+juce::Point<float>{(float)move,10}-handle.getPosition().toFloat(),downPoint));
@@ -266,7 +267,7 @@ void runEnvelopeTests()
         click(editor,(prefix+"-redo").toRawUTF8());check(current()==after,"Redo did not restore envelope edit");
         click(editor,(prefix+"-reset").toRawUTF8());check(current().sound.envelopes[(size_t)n].count==0,"Envelope reset left custom points");
         click(editor,(prefix+"-undo").toRawUTF8());check(current()==after,"Reset cannot be undone");
-        drag(handle,{(float)graph.getWidth()*5,0});
+        drag(handle,{(float)graph.getWidth()*1000,0});
         const auto bounded=current().sound.envelopes[(size_t)n];
         near(bounded.points[(size_t)bounded.count-1].ms,fullMs,0.001,"Envelope limit uses trimmed audio or exceeds original duration");
         for(int k=0;k<bounded.count;++k)check(bounded.points[(size_t)k].ms<=fullMs,"Envelope node exceeds sample length");

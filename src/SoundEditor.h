@@ -29,6 +29,7 @@ private:
     void change(const drum::SoundParameter&,double);
     void refresh();
     void refreshPreview();
+    void syncEnvelopeOverlay();
     void refreshEnvelopes(bool newSelection=false);
     void changeEnvelope(int,const drum::EnvelopeShape&,bool audibleEdit);
     void activateEnvelope(int);
@@ -70,6 +71,8 @@ private:
     juce::Label noteIndicator;
     juce::TextButton slice;
     juce::ToggleButton adsrValues{"ADSR values"};
+    juce::TextButton ampOverlay{"Amplitude"},pitchOverlay{"Pitch"};
+    int selectedEnvelope=0;
     juce::TextButton eqTab{"8-band EQ"},filterTab{"Filter envelope"};
     EqualizerEditor equalizer;
     bool filterEnvelopePage=false;

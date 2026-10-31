@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.21 overlays editable amplitude and pitch envelopes on the waveform, selected using buttons above it, with a shared time axis and zoom/pan.
+
 Version 0.16.20 matches the Envelopes & pitch waveform to Sample and reduces its bottom controls to a compact row, with smaller envelope graphs.
 
 Version 0.16.19 expands the Sample waveform, replaces separate Start/End sliders with on-waveform flags, and arranges Sample controls four per row.

@@ -200,6 +200,7 @@ public:
         status.setColour(juce::Label::backgroundColourId,!busy && source && !sourceMode() && source->peak>1?juce::Colour(0xff8f2638):juce::Colours::transparentBlack);
         repaint();
     }
+    double timelineMs() const {return source?source->audio.getNumSamples()/source->rate*1000:1000;}
     double zoom=1,offset=0;
     int marker=0;
     juce::Rectangle<int> plot() const {return {10,26,juce::jmax(1,getWidth()-20),juce::jmax(1,getHeight()-58)};}
@@ -252,7 +253,7 @@ public:
             draw(muted.darker(0.35f));
             g.saveState();
             if(sourceMode())g.reduceClipRegion(juce::Rectangle<float>(x(trimStart()),(float)area.getY(),x(trimEnd())-x(trimStart()),(float)area.getHeight()).getSmallestIntegerContainer());
-            draw(waveColour);g.restoreState();
+            draw(owner.page==1?waveColour.withAlpha(.45f):waveColour);g.restoreState();
             if(channels==2)
             {
                 text(g,"L",{area.getX()+4,area.getY()+2,20,16},10,muted);
@@ -515,6 +516,10 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
         envelopes[(size_t)n]->onActivate=[this,n]{activateEnvelope(n);};
         if(n>0)envelopes[(size_t)n]->onAmount=[this,n](double value){waveform->showEdited();for(auto& p:drum::soundParameters)if(p.member==(n==1?&drum::SoundParameters::pitchAmount:&drum::SoundParameters::filterAmount))change(p,value);};
     }
+    addAndMakeVisible(ampOverlay);addAndMakeVisible(pitchOverlay);ampOverlay.setComponentID("overlay-amplitude");pitchOverlay.setComponentID("overlay-pitch");
+    ampOverlay.onClick=[this]{selectedEnvelope=0;waveform->showEdited();setPage(1);};pitchOverlay.onClick=[this]{selectedEnvelope=1;waveform->showEdited();setPage(1);};
+    for(int n=0;n<2;++n)envelopes[(size_t)n]->onOverlayPan=[this](double ms){waveform->offset=juce::jlimit(0.0,1-1/waveform->zoom,waveform->offset+ms/waveform->timelineMs());waveform->repaint();syncEnvelopeOverlay();};
+    for(int n=0;n<2;++n)envelopes[(size_t)n]->onOverlayWheel=[this](const juce::MouseEvent& e,const juce::MouseWheelDetails& w){waveform->mouseWheelMove(e.getEventRelativeTo(waveform.get()),w);syncEnvelopeOverlay();};
     for(auto& parameter:drum::soundParameters) {if(parameter.member==&drum::SoundParameters::keyOverride)continue;auto field=std::make_unique<Field>(parameter,*this); content.addAndMakeVisible(*field); fields.push_back(std::move(field));}
     for(int n=0;n<drum::numMacros;++n) {auto field=std::make_unique<MacroField>(*this,n);content.addAndMakeVisible(*field);macroFields.push_back(std::move(field));}
     content.addAndMakeVisible(sliceCount);sliceCount.setComponentID("slice-count");sliceCount.setName("Number of equal slices");
@@ -743,6 +748,13 @@ void SoundEditor::refreshPreview()
     keySpectrum->update(analysis,busy,selectedSample!=nullptr);
     juce::String detail=busy?"Analysing...":"Key: "+drum::spectrumKey(analysis)+" (highest-power note estimate). Octaves combined; strongest column = 0 dB.";
     keyStatus.setText(detail,juce::dontSendNotification);
+    syncEnvelopeOverlay();
+}
+void SoundEditor::syncEnvelopeOverlay()
+{
+    if(!waveform || !envelopes[0])return;
+    for(int n=0;n<2;++n){auto& e=*envelopes[(size_t)n];e.setOverlay(waveform->plot().toFloat(),waveform->offset*waveform->timelineMs(),waveform->timelineMs()/waveform->zoom);e.setVisible(page==1 && selectedEnvelope==n && !waveform->sourceMode());if(e.isVisible())e.toFront(false);}
+    ampOverlay.setToggleState(selectedEnvelope==0,juce::dontSendNotification);pitchOverlay.setToggleState(selectedEnvelope==1,juce::dontSendNotification);
 }
 void SoundEditor::visibilityChanged() {if(waveform)refreshPreview();equalizer.visibilityChanged();}
 void SoundEditor::refresh()
@@ -787,7 +799,8 @@ void SoundEditor::setPage(int value)
         field->setVisible(field->parameter.page==page && field->parameter.member!=&drum::SoundParameters::start && field->parameter.member!=&drum::SoundParameters::end && (!numeric || adsrValues.getToggleState()) && !amount && (page!=2 || filterEnvelopePage));
     }
     for(auto& field:macroFields) field->setVisible(page==5);
-    for(int n=0;n<3;++n)envelopes[(size_t)n]->setVisible(n==2?page==2 && filterEnvelopePage:page==1);
+    for(int n=0;n<3;++n)envelopes[(size_t)n]->setVisible(n==2?page==2 && filterEnvelopePage:page==1 && n==selectedEnvelope);
+    ampOverlay.setVisible(page==1);pitchOverlay.setVisible(page==1);
     adsrValues.setVisible(page==1 || (page==2 && filterEnvelopePage));
     equalizer.setVisible(page==2 && !filterEnvelopePage);eqTab.setVisible(page==2);filterTab.setVisible(page==2);
     eqTab.setToggleState(!filterEnvelopePage,juce::dontSendNotification);filterTab.setToggleState(filterEnvelopePage,juce::dontSendNotification);
@@ -809,7 +822,7 @@ void SoundEditor::paint(juce::Graphics& g)
         "Add Click, Pulse or Noise independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note.",
         "Drag VST3 effects into this instrument\'s chain. Audio flows left to right. The waveform shows the sound before this chain.",
         "C through B, combined across octaves. Coarse = semitones; Fine = cents. The spectrum follows the edited sound."};
-    text(g,help[page],{18,116,getWidth()-(page==2?470:page==1?170:36),24},12,muted);
+    text(g,help[page],{page==1?258:18,116,getWidth()-(page==2?470:page==1?410:36),24},12,muted);
     text(g,message.isEmpty()?"Non-destructive edits. The original audio file is preserved.":message,{18,getHeight()-29,getWidth()-36,23},11,muted);
 }
 void SoundEditor::resized()
@@ -819,6 +832,7 @@ void SoundEditor::resized()
     const int tabWidth=(getWidth()-36-8*((int)tabs.size()-1))/(int)tabs.size();
     constexpr int order[]{0,1,2,8,3,4,5,6,7};
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)order[n]].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
+    ampOverlay.setBounds(18,116,112,24);pitchOverlay.setBounds(136,116,112,24);
     adsrValues.setBounds(getWidth()-146,116,128,24);
     eqTab.setBounds(getWidth()-446,116,126,24);filterTab.setBounds(getWidth()-312,116,154,24);
     int graphHeight=page==2?180:0;
@@ -830,11 +844,7 @@ void SoundEditor::resized()
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
     const int graphTop=waveTop+12+height;
-    if(page==1)graphHeight=juce::jmax(68,getHeight()-37-graphTop-32-8);
-    if(page==1)
-    {
-        const int half=(graphWidth-12)/2;envelopes[0]->setBounds(18,graphTop,half,graphHeight);envelopes[1]->setBounds(30+half,graphTop,graphWidth-half-12,graphHeight);
-    }
+    if(page==1){graphHeight=52;for(int n=0;n<2;++n)envelopes[(size_t)n]->setBounds(18,waveTop,graphWidth,height+64);}
     if(page==2){envelopes[2]->setBounds(18,graphTop,graphWidth,graphHeight);equalizer.setBounds(18,graphTop,graphWidth,graphHeight);}
     const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
     if(page==8){int keyBottom=getHeight()-38;int spectrumHeight=juce::jmax(110,keyBottom-controlsTop-102);keySpectrum->setBounds(18,controlsTop,graphWidth,spectrumHeight);int row=controlsTop+spectrumHeight+6;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,30);}
@@ -854,12 +864,13 @@ void SoundEditor::resized()
         bottom=(drum::numMacros/2)*135;
     }
     content.setSize(width,juce::jmax(viewport.getHeight(),bottom));
+    syncEnvelopeOverlay();
 }
 void SoundEditor::timerCallback()
 {
     if(!isVisible()) return;
     refreshPreview();
-    refreshEnvelopes();
+    refreshEnvelopes();syncEnvelopeOverlay();
     for(int n=0;n<drum::numMacros;++n)
     {
         auto& slider=macroFields[(size_t)n]->value;

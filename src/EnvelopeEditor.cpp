@@ -17,7 +17,7 @@ public:
     }
     void paint(juce::Graphics& g) override
     {
-        g.setColour(owner.active?owner.colour:muted);g.fillEllipse(getLocalBounds().toFloat().reduced(1));
+        g.setColour(owner.active?(owner.overlay?(owner.unit=="%"?juce::Colour(0xffff80c0):juce::Colour(0xff8bc5ff)):owner.colour):muted);g.fillEllipse(getLocalBounds().toFloat().reduced(1));
         g.setColour(background);g.setFont(juce::FontOptions(9.0f));
         g.drawText(index==owner.shape.hold?"S":juce::String(index+1),getLocalBounds(),juce::Justification::centred);
         if(hasKeyboardFocus(false)){g.setColour(ink);g.drawEllipse(getLocalBounds().toFloat().reduced(1),2);}
@@ -72,13 +72,18 @@ EnvelopeEditor::EnvelopeEditor(juce::String id,juce::String heading,juce::Colour
     depth.onDragStart=[this]{if(onBeginGesture)onBeginGesture();};depth.onDragEnd=[this]{if(onEndGesture)onEndGesture();};
 }
 EnvelopeEditor::~EnvelopeEditor()=default;
-juce::Rectangle<float> EnvelopeEditor::plot() const {return {35,getHeight()<160?60.0f:64.0f,std::max(1.0f,(float)getWidth()-55),std::max(1.0f,(float)getHeight()-(getHeight()<160?80:104))};}
+juce::Rectangle<float> EnvelopeEditor::plot() const {if(overlay)return overlayPlot;return {35,getHeight()<160?60.0f:64.0f,std::max(1.0f,(float)getWidth()-55),std::max(1.0f,(float)getHeight()-(getHeight()<160?80:104))};}
 juce::Point<float> EnvelopeEditor::position(const drum::EnvelopePoint& p) const
 {const auto a=plot();return {a.getX()+(float)((p.ms-offset)/span)*a.getWidth(),amount<0?a.getY()+(float)p.level*a.getHeight():a.getBottom()-(float)p.level*a.getHeight()};}
 double EnvelopeEditor::timeAt(float x) const {return offset+(x-plot().getX())/plot().getWidth()*span;}
 double EnvelopeEditor::levelAt(float y) const {return amount<0?(y-plot().getY())/plot().getHeight():(plot().getBottom()-y)/plot().getHeight();}
 double EnvelopeEditor::extent() const {return std::max(limit,shape.count?shape.points[(size_t)shape.count-1].ms:0.0);}
 void EnvelopeEditor::fit() {offset=0;span=std::clamp(shape.count?shape.points[(size_t)shape.count-1].ms*1.1:500.0,minimumSpan(),extent());}
+void EnvelopeEditor::setOverlay(juce::Rectangle<float> area,double begin,double length)
+{
+    overlay=true;overlayPlot=area;automatic=false;offset=begin;span=std::max(.001,length);layoutHandles();repaint();
+}
+bool EnvelopeEditor::hitTest(int x,int y){return !overlay || overlayPlot.contains((float)x,(float)y) || y>=getHeight()-64;}
 void EnvelopeEditor::setTimeLimit(double ms)
 {
     const auto next=std::clamp(ms,0.001,80000.0);if(limit==next)return;finish();limit=next;
@@ -115,10 +120,13 @@ void EnvelopeEditor::setActivation(const juce::String& s)
 }
 void EnvelopeEditor::resized()
 {
+    const int header=overlay?getHeight()-64:0;
     zoomOut.setBounds(getWidth()-106,7,25,22);zoomIn.setBounds(getWidth()-78,7,25,22);fitButton.setBounds(getWidth()-50,7,40,22);
     adsr.setBounds(getWidth()-155,7,44,22);activate.setBounds(105,7,110,22);
     depth.setBounds(92,7,std::max(70,getWidth()-253),22);
-    const int toolbarY=getHeight()<160?29:32,toolbarH=getHeight()<160?19:20;reset.setBounds(10,toolbarY,44,toolbarH);undo.setBounds(58,toolbarY,44,toolbarH);redo.setBounds(106,toolbarY,44,toolbarH);layoutHandles();
+    const int toolbarY=getHeight()<160?29:32,toolbarH=getHeight()<160?19:20;reset.setBounds(10,toolbarY,44,toolbarH);undo.setBounds(58,toolbarY,44,toolbarH);redo.setBounds(106,toolbarY,44,toolbarH);
+    if(overlay){for(auto* control:std::initializer_list<juce::Component*>{&zoomOut,&zoomIn,&fitButton,&adsr,&activate,&depth,&reset,&undo,&redo})control->setTopLeftPosition(control->getX(),control->getY()+header);zoomOut.setVisible(false);zoomIn.setVisible(false);fitButton.setVisible(false);}
+    layoutHandles();
 }
 void EnvelopeEditor::layoutHandles()
 {
@@ -135,11 +143,11 @@ void EnvelopeEditor::layoutHandles()
 }
 void EnvelopeEditor::paint(juce::Graphics& g)
 {
-    g.setColour(background);g.fillRoundedRectangle(getLocalBounds().toFloat(),7);label(g,title,{10,6,94,24},13,ink);
-    label(g,status,{158,32,getWidth()-168,18},10,active?colour:muted);
+    const int header=overlay?getHeight()-64:0;g.setColour(background);g.fillRoundedRectangle(overlay?juce::Rectangle<float>(0,(float)header,(float)getWidth(),64):getLocalBounds().toFloat(),7);label(g,title,{10,header+6,94,24},13,ink);
+    label(g,status,{158,header+32,getWidth()-168,18},10,active?colour:muted);
     if(shape.count<2)return;
-    const auto a=plot();const auto c=active?colour:muted;
-    for(int n=0;n<5;++n){const float x=a.getX()+a.getWidth()*n/4;g.setColour(grid);g.drawVerticalLine((int)x,a.getY(),a.getBottom());label(g,timeText(offset+span*n/4),{(int)x-(n==4?53:0),(int)a.getBottom()+(getHeight()<160?2:9),58,15},9,muted);}
+    const auto a=plot();const auto c=active?(overlay?(unit=="%"?juce::Colour(0xffff80c0):juce::Colour(0xff8bc5ff)):colour):muted;
+    if(!overlay)for(int n=0;n<5;++n){const float x=a.getX()+a.getWidth()*n/4;g.setColour(grid);g.drawVerticalLine((int)x,a.getY(),a.getBottom());label(g,timeText(offset+span*n/4),{(int)x-(n==4?53:0),(int)a.getBottom()+(getHeight()<160?2:9),58,15},9,muted);}
     g.setColour(grid);g.drawHorizontalLine((int)a.getY(),a.getX(),a.getRight());g.drawHorizontalLine((int)a.getBottom(),a.getX(),a.getRight());
     label(g,amount<0?"0":unit=="%" || amount==0?"100%":juce::String(amount,1),{2,(int)a.getY()-7,32,15},9,muted);
     label(g,amount<0?juce::String(amount,1):"0",{2,(int)a.getBottom()-7,32,15},9,muted);
@@ -162,7 +170,7 @@ void EnvelopeEditor::paint(juce::Graphics& g)
         if(bending && line>0){const auto& p=shape.points[(size_t)line];const auto& prev=shape.points[(size_t)line-1];const auto grip=position({prev.ms+(p.ms-prev.ms)*p.pivot,drum::envelopeSegment(prev.level,p,p.pivot)});g.setColour(ink);g.drawEllipse(grip.x-4,grip.y-4,8,8,1);}
     }
     for(int n=0;n<shape.count;++n)if(handles[(size_t)n]->isVisible()){g.setColour(c.withAlpha(0.5f));g.drawLine({position(shape.points[(size_t)n]),handles[(size_t)n]->getBounds().getCentre().toFloat()});}
-    if(getHeight()>=160)label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click line: add / drag line: curve / double-click point: remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
+    if(!overlay && getHeight()>=160)label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click line: add / drag line: curve / double-click point: remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
 }
 void EnvelopeEditor::submit(drum::EnvelopeShape value,bool audibleEdit)
 {for(int n=0;n<value.count;++n)value.points[(size_t)n].ms=std::min(value.points[(size_t)n].ms,limit);if(editable() && drum::validEnvelope(value) && onShape)onShape(value,audibleEdit);}
@@ -211,7 +219,7 @@ void EnvelopeEditor::mouseDown(const juce::MouseEvent& e)
 }
 void EnvelopeEditor::mouseDrag(const juce::MouseEvent& e)
 {
-    if(panning){pan(panStart-(e.position.x-dragStart.x)/plot().getWidth()*span-offset);return;}
+    if(panning){const double delta=panStart-(e.position.x-dragStart.x)/plot().getWidth()*span-offset;if(overlay && onOverlayPan)onOverlayPan(delta);else pan(delta);return;}
     if(dragging>=0){dragPoint(e.position);return;}
     if(line<=0 || !editable() || (!bending && e.position.getDistanceFrom(dragStart)<3))return;
     bending=true;auto edited=initial;auto& right=edited.points[(size_t)line];const auto& left=edited.points[(size_t)line-1];
@@ -232,6 +240,7 @@ void EnvelopeEditor::mouseUp(const juce::MouseEvent&)
 void EnvelopeEditor::mouseWheelMove(const juce::MouseEvent& e,const juce::MouseWheelDetails& wheel)
 {
     if(dragging>=0 || line>=0 || panning)return;
+    if(overlay && onOverlayWheel){onOverlayWheel(e,wheel);return;}
     const auto delta=std::abs(wheel.deltaX)>std::abs(wheel.deltaY)?wheel.deltaX:wheel.deltaY;
     if(e.mods.isCtrlDown())zoom(std::pow(1.4,-delta*5),(e.position.x-plot().getX())/plot().getWidth());
     else pan(-delta*span);

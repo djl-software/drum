@@ -9,6 +9,11 @@ public:
     EnvelopeEditor(juce::String id,juce::String title,juce::Colour colour);
     ~EnvelopeEditor() override;
     void update(Values,const drum::EnvelopeShape&,bool locked,double amount,juce::String unit,bool active,juce::String status,bool newSelection,bool amountMapped=false);
+    void setOverlay(juce::Rectangle<float>,double offsetMs,double spanMs);
+    bool hitTest(int x,int y) override;
+    std::function<void(double)> onOverlayPan;
+    std::function<void(const juce::MouseEvent&,const juce::MouseWheelDetails&)> onOverlayWheel;
+    juce::Point<float> pointFor(const drum::EnvelopePoint& p) const {return position(p);}
     void setActivation(const juce::String&);
     void setTimeLimit(double ms);
     void setHistory(bool canUndo,bool canRedo);
@@ -50,6 +55,7 @@ private:
     juce::String title,unit,status,feedback;
     juce::Colour colour;
     double amount=1,span=500,offset=0,grabTime=0,grabLevel=0,limit=80000,panStart=0;
+    bool overlay=false;juce::Rectangle<float> overlayPlot;
     bool active=true,automatic=true,locked=false,custom=false,bending=false,updating=false,panning=false,gesture=false;
     int dragging=-1,line=-1;
     juce::Point<float> dragStart;

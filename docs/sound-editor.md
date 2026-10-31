@@ -249,3 +249,9 @@ The remaining Sample controls are arranged four per row, including slicing. The 
 ### Envelopes & pitch layout (0.16.20)
 
 The waveform matches Sample's tall waveform. Amplitude and pitch graphs sit side by side below it, with compact toolbars. Five remaining controls share one narrow row beneath the graphs. Optional ADSR numeric controls scroll within that row instead of reducing graph height. This layout prioritises waveform height; the envelope graphs are correspondingly smaller.
+
+### Envelope overlay (0.16.21)
+
+In Envelopes & pitch, choose **Amplitude** or **Pitch** above the waveform. The selected envelope is drawn directly over the Edited waveform and can be edited using the existing point/curve gestures. Pink denotes amplitude; blue denotes pitch. Only the selected envelope receives mouse edits. Its reset, undo/redo, ADSR and pitch-depth controls sit beneath the waveform.
+
+Envelope time positions match the waveform's milliseconds. Horizontal zoom and pan are shared; wheel pans, Ctrl+wheel zooms time, Shift+wheel changes waveform height, and middle-drag pans. Use the waveform's Fit X to return to the full preview. Selecting Source temporarily hides the envelope to allow source trimming; selecting an envelope button returns to Edited. The original-sample duration remains the editing limit.
