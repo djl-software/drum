@@ -5,7 +5,9 @@
 class MidiNumberBox final : public juce::Slider {
 public:
     MidiNumberBox(){setSliderStyle(LinearVertical);setTextBoxStyle(NoTextBox,false,0,0);setWantsKeyboardFocus(true);setMouseCursor(juce::MouseCursor::UpDownResizeCursor);addChildComponent(entry);entry.setInputRestrictions(32,"0123456789.-");entry.onReturnKey=[this]{finishText(true);};entry.onEscapeKey=[this]{finishText(false);};entry.onFocusLost=[this]{finishText(true,false);};}
-    void paint(juce::Graphics& g) override{auto r=getLocalBounds().toFloat().reduced(.5f);g.setColour(juce::Colour(0xff263441));g.fillRoundedRectangle(r,3);g.setColour(hasKeyboardFocus(true)?juce::Colour(0xff5dd8c0):juce::Colour(0xff6b7e88));g.drawRoundedRectangle(r,3,1);g.setColour(isEnabled()?juce::Colours::whitesmoke:juce::Colours::grey);g.setFont(12);g.drawText(getTextFromValue(getValue()),getLocalBounds().reduced(5,0),juce::Justification::centred);}
+    void setDisplayLabel(const juce::String& label,const juce::String& unit={}){displayLabel=label;displayUnit=unit;repaint();}
+    void paint(juce::Graphics& g) override{auto r=getLocalBounds().toFloat().reduced(.5f);g.setColour(juce::Colour(0xff263441));g.fillRoundedRectangle(r,3);double proportion=getMaximum()>getMinimum()?juce::jlimit(0.0,1.0,(getValue()-getMinimum())/(getMaximum()-getMinimum())):0;auto bar=r.reduced(1);bar.setWidth((float)(bar.getWidth()*proportion));g.setColour(juce::Colour(0xff5dd8c0).withAlpha(isEnabled()?.23f:.08f));g.fillRoundedRectangle(bar,2);g.setColour(hasKeyboardFocus(true)?juce::Colour(0xff5dd8c0):juce::Colour(0xff6b7e88));g.drawRoundedRectangle(r,3,1);g.setColour(isEnabled()?juce::Colours::whitesmoke:juce::Colours::grey);g.setFont(11);auto text=getLocalBounds().reduced(5,0);int valueWidth=getInterval()<1?42:30;if(displayUnit.isNotEmpty())valueWidth+=8;g.drawText(displayLabel,text.withTrimmedRight(valueWidth+3),juce::Justification::centredLeft);g.drawText(juce::String(getValue(),getInterval()<1?2:0)+displayUnit,text.removeFromRight(valueWidth),juce::Justification::centredRight);}
+
     void resized() override{entry.setBounds(getLocalBounds().reduced(1));}
     void mouseDown(const juce::MouseEvent& e) override{if(!isEnabled() || e.mods.isPopupMenu())return;grabKeyboardFocus();startValue=getValue();startY=e.position.y;dragging=true;if(onDragStart)onDragStart();}
     void mouseDrag(const juce::MouseEvent& e) override{if(!dragging)return;double distance=(startY-e.position.y)/(e.mods.isShiftDown()?24.0:4.0);setValue(startValue+std::round(distance)*step(),juce::sendNotificationSync);}
@@ -18,5 +20,5 @@ private:
     double step()const{return getInterval()>0?getInterval():1;}
     void endDrag(){if(!dragging)return;dragging=false;if(onDragEnd)onDragEnd();}
     void finishText(bool accept,bool restoreFocus=true){if(!entry.isVisible())return;auto text=entry.getText().trim();entry.setVisible(false);if(accept && text.containsAnyOf("0123456789")){if(onDragStart)onDragStart();setValue(text.getDoubleValue(),juce::sendNotificationSync);if(onDragEnd)onDragEnd();}if(restoreFocus)grabKeyboardFocus();repaint();}
-    juce::TextEditor entry;bool dragging=false;double startValue=0,startY=0,wheelRemainder=0;
+    juce::String displayLabel,displayUnit;juce::TextEditor entry;bool dragging=false;double startValue=0,startY=0,wheelRemainder=0;
 };
