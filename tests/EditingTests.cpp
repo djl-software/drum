@@ -131,7 +131,7 @@ void runEditingTests()
     for(int page=0;page<7;++page)
     {
         click(editor,("edit-tab-"+juce::String(page)).toRawUTF8());capture(editor,"drum-editor-"+juce::String(page)+".png");
-        for(auto& p:drum::soundParameters)check(find(editor,juce::String("edit-")+p.key)!=nullptr,"A registered control has no UI");
+        for(auto& p:drum::soundParameters)check((find(editor,juce::String("edit-")+p.key)!=nullptr)==(p.member!=&drum::SoundParameters::keyOverride),"Sound control visibility incorrect");
     }
     editor.setSize(800,600);click(editor,"edit-tab-0");capture(editor,"drum-editor-compact.png");
     auto* target=dynamic_cast<juce::ComboBox*>(find(editor,"macro-target-0"));target->setSelectedId(2,juce::sendNotificationSync);

@@ -77,8 +77,6 @@ private:
     std::array<juce::TextButton,9> tabs;
     std::unique_ptr<KeySpectrum> keySpectrum;
     ResetSlider keyCoarse,keyFine;
-    juce::ComboBox targetKey;
-    juce::TextButton autoTune{"Auto Tune"};
     juce::Label keyCoarseLabel,keyFineLabel,keyStatus;
     juce::Viewport viewport;
     juce::Component content;

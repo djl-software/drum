@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.18 removes Auto Tune and displays the highest-power spectrum note as the estimated key, including on instrument tiles. Manual coarse/fine tuning remains.
+
 Version 0.16.17 moves the renamed Tune tab after Filter, restores tuning for pitched drum sweeps, ignores silent padding in analysis, and adds an audio-driven waveform playhead with distinct waveform/spectrum colours.
 
 Version 0.16.16 analyses imported samples for tile note/key and Camelot labels, and adds target-key Auto Tune in Edit Sound.

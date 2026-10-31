@@ -13,7 +13,8 @@ struct TonalAnalysis
 };
 TonalAnalysis analyseTonal(const juce::AudioBuffer<float>&,double rate,const std::function<bool()>& cancelled={});
 juce::String tileKey(const TonalAnalysis&,double transpose=0);
-double tuningToKey(const TonalAnalysis&,int target);
+int strongestNote(const TonalAnalysis&,double transpose=0);
+juce::String spectrumKey(const TonalAnalysis&,double transpose=0);
 juce::String musicalNote(double midi);
 juce::String musicalKey(int key);
 juce::String camelotCode(int key);
