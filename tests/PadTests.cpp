@@ -96,9 +96,9 @@ void runPadTests()
         for(int n=0;n<8;++n)
         {
             auto& button=dynamic_cast<juce::TextButton&>(find(editor,"kit-"+juce::String(n)));
-            check(button.getWidth()<=168 && button.getX()>=previousRight,"Named kit tabs overlap or oversize");
-            check(button.getButtonText().isNotEmpty() && button.getTooltip()==button.getButtonText(),"Kit tab lost its full name");
-            check(button.getRight()<=button.getParentComponent()->getWidth()-24,"Named kit tabs overflow");previousRight=button.getRight();
+            check(button.getWidth()>=80 && button.getX()>=previousRight,"Library tabs overlap");
+            check(button.getTooltip().isNotEmpty() && button.getButtonText()==button.getTooltip()+" *","Library tab lost its full name or unsaved marker");
+            check(button.getRight()<=button.getParentComponent()->getWidth(),"Library tabs overflow their scrollable row");previousRight=button.getRight();
         }
         check(find(editor,"kit-2").getWidth()<find(editor,"kit-0").getWidth(),"Short kit name wastes tab width");
         capture(editor,size.x==1280?"drum-kit-names.png":"drum-kit-names-compact.png");

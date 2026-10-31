@@ -60,7 +60,7 @@ public:
     {
         if(button.getComponentID().endsWith("-menu")){
             g.setColour(text);g.setFont(juce::FontOptions(13));g.drawText(button.getButtonText(),button.getLocalBounds().reduced(12,0).withTrimmedRight(12),juce::Justification::centredLeft);
-            if(button.getButtonText()!="Back to kit"){juce::Path arrow;float x=(float)button.getWidth()-15,y=(float)button.getHeight()/2;arrow.addTriangle(x-4,y-2,x+4,y-2,x,y+3);g.fillPath(arrow);}return;
+            if(button.getButtonText()!="Done"){juce::Path arrow;float x=(float)button.getWidth()-15,y=(float)button.getHeight()/2;arrow.addTriangle(x-4,y-2,x+4,y-2,x,y+3);g.fillPath(arrow);}return;
         }
         if(button.getComponentID()=="play-sample")
         {
@@ -251,16 +251,22 @@ public:
 };
 }
 
+class LibraryTabButton final : public juce::TextButton {
+public:
+    std::function<void()> context;
+    void mouseDown(const juce::MouseEvent& e) override {if(e.mods.isPopupMenu()){if(context)context();}else juce::TextButton::mouseDown(e);}
+    void mouseUp(const juce::MouseEvent& e) override {if(!e.mods.isPopupMenu())juce::TextButton::mouseUp(e);}
+};
 class DrumAudioProcessorEditor::Workspace final : public juce::Component, private juce::ListBoxModel, private juce::Timer, public juce::FileDragAndDropTarget
 {
 public:
     std::function<void()> onShowLibrary,onBackToKit;
     std::function<void(int)> onLibraryAction;
-    void performLibraryAction(int n){if(n==2)addKit.onClick();if(n==3)openDocumentButton.onClick();if(n==4 && processor.saveSharedLibrary)saveLibrary.onClick();if(n==5)saveDocumentButton.onClick();if(n==6 && processor.reloadSharedLibrary)reloadLibrary.onClick();if(n==7)copyKit.onClick();if(n==8)deleteKit.onClick();}
+    void performLibraryAction(int n){if(n==2)complete(processor.newLibraryDocument());if(n==3)chooseDocument(false);if(n==4 || n==5)saveLibraryTab(view.activeKit,n==5,{});if(n==7)complete(processor.duplicateLibraryDocument(view.activeKit));if(n==9)closeLibraryTab(view.activeKit);}
     explicit Workspace(DrumAudioProcessor& p) : processor(p), library(p.getLibrary()), view(library.snapshot()), tooltip(this, 550), soundEditor(p)
     {
         setLookAndFeel(&look);
-        setup(kitMenu,"Kit","kit-menu");kitMenu.onClick=[this]{if(!processor.isMidiTrack() && onBackToKit){onBackToKit();return;}showKitMenu();};
+        setup(kitMenu,"Kit","kit-menu");kitMenu.onClick=[this]{if(!processor.isMidiTrack() && onBackToKit){finishLibraries();return;}showKitMenu();};
         setup(libraryMenu,"Library","library-menu");libraryMenu.onClick=[this]{showLibraryMenu();};
         setup(openLibrary,"Libraries","open-kit-library");openLibrary.onClick=[this]{showLibrary();};
         setup(saveLibrary,"Save all","save-kit-library");saveLibrary.onClick=[this]{if(processor.saveSharedLibrary){auto result=processor.saveSharedLibrary();status=result.ok?"Shared library saved.":result.message;statusError=!result.ok;repaint();}};
@@ -286,7 +292,11 @@ public:
         {
             setup(kitTabs[(size_t)n], "", "kit-"+juce::String(n));
             kitTabs[(size_t)n].onClick = [this,n] { if (n < (int)view.kits.size()) { groupId.clear(); instrumentId.clear(); complete(library.activateKit(view.kits[(size_t)n].id)); } };
+            kitTabs[(size_t)n].context=[this,n]{if(!processor.isMidiTrack() && !processor.librariesEmpty() && n<(int)view.kits.size())showLibraryTabMenu(view.kits[(size_t)n].id,kitTabs[(size_t)n]);};
+            tabStrip.addAndMakeVisible(kitTabs[(size_t)n]);
         }
+        tabViewport.setViewedComponent(&tabStrip,false);tabViewport.setScrollBarsShown(false,true);addAndMakeVisible(tabViewport);
+        emptyLibraries.setText("No libraries open. Choose Library > New or Load.",juce::dontSendNotification);emptyLibraries.setJustificationType(juce::Justification::centred);emptyLibraries.setColour(juce::Label::backgroundColourId,background);emptyLibraries.setColour(juce::Label::textColourId,text);addChildComponent(emptyLibraries);
         setup(addKit, "New library", "add-kit"); addKit.onClick = [this] { groupId.clear(); instrumentId.clear(); auto created=library.addKit();if(created.ok)library.rename(created.id,"Library "+juce::String((int)library.snapshot().kits.size()));complete(created); };
         setup(example, "Add example kit", "example-kit"); example.onClick = [this] { groupId.clear(); instrumentId.clear(); complete(library.addKit(true)); };
         setup(copyKit, "Copy LIB", "copy-kit"); copyKit.onClick = [this] { complete(library.duplicateKit(view.activeKit)); };
@@ -386,20 +396,19 @@ public:
         addChildComponent(soundEditor);
         editSound.onClick=[this] { soundEditor.select(view.activeKit,instrument()); soundEditor.setVisible(true); soundEditor.toFront(false); };
         soundEditor.close=[this] { soundEditor.setVisible(false); refresh(); };
-        status=processor.isMidiTrack()?(processor.hasOpenKit()?"Kit edits are independent of the library. Save kit to collect its samples.":"Choose Kit > New or Load to begin. Add instruments from Library."):"Library > Save updates shared libraries. Save as creates a portable file.";
+        status=processor.isMidiTrack()?(processor.hasOpenKit()?"Kit edits are independent of the library. Save kit to collect its samples.":"Choose Kit > New or Load to begin. Add instruments from Library."):"Right-click a library tab to save, duplicate or close it. * means unsaved changes.";
         for(int n=0;n<128;++n)noteSerials[(size_t)n]=processor.getSampleEngine().noteActivity(n)>>32;
         refresh(); startTimerHz(30);
     }
-    ~Workspace() override { processor.getSampleEngine().pauseAudition();grid.releaseKey();keyboard.releaseKey();stopTimer(); groups.setModel(nullptr); viewport.setViewedComponent(nullptr,false); setLookAndFeel(nullptr); }
+    ~Workspace() override { processor.getSampleEngine().pauseAudition();grid.releaseKey();keyboard.releaseKey();stopTimer(); groups.setModel(nullptr); viewport.setViewedComponent(nullptr,false);tabViewport.setViewedComponent(nullptr,false); setLookAndFeel(nullptr); }
     void paint(juce::Graphics& g) override
     {
         g.fillAll(background);
         g.drawImageWithin(logo,24,20,64,38,juce::RectanglePlacement::centred);
         label(g,"DRUM",{104,17,180,36},29);
-        label(g,processor.isMidiTrack()?"KIT":"LIBRARIES",{106,53,200,18},10,muted);
+        label(g,processor.isMidiTrack()?"KIT":"LIBRARIES",{106,53,240,24},processor.isMidiTrack()?10:18,processor.isMidiTrack()?muted:text);
         label(g,"INSTRUMENT PREVIEW / v" DRUM_VERSION_STRING,{getWidth()-440,57,225,18},11,muted,juce::Justification::centredRight);
-        label(g,processor.isMidiTrack()?"KIT NAME":"LIBRARY",{24,139,86,32},10,accent);
-        if(!processor.isMidiTrack())label(g,juce::String(view.kits.size())+" / 8 libraries",{getWidth()-360,139,95,32},12,muted,juce::Justification::centredRight);
+        if(processor.isMidiTrack())label(g,"KIT NAME",{24,139,86,32},10,accent);
         box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
         label(g,"GROUPS",left.reduced(16,0).withY(left.getY()+12).withHeight(26),12,muted);
         label(g,juce::String(kit().groups.size())+" / 16",{left.getRight()-76,left.getY()+12,60,26},12,muted,juce::Justification::centredRight);
@@ -448,7 +457,7 @@ public:
         const int count=(int)view.kits.size(),gap=6,reserved=count<8?142:0;
         const int available=w-48-reserved-gap*juce::jmax(0,count-1);
         std::array<int,8> widths {};int total=0;
-        const juce::Font tabFont(juce::FontOptions(13.0f));
+        const auto tabFont=look.getTextButtonFont(kitTabs[0],32);
         for(int n=0;n<count;++n)
         {
             widths[(size_t)n]=juce::jlimit(66,168,(int)std::ceil(juce::GlyphArrangement::getStringWidth(tabFont,view.kits[(size_t)n].name+" LIB"))+24);
@@ -498,12 +507,18 @@ public:
         openLibrary.setVisible(processor.isMidiTrack());saveLibrary.setVisible(bool(processor.saveSharedLibrary));reloadLibrary.setVisible(bool(processor.reloadSharedLibrary));useSound.setVisible(bool(processor.useLibrarySound));useSound.setEnabled(instrument()!=nullptr);if(processor.useLibrarySound)example.setVisible(false);
         for(auto* c:std::initializer_list<juce::Component*>{&openLibrary,&newLibraryButton,&newKitButton,&openDocumentButton,&saveDocumentButton,&saveAsButton,&saveLibrary,&reloadLibrary,&patternButton,&copyKit,&deleteKit,&addKit,&example})c->setVisible(false);
         useKitButton.setBounds(24,88,100,35);useKitButton.setVisible(processor.isMidiTrack());
-        kitMenu.setBounds(processor.isMidiTrack()?132:24,88,128,35);kitMenu.setButtonText(processor.isMidiTrack()?"Kit":"Back to kit");kitMenu.setVisible(processor.isMidiTrack() || bool(onBackToKit));
-        libraryMenu.setBounds(processor.isMidiTrack()?268:160,88,128,35);
+        kitMenu.setBounds(processor.isMidiTrack()?132:160,88,128,35);kitMenu.setButtonText(processor.isMidiTrack()?"Kit":"Done");kitMenu.setVisible(processor.isMidiTrack() || bool(onBackToKit));
+        libraryMenu.setBounds(processor.isMidiTrack()?268:24,88,128,35);
+        kitName.setVisible(processor.isMidiTrack());tabViewport.setVisible(!processor.isMidiTrack());
         if(!processor.isMidiTrack()){
-            int x=300,cap=juce::jmax(56,(w-324-6*juce::jmax(0,count-1))/juce::jmax(1,count));
-            for(int n=0;n<count;++n){int width=juce::jlimit(56,cap,32+7*view.kits[(size_t)n].name.length());kitTabs[(size_t)n].setBounds(x,88,width,35);x+=width+6;}
+            tabViewport.setBounds(24,135,w-48,47);int x=0;
+            for(int n=0;n<count;++n){auto& tab=kitTabs[(size_t)n];int width=juce::jmax(80,(int)std::ceil(juce::GlyphArrangement::getStringWidth(tabFont,processor.libraryDocumentName(view.kits[(size_t)n].id)+" *"))+32);tab.setBounds(x,0,width,32);x+=width+6;}
+            tabStrip.setSize(juce::jmax(w-48,x),32);
         }
+        const bool noLibrary=!processor.isMidiTrack() && processor.librariesEmpty();
+        emptyLibraries.setBounds(24,192,w-48,h-230);emptyLibraries.setVisible(noLibrary);if(noLibrary)emptyLibraries.toFront(false);
+        useSound.setEnabled(!noLibrary && instrument()!=nullptr);playSample.setEnabled(!noLibrary);loopSample.setEnabled(!noLibrary);
+
 
 
     }
@@ -535,14 +550,41 @@ private:
         juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&kitMenu),[safe](int n){if(!safe)return;if(n==1)safe->newKitButton.onClick();if(n==2)safe->openDocumentButton.onClick();if(n==3)safe->saveDocumentButton.onClick();if(n==4)safe->saveAsButton.onClick();});
     }
     void showLibraryMenu(){
-        juce::PopupMenu menu;
-        if(processor.isMidiTrack())menu.addItem(1,"Open library screen");
-        menu.addItem(2,"New");menu.addItem(3,"Load...");menu.addSeparator();menu.addItem(4,"Save",processor.isMidiTrack() || bool(processor.saveSharedLibrary));menu.addItem(5,"Save as...");menu.addSeparator();menu.addItem(6,"Reload saved libraries",processor.isMidiTrack() || bool(processor.reloadSharedLibrary));menu.addItem(7,"Duplicate");menu.addItem(8,"Remove...");
+        juce::PopupMenu menu;bool root=processor.isMidiTrack(),open=root || !processor.librariesEmpty();
+        if(root)menu.addItem(1,"Open library screen");
+        menu.addItem(2,"New",root || processor.librariesEmpty() || view.kits.size()<8);menu.addItem(3,"Load...");menu.addSeparator();
+        menu.addItem(4,"Save",root || (open && processor.libraryDocumentDirty(view.activeKit)));menu.addItem(5,"Save as...",open);menu.addSeparator();menu.addItem(7,"Duplicate",open && (root || view.kits.size()<8));if(!root)menu.addItem(9,"Close",open);
         juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&libraryMenu),[safe](int n){if(!safe || n==0)return;if(n==1)safe->showLibrary();else if(safe->processor.isMidiTrack()){if(safe->onLibraryAction)safe->onLibraryAction(n);}else safe->performLibraryAction(n);});
+    }
+    void showLibraryTabMenu(juce::String id,juce::Component& target){
+        processor.getEffects().capture();juce::PopupMenu menu;menu.addItem(1,"Save",processor.libraryDocumentDirty(id));menu.addItem(2,"Save as...");menu.addSeparator();menu.addItem(3,"Duplicate",view.kits.size()<8);menu.addItem(4,"Close");
+        juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&target),[safe,id](int n){if(!safe)return;if(n==1 || n==2)safe->saveLibraryTab(id,n==2,{});if(n==3)safe->complete(safe->processor.duplicateLibraryDocument(id));if(n==4)safe->closeLibraryTab(id);});
+    }
+    void saveLibraryTab(juce::String id,bool saveAs,std::function<void(bool)> after){
+        if(processor.librariesEmpty()){if(after)after(false);return;}
+        complete(library.activateKit(id));auto file=processor.libraryDocumentFile(id);
+        auto save=[safe=juce::Component::SafePointer<Workspace>(this),id,after](juce::File target){if(!safe)return;auto selected=safe->library.activateKit(id);if(!selected.ok){safe->complete(selected);if(after)after(false);return;}auto result=safe->processor.saveDocument(target);safe->complete(result);if(after)after(result.ok);};
+        if(!saveAs && file!=juce::File()){save(file);return;}
+        auto suggested=file!=juce::File()?file:drum::PortableFiles::root().getChildFile("Libraries").getChildFile(juce::File::createLegalFileName(kit().name)+".drumlib");
+        chooser=std::make_unique<juce::FileChooser>("Save library",suggested,"*.drumlib");juce::Component::SafePointer<Workspace> safe(this);
+        chooser->launchAsync(juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::warnAboutOverwriting,[safe,save,after](const juce::FileChooser& dialog){if(!safe)return;auto selected=dialog.getResult();if(selected==juce::File()){if(after)after(false);return;}auto target=selected.withFileExtension(".drumlib");if(target!=selected && target.existsAsFile())safe->confirm("Replace library file?",target.getFileName()+" already exists.",[save,target]{save(target);});else save(target);});
+    }
+    void closeLibraryTab(juce::String id){
+        processor.getEffects().capture();auto close=[safe=juce::Component::SafePointer<Workspace>(this),id]{if(safe){safe->soundEditor.setVisible(false);safe->complete(safe->processor.closeLibraryDocument(id));}};
+        if(!processor.libraryDocumentDirty(id)){close();return;}
+        juce::Component::SafePointer<Workspace> safe(this);juce::AlertWindow::showAsync(juce::MessageBoxOptions().withTitle("Unsaved library").withMessage("Save changes before closing this library?").withButton("Save").withButton("Close without saving").withButton("Cancel").withAssociatedComponent(this),[safe,id,close](int result){if(!safe)return;if(result==1)safe->saveLibraryTab(id,false,[close](bool ok){if(ok)close();});if(result==2)close();});
+    }
+    void saveLibrariesAndFinish(){
+        for(const auto& item:library.snapshot().kits)if(processor.libraryDocumentDirty(item.id)){juce::Component::SafePointer<Workspace> safe(this);saveLibraryTab(item.id,false,[safe](bool ok){if(safe && ok)juce::MessageManager::callAsync([safe]{if(safe)safe->saveLibrariesAndFinish();});});return;}
+        if(onBackToKit)onBackToKit();
+    }
+    void finishLibraries(){
+        processor.getEffects().capture();if(!processor.libraryDocumentsDirty()){if(onBackToKit)onBackToKit();return;}
+        juce::Component::SafePointer<Workspace> safe(this);juce::AlertWindow::showAsync(juce::MessageBoxOptions().withTitle("Unsaved libraries").withMessage("Save changes to your libraries before returning to the kit?").withButton("Save all").withButton("Quit without saving").withButton("Cancel").withAssociatedComponent(this),[safe](int result){if(!safe)return;if(result==1)safe->saveLibrariesAndFinish();if(result==2){safe->processor.discardLibraryDocuments();safe->refresh();if(safe->onBackToKit)safe->onBackToKit();}});
     }
     void handleDrop(const juce::StringArray& files,const juce::String& target)
     {
-        if(!processor.hasOpenKit()){status="No kit open. Choose New kit or Open kit first.";statusError=true;repaint();return;}
+        if(processor.librariesEmpty() || !processor.hasOpenKit()){status="Choose New or Load from the Kit or Library menu first.";statusError=true;repaint();return;}
         auto fail=[this](juce::String message){status=message; statusError=true; repaint();};
         if(files.isEmpty()) return;
         if(target.isNotEmpty() && files.size()!=1) { fail("Drop one sample on a card, or several in empty space to create instruments."); return; }
@@ -631,8 +673,8 @@ private:
         if(!inGroup) instrumentId=group().instruments.empty()?juce::String():group().instruments.front().id;
         for(int n=0;n<8;++n)
         {
-            auto& b=kitTabs[(size_t)n]; b.setVisible(n<(int)view.kits.size());
-            if(n<(int)view.kits.size()) { auto& k=view.kits[(size_t)n]; b.setButtonText(k.name+" LIB"); b.setTooltip(k.name+" LIB"); b.setToggleState(k.id==view.activeKit,juce::dontSendNotification); }
+            auto& b=kitTabs[(size_t)n]; b.setVisible(n<(int)view.kits.size() && !processor.librariesEmpty());
+            if(n<(int)view.kits.size()) { auto& k=view.kits[(size_t)n]; auto title=processor.libraryDocumentName(k.id);b.setButtonText(title+(processor.libraryDocumentDirty(k.id)?" *":"")); b.setTooltip(title); b.setToggleState(k.id==view.activeKit,juce::dontSendNotification); }
         }
         addKit.setVisible(view.kits.size()<8); example.setEnabled(view.kits.size()<8); copyKit.setEnabled(view.kits.size()<8); deleteKit.setEnabled(view.kits.size()>1);
         if(forceNames || !kitName.hasKeyboardFocus(true)) kitName.setText(kit().name,false);
@@ -757,7 +799,8 @@ private:
     bool refreshing=false,statusError=false,importStatus=false;
     juce::Image logo;
     juce::TooltipWindow tooltip;
-    std::array<juce::TextButton,8> kitTabs;
+    std::array<LibraryTabButton,8> kitTabs;
+    juce::Component tabStrip;juce::Viewport tabViewport;juce::Label emptyLibraries;
     juce::TextButton addKit,example,copyKit,deleteKit,addGroup,copyGroup,deleteGroup,groupUp,groupDown;
     juce::TextButton addInstrument,copyInstrument,deleteInstrument,instrumentUp,instrumentDown;
     void updateTransport()
@@ -810,10 +853,10 @@ DrumAudioProcessorEditor::DrumAudioProcessorEditor(DrumAudioProcessor& p)
     }
     setSize(width,height);
 }
-DrumAudioProcessorEditor::~DrumAudioProcessorEditor(){if(processor.sharedLibraryDirty())processor.libraryEditorProcessor()->saveSharedLibrary();libraryWorkspace.reset();processor.closeSharedLibrary();}
+DrumAudioProcessorEditor::~DrumAudioProcessorEditor(){libraryWorkspace.reset();processor.closeSharedLibrary();}
 void DrumAudioProcessorEditor::showLibraryScreen(bool show){
     if(show && !libraryWorkspace){libraryWorkspace=std::make_unique<Workspace>(*processor.libraryEditorProcessor());libraryWorkspace->onBackToKit=[this]{showLibraryScreen(false);};addChildComponent(*libraryWorkspace);}
-    if(!show){if(processor.sharedLibraryDirty()){auto result=processor.libraryEditorProcessor()->saveSharedLibrary();if(!result.ok){juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Library changes kept open",result.message);return;}}processor.closeSharedLibrary();}
+    if(!show)processor.closeSharedLibrary();
     showingLibrary=show;workspace->setVisible(!show);if(libraryWorkspace)libraryWorkspace->setVisible(show);resized();
 }
 void DrumAudioProcessorEditor::resized()

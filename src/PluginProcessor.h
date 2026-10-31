@@ -7,6 +7,7 @@
 #include "PortableFiles.h"
 #include "PatternPlayer.h"
 #include "LiveKitLink.h"
+#include <map>
 
 class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater
 {
@@ -18,6 +19,18 @@ public:
     drum::Result saveDocument(const juce::File&);
     drum::Result openDocument(const juce::File&);
     juce::File documentFile() const{return currentDocument;}
+    bool librariesEmpty() const{return !trackInstance && closedLibraries;}
+    bool libraryDocumentDirty(const juce::String&) const;
+    bool libraryDocumentsDirty() const;
+    juce::File libraryDocumentFile(const juce::String&) const;
+    juce::String libraryDocumentName(const juce::String&) const;
+    drum::Result newLibraryDocument();
+    drum::Result duplicateLibraryDocument(const juce::String&);
+    drum::Result closeLibraryDocument(const juce::String&);
+    void discardLibraryDocuments();
+    void initialiseLibraryDocuments();
+    std::unique_ptr<juce::XmlElement> libraryWorkspaceState() const;
+    bool restoreLibraryWorkspace(const juce::XmlElement&);
 
     DrumAudioProcessor* libraryEditorProcessor() const{return libraryPreview.get();}
     drum::Result openSharedLibrary();
@@ -61,6 +74,13 @@ private:
     const bool trackInstance;
     std::atomic<bool> kitOpened{false};
     juce::File currentDocument;
+    struct LibraryDocument {juce::File file;std::unique_ptr<juce::XmlElement> baseline;};
+    std::map<juce::String,LibraryDocument> libraryDocuments;
+    mutable juce::CriticalSection libraryDocumentLock;
+    mutable uint64_t libraryDirtyRevision=~uint64_t(0);
+    mutable std::map<juce::String,bool> libraryDirtyCache;
+    bool closedLibraries=false;
+    std::unique_ptr<juce::XmlElement> libraryElement(const juce::String&) const;
     drum::KitLibrary library;
     std::unique_ptr<drum::PatternPlayer> patternPlayer;
     juce::MidiBuffer patternMidi;

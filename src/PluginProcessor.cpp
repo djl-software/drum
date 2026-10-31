@@ -119,7 +119,7 @@ void DrumAudioProcessor::getStateInformation(juce::MemoryBlock& data)
     effects.capture();if(libraryPreview && libraryLoaded.load())libraryPreview->effects.capture();
     const auto state = library.toXml();
     for(int n=0;n<drum::numMacros;++n) state->setAttribute("macro"+juce::String(n+1),(double)macros[(size_t)n]->get());
-    if(trackInstance){juce::XmlElement session("DrumSession");session.setAttribute("version",1);session.setAttribute("autoRemapLiveClips",autoRemapLiveClips());session.setAttribute("kitOpen",kitOpened.load());session.setAttribute("document",currentDocument.getFullPathName());session.addChildElement(new juce::XmlElement(*state));const juce::ScopedLock lock(migrationLock);if(legacyKits)session.createNewChildElement("LegacyKits")->addChildElement(new juce::XmlElement(*legacyKits));if(libraryPreview && sharedLibraryDirty()){auto* draft=session.createNewChildElement("LibraryDraft");draft->addChildElement(libraryPreview->library.toXml().release());if(auto base=sharedStore.baselineCopy())draft->createNewChildElement("Baseline")->addChildElement(base.release());}copyXmlToBinary(session,data);}else copyXmlToBinary(*state, data);
+    if(trackInstance){juce::XmlElement session("DrumSession");session.setAttribute("version",1);session.setAttribute("autoRemapLiveClips",autoRemapLiveClips());session.setAttribute("kitOpen",kitOpened.load());session.setAttribute("document",currentDocument.getFullPathName());session.addChildElement(new juce::XmlElement(*state));const juce::ScopedLock lock(migrationLock);if(legacyKits)session.createNewChildElement("LegacyKits")->addChildElement(new juce::XmlElement(*legacyKits));if(libraryPreview && sharedLibraryDirty()){auto* draft=session.createNewChildElement("LibraryDraft");draft->addChildElement(libraryPreview->library.toXml().release());if(auto base=sharedStore.baselineCopy())draft->createNewChildElement("Baseline")->addChildElement(base.release());}if(libraryLoaded && libraryPreview)session.addChildElement(libraryPreview->libraryWorkspaceState().release());copyXmlToBinary(session,data);}else copyXmlToBinary(*state, data);
 }
 
 void DrumAudioProcessor::setStateInformation(const void* data, int size)
@@ -156,6 +156,7 @@ void DrumAudioProcessor::setStateInformation(const void* data, int size)
             parameter->setValue(values[(size_t)n]);
           }
           if(trackInstance)if(auto* draft=saved->getChildByName("LibraryDraft"))if(auto* data=draft->getChildByName("DrumState"))if(auto* base=draft->getChildByName("Baseline"))if(auto* previous=base->getChildByName("DrumState")){if(sharedStore.restoreBaseline(*previous) && libraryPreview->library.restore(*data))libraryLoaded=true;}
+          if(trackInstance)if(auto* workspace=saved->getChildByName("LibraryWorkspace"))if(libraryPreview->restoreLibraryWorkspace(*workspace))libraryLoaded=true;
           // Hosts may recall on either thread. Load devices immediately on the
           // message thread; the rack timer handles worker-thread recalls.
           if(juce::MessageManager::getInstance()->isThisTheMessageThread())effects.sync();
@@ -178,7 +179,7 @@ void DrumAudioProcessor::migrateLegacyKits()
 }
 drum::Result DrumAudioProcessor::openSharedLibrary()
 {
-    if(!libraryPreview)return drum::Result::fail("This is already the kit library.");{const juce::ScopedLock lock(migrationLock);migrationAttempted=false;}migrateLegacyKits();if(libraryLoaded && sharedLibraryDirty()){previewActive.store(true);return drum::Result::success();}auto result=sharedStore.load(libraryPreview->library);if(result.ok){libraryLoaded=true;previewActive.store(true);}return result;
+    if(!libraryPreview)return drum::Result::fail("This is already the kit library.");{const juce::ScopedLock lock(migrationLock);migrationAttempted=false;}migrateLegacyKits();if(libraryLoaded){previewActive.store(true);return drum::Result::success();}auto result=sharedStore.load(libraryPreview->library);if(result.ok){libraryPreview->initialiseLibraryDocuments();libraryLoaded=true;previewActive.store(true);}return result;
 }
 
 void DrumAudioProcessor::newKit()
@@ -187,15 +188,23 @@ void DrumAudioProcessor::newKit()
 }
 drum::Result DrumAudioProcessor::saveDocument(const juce::File& file)
 {
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
     if(!hasOpenKit())return drum::Result::fail("Create or open a kit before saving.");
     effects.capture();auto state=library.toXml();auto active=state->getStringAttribute("activeKit");
     for(auto* child=state->getFirstChildElement();child;){auto* next=child->getNextElement();if(child->getStringAttribute("id")!=active)state->removeChildElement(child,true);child=next;}
     for(int n=0;n<drum::numMacros;++n)state->setAttribute("macro"+juce::String(n+1),(double)macros[(size_t)n]->get());
     juce::XmlElement document("DrumDocument");document.setAttribute("version",1);document.setAttribute("kind",trackInstance?"kit":"library");document.addChildElement(state.release());
-    auto result=drum::PortableFiles::write(document,file);if(result.ok && trackInstance){currentDocument=file;triggerAsyncUpdate();}return result;
+    if(!trackInstance){
+        for(const auto& entry:libraryDocuments)if(entry.first!=active && entry.second.file==file)return drum::Result::fail("That file belongs to another open library. Choose a different filename.");
+        auto name=file.getFileNameWithoutExtension().substring(0,64);
+        document.getChildByName("DrumState")->getFirstChildElement()->setAttribute("name",name);
+    }
+    auto result=drum::PortableFiles::write(document,file);
+    if(result.ok){if(trackInstance)currentDocument=file;else {library.rename(active,file.getFileNameWithoutExtension().substring(0,64));auto& info=libraryDocuments[active];info.file=file;info.baseline=libraryElement(active);libraryDirtyRevision=~uint64_t(0);}triggerAsyncUpdate();}return result;
 }
 drum::Result DrumAudioProcessor::openDocument(const juce::File& file)
 {
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
     if(!file.existsAsFile() || file.getSize()>256ll*1024*1024)return drum::Result::fail("File is missing or too large.");
     auto document=juce::parseXML(file);if(!document || !document->hasTagName("DrumDocument") || document->getIntAttribute("version")!=1 || document->getStringAttribute("kind")!=(trackInstance?"kit":"library"))return drum::Result::fail("This is not a supported Drum "+juce::String(trackInstance?"kit":"library")+" file.");
     auto* state=document->getChildByName("DrumState");if(!state)return drum::Result::fail("Document has no instrument data.");auto paths=drum::PortableFiles::resolve(*state,file);if(!paths.ok)return paths;
@@ -205,9 +214,103 @@ drum::Result DrumAudioProcessor::openDocument(const juce::File& file)
         library.restore(*state);for(int n=0;n<drum::numMacros;++n)macros[(size_t)n]->setValueNotifyingHost(values[(size_t)n]);kitOpened=true;currentDocument=file;
     }else{
         auto combined=library.toXml();auto id=state->getStringAttribute("activeKit");
+        for(const auto& entry:libraryDocuments)if(entry.second.file==file){library.activateKit(entry.first);return drum::Result::success(entry.first);}
+        if(libraryElement(id) && libraryDocumentDirty(id))return drum::Result::fail("This library has unsaved changes. Save or close its tab before loading another version.");
+        if(closedLibraries)combined->deleteAllChildElements();
         for(auto* child=combined->getFirstChildElement();child;){auto* next=child->getNextElement();if(child->getStringAttribute("id")==id)combined->removeChildElement(child,true);child=next;}
-        if(combined->getNumChildElements()>=drum::maxKits)return drum::Result::fail("Eight libraries are already open. Remove one before opening another.");
+        if(combined->getNumChildElements()>=drum::maxKits)return drum::Result::fail("Eight libraries are already open. Close one before opening another.");
+        state->getFirstChildElement()->setAttribute("name",file.getFileNameWithoutExtension().substring(0,64));
         combined->addChildElement(new juce::XmlElement(*state->getFirstChildElement()));combined->setAttribute("activeKit",id);if(!library.restore(*combined))return drum::Result::fail("Library could not be opened.");
+        closedLibraries=false;auto& info=libraryDocuments[id];info.file=file;info.baseline=libraryElement(id);
     }
     triggerAsyncUpdate();return drum::Result::success();
+}
+
+std::unique_ptr<juce::XmlElement> DrumAudioProcessor::libraryElement(const juce::String& id) const
+{
+    auto xml=library.toXml();for(auto* item:xml->getChildIterator())if(item->getStringAttribute("id")==id)return std::make_unique<juce::XmlElement>(*item);return {};
+}
+void DrumAudioProcessor::initialiseLibraryDocuments()
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    libraryDocuments.clear();closedLibraries=false;libraryDirtyRevision=~uint64_t(0);
+    for(const auto& kit:library.snapshot().kits)libraryDocuments[kit.id].baseline=libraryElement(kit.id);
+}
+bool DrumAudioProcessor::libraryDocumentDirty(const juce::String& id) const
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    if(closedLibraries)return false;auto revision=library.currentRevision();
+    if(revision!=libraryDirtyRevision){
+        libraryDirtyCache.clear();auto xml=library.toXml();
+        for(auto* item:xml->getChildIterator()){auto key=item->getStringAttribute("id");auto found=libraryDocuments.find(key);libraryDirtyCache[key]=found==libraryDocuments.end() || !found->second.baseline || !item->isEquivalentTo(found->second.baseline.get(),false);}
+        libraryDirtyRevision=revision;
+    }
+    auto found=libraryDirtyCache.find(id);return found!=libraryDirtyCache.end() && found->second;
+}
+bool DrumAudioProcessor::libraryDocumentsDirty() const
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    if(closedLibraries)return false;for(const auto& kit:library.snapshot().kits)if(libraryDocumentDirty(kit.id))return true;return false;
+}
+juce::File DrumAudioProcessor::libraryDocumentFile(const juce::String& id) const
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    auto found=libraryDocuments.find(id);return found==libraryDocuments.end()?juce::File():found->second.file;
+}
+juce::String DrumAudioProcessor::libraryDocumentName(const juce::String& id) const
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    auto file=libraryDocumentFile(id);if(file!=juce::File())return file.getFileNameWithoutExtension();for(const auto& kit:library.snapshot().kits)if(kit.id==id)return kit.name;return {};
+}
+drum::Result DrumAudioProcessor::newLibraryDocument()
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    if(trackInstance)return drum::Result::fail("Open the Library screen first.");
+    if(closedLibraries){closedLibraries=false;auto id=library.snapshot().activeKit;library.rename(id,"Untitled library");return drum::Result::success(id);}
+    auto result=library.addKit();if(result.ok)library.rename(result.id,"Untitled library");return result;
+}
+drum::Result DrumAudioProcessor::duplicateLibraryDocument(const juce::String& id)
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    if(closedLibraries)return drum::Result::fail("Open a library first.");return library.duplicateKit(id);
+}
+drum::Result DrumAudioProcessor::closeLibraryDocument(const juce::String& id)
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    auto state=library.snapshot();if(!libraryElement(id))return drum::Result::fail("Library is no longer open.");
+    if(state.kits.size()==1){drum::KitLibrary fresh;library.restore(*fresh.toXml());closedLibraries=true;}
+    else {auto result=library.removeKit(id);if(!result.ok)return result;}
+    libraryDocuments.erase(id);return drum::Result::success();
+}
+void DrumAudioProcessor::discardLibraryDocuments()
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    effects.hideEditors();auto state=library.snapshot();
+    for(const auto& kit:state.kits){
+        if(!libraryDocumentDirty(kit.id))continue;
+        auto found=libraryDocuments.find(kit.id);
+        if(found==libraryDocuments.end() || !found->second.baseline){closeLibraryDocument(kit.id);continue;}
+        auto xml=library.toXml();for(auto* item=xml->getFirstChildElement();item;item=item->getNextElement())if(item->getStringAttribute("id")==kit.id){xml->replaceChildElement(item,new juce::XmlElement(*found->second.baseline));break;}
+        library.restore(*xml);
+    }
+}
+
+std::unique_ptr<juce::XmlElement> DrumAudioProcessor::libraryWorkspaceState() const
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    auto state=std::make_unique<juce::XmlElement>("LibraryWorkspace");state->setAttribute("closed",closedLibraries);state->addChildElement(library.toXml().release());
+    for(const auto& entry:libraryDocuments){auto* doc=state->createNewChildElement("Document");doc->setAttribute("id",entry.first);doc->setAttribute("file",entry.second.file.getFullPathName());if(entry.second.baseline)doc->addChildElement(new juce::XmlElement(*entry.second.baseline));}
+    return state;
+}
+bool DrumAudioProcessor::restoreLibraryWorkspace(const juce::XmlElement& saved)
+{
+    const juce::ScopedLock documentGuard(libraryDocumentLock);
+    auto* content=saved.getChildByName("DrumState");drum::KitLibrary check;if(!content || !check.restore(*content))return false;
+    std::map<juce::String,LibraryDocument> restored;
+    for(auto* doc:saved.getChildIterator())if(doc->hasTagName("Document")){
+        auto id=doc->getStringAttribute("id"),path=doc->getStringAttribute("file");if(id.isEmpty() || restored.count(id) || (path.isNotEmpty() && !juce::File::isAbsolutePath(path)))return false;
+        auto& info=restored[id];if(path.isNotEmpty())info.file=juce::File(path);
+        if(auto* base=doc->getFirstChildElement()){auto test=std::make_unique<juce::XmlElement>(*content);test->deleteAllChildElements();test->addChildElement(new juce::XmlElement(*base));test->setAttribute("activeKit",id);if(base->getStringAttribute("id")!=id || !check.restore(*test))return false;info.baseline=std::make_unique<juce::XmlElement>(*base);}
+    }
+    if(!library.restore(*content))return false;libraryDocuments=std::move(restored);closedLibraries=saved.getBoolAttribute("closed");libraryDirtyRevision=~uint64_t(0);return true;
 }

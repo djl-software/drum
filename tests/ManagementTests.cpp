@@ -30,6 +30,24 @@ void screenshot(juce::Component& editor, const char* name)
 void runManagementTests()
 {
     {
+        DrumAudioProcessor documents;
+        auto id=documents.getLibrary().snapshot().activeKit;
+        auto folder=juce::File::getCurrentWorkingDirectory().getChildFile("library-document-tests").getChildFile(juce::Uuid().toString());
+        auto first=folder.getChildFile("My drums.drumlib"),second=folder.getChildFile("New name.drumlib");
+        check(documents.libraryDocumentDirty(id),"New library should be unsaved");
+        good(documents.saveDocument(first));check(!documents.libraryDocumentDirty(id) && documents.libraryDocumentFile(id)==first,"Save failed to set tab baseline and path");
+        auto state=documents.getLibrary().snapshot();good(documents.getLibrary().addInstrument(id,state.kits[0].groups[0].id));check(documents.libraryDocumentDirty(id),"Instrument edit missing dirty marker");
+        good(documents.saveDocument(second));check(documents.getLibrary().snapshot().kits.size()==1 && documents.getLibrary().snapshot().kits[0].name=="New name","Save as opened another library or failed to rename tab");
+        check(first.existsAsFile(),"Save as removed original file");
+        auto copy=documents.duplicateLibraryDocument(id);good(copy);check(documents.getLibrary().snapshot().activeKit==copy.id && documents.libraryDocumentDirty(copy.id) && documents.libraryDocumentFile(copy.id)==juce::File(),"Duplicate did not open an unsaved independent copy");
+        check(!documents.saveDocument(second).ok,"Duplicate overwrote another open tab's file");
+        auto session=documents.libraryWorkspaceState();DrumAudioProcessor restored;check(restored.restoreLibraryWorkspace(*session),"Library workspace did not restore");check(restored.libraryDocumentDirty(copy.id) && !restored.libraryDocumentDirty(id) && restored.libraryDocumentFile(id)==second,"Workspace lost dirty state or filename");
+        restored.discardLibraryDocuments();check(restored.getLibrary().snapshot().kits.size()==1,"Discard retained unsaved duplicate");
+        good(restored.closeLibraryDocument(id));check(restored.librariesEmpty() && second.existsAsFile(),"Close deleted a file or kept last tab open");good(restored.openDocument(second));check(!restored.librariesEmpty() && !restored.libraryDocumentDirty(id),"Reopening last closed library failed");
+        for(int n=1;n<8;++n)good(restored.duplicateLibraryDocument(id));check(!restored.duplicateLibraryDocument(id).ok,"More than eight libraries opened");
+        auto eight=restored.getLibrary().snapshot();for(const auto& item:eight.kits)good(restored.closeLibraryDocument(item.id));check(restored.librariesEmpty(),"Closing all tabs failed");good(restored.newLibraryDocument());check(!restored.librariesEmpty() && restored.libraryDocumentsDirty(),"New after Close all failed");
+    }
+    {
         struct GestureProbe final : juce::AudioProcessorParameter::Listener {
             int values=0, starts=0, ends=0;
             void parameterValueChanged(int,float) override {++values;}
@@ -190,12 +208,12 @@ void runManagementTests()
         check(moved[0].id==second && moved[1].id==third && moved[2].id==first,"Pad drag did not insert and shift intervening pads");
         check(moved[0].note==21 && moved[1].note==22 && moved[2].note==23,"Pad drag left gaps in MIDI assignments");
         screenshot(main,"drum-toolbar-kit.png");click(main,"open-kit-library");
-        juce::TextButton* back=nullptr;std::function<void(juce::Component&)> findBack=[&](juce::Component& c){if(auto* b=dynamic_cast<juce::TextButton*>(&c);b && b->getComponentID()=="kit-menu" && b->getButtonText()=="Back to kit" && b->isVisible())back=b;for(auto* child:c.getChildren())findBack(*child);};findBack(main);
+        juce::TextButton* back=nullptr;std::function<void(juce::Component&)> findBack=[&](juce::Component& c){if(auto* b=dynamic_cast<juce::TextButton*>(&c);b && b->getComponentID()=="kit-menu" && b->getButtonText()=="Done" && b->isVisible())back=b;for(auto* child:c.getChildren())findBack(*child);};findBack(main);
         check(back!=nullptr,"Library is not a screen in the main editor");
         auto* libraryScreen=back->getParentComponent();auto countBefore=drum::instrumentCount(track.getLibrary().snapshot().kits[0]);
         click(*libraryScreen,"add-instrument");click(*libraryScreen,"use-library-sound");
         check(drum::instrumentCount(track.getLibrary().snapshot().kits[0])==countBefore+1,"Library screen could not add its instrument to the kit");
-        screenshot(main,"drum-toolbar-library.png");back->onClick();
+        screenshot(main,"drum-toolbar-library.png");track.libraryEditorProcessor()->discardLibraryDocuments();back->onClick();
         check(track.getLibrary().snapshot().activeKit==kitId && control(main,"kit-menu")->isVisible(),"Library navigation lost the current kit");
     }
     std::cout << "Management, persistence and UI wiring tests passed\n";

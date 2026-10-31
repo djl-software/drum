@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.10 adds filename-based Library tabs, unsaved markers, Save/Save As/Duplicate/Close menus, and a Done button with save-or-discard handling. Up to eight libraries can be open; full-width tabs scroll when needed. Library files are never deleted by Close.
+
 Version 0.16.9 lets **Update** expose the Live connection parameter in Configure mode for older Sets. The companion reports missing identifiers instead of silently skipping remapping. Enable the automatic clip-update option before moving instruments; past disconnected moves cannot be recovered automatically.
 
 Version 0.16.8 reorganises the toolbar into **Update**, **Kit** and **Library** menus. Library is a full screen in Drum, with Back to kit. Pads can be dragged to reorder within their group; MIDI keys follow the new order. Save uses the kit name automatically. The MIDI editor button is hidden temporarily; its code and saved clips remain.
