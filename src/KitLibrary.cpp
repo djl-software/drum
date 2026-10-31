@@ -362,14 +362,14 @@ Result KitLibrary::setControls(const juce::String& kitId, const juce::String& in
         find(g->instruments,instrumentId)->controls=controls; return Result::success(instrumentId);
     });
 }
-Result KitLibrary::importGroupedInstrument(const juce::String& kitId,const Group& sourceGroup,const Instrument& source)
+Result KitLibrary::importGroupedInstrument(const juce::String& kitId,const Group& sourceGroup,const Instrument& source,bool reuseEmptyGroup)
 {
     return edit([&](State& state){
         auto* kit=find(state.kits,kitId);if(!kit)return Result::fail("Open or create a kit first.");
         int note=freeNote(*kit);if(note<0)return Result::fail("This kit already has 88 instruments.");
         Group* destination=nullptr;for(auto& group:kit->groups)if(group.name==sourceGroup.name){destination=&group;break;}
         if(!destination){
-            if(instrumentCount(*kit)==0 && kit->groups.size()==1){destination=&kit->groups.front();destination->name=sourceGroup.name;destination->colour=sourceGroup.colour;}
+            if(reuseEmptyGroup && instrumentCount(*kit)==0 && kit->groups.size()==1){destination=&kit->groups.front();destination->name=sourceGroup.name;destination->colour=sourceGroup.colour;}
             else {if(kit->groups.size()>=maxGroups)return Result::fail("This kit already has 16 groups.");kit->groups.push_back(makeGroup(sourceGroup.name,sourceGroup.colour));destination=&kit->groups.back();}
         }
         auto copy=source;copy.id=newId();copy.note=note;for(auto& effect:copy.effects){effect.id=newId();effect.sidechainNote=-1;effect.sidechainMute=false;}

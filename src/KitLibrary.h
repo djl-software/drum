@@ -81,7 +81,7 @@ public:
     // Capture live effect settings before copying a kit/group/instrument.
     std::function<void()> beforeClone;
     std::function<void()> afterRestore;
-    Result importGroupedInstrument(const juce::String& kitId,const Group& sourceGroup,const Instrument& source);
+    Result importGroupedInstrument(const juce::String& kitId,const Group& sourceGroup,const Instrument& source,bool reuseEmptyGroup=true);
     Result importInstrument(const juce::String& kitId,const juce::String& groupId,const Instrument& source);
     Result addSampleInstrument(const juce::String& kitId, const juce::String& groupId, const juce::String& path);
     Result sliceInstrument(const juce::String& kitId,const juce::String& instrumentId,int regions);

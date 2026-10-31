@@ -29,11 +29,16 @@ void screenshot(juce::Component& editor, const char* name)
 }
 void runManagementTests()
 {
+    struct AlertMode {bool previous=juce::LookAndFeel::getDefaultLookAndFeel().isUsingNativeAlertWindows();AlertMode(){juce::LookAndFeel::getDefaultLookAndFeel().setUsingNativeAlertWindows(false);}~AlertMode(){juce::LookAndFeel::getDefaultLookAndFeel().setUsingNativeAlertWindows(previous);}} alertMode;
     {
         DrumAudioProcessor blank;blank.initialiseLibraryDocuments();check(blank.librariesEmpty(),"Default Kit 1 must not appear as an open library");
         good(blank.rememberLibraryWorkspace());DrumAudioProcessor next(true);good(next.openSharedLibrary());check(next.libraryEditorProcessor()->librariesEmpty(),"Empty Library workspace was not remembered");
         auto& browser=*next.libraryEditorProcessor();auto created=browser.newLibraryDocument();good(created);check(!browser.librariesEmpty() && browser.libraryDocumentDirty(created.id),"New did not open an unsaved library from the empty screen");
         auto group=browser.getLibrary().snapshot().kits[0].groups[0].id;auto sound=browser.getLibrary().addInstrument(created.id,group);good(sound);
+        {
+            DrumAudioProcessorEditor editor(next);click(editor,"library-menu");juce::Component* screen=nullptr;for(auto* child:editor.getChildren())if(child->isVisible() && control(*child,"use-library-sound"))screen=child;check(screen!=nullptr,"Library screen missing for add flow");
+            click(*screen,"use-library-sound");juce::MessageManager::getInstance()->runDispatchLoopUntil(30);auto* prompt=dynamic_cast<juce::AlertWindow*>(juce::Component::getCurrentlyModalComponent());check(prompt && !next.hasOpenKit(),"Add without a kit did not ask New/Load/Close");prompt->exitModalState(0);juce::MessageManager::getInstance()->runDispatchLoopUntil(30);check(!next.hasOpenKit(),"Closing add prompt created a kit");
+        }
         browser.librarySelectedGroup=group;browser.librarySelectedInstrument=sound.id;next.closeSharedLibrary();
         DrumAudioProcessor reopened(true);good(reopened.openSharedLibrary());auto& remembered=*reopened.libraryEditorProcessor();check(remembered.getLibrary().snapshot().activeKit==created.id && remembered.librarySelectedGroup==group && remembered.librarySelectedInstrument==sound.id && remembered.libraryDocumentDirty(created.id),"Remembered tabs, selection or unsaved draft lost");
         juce::MemoryBlock saved;reopened.getStateInformation(saved);good(remembered.closeLibraryDocument(created.id));reopened.closeSharedLibrary();
@@ -224,6 +229,14 @@ void runManagementTests()
         auto* libraryScreen=back->getParentComponent();check(!control(*libraryScreen,"group-name")->isVisible() && !control(*libraryScreen,"copy-group")->isVisible() && !control(*libraryScreen,"delete-group")->isVisible(),"Old Library group controls remain visible");check(dynamic_cast<juce::TextButton*>(control(*libraryScreen,"add-group"))->getButtonText()=="+","Library group add is not a plus");auto countBefore=drum::instrumentCount(track.getLibrary().snapshot().kits[0]);
         click(*libraryScreen,"add-instrument");click(*libraryScreen,"use-library-sound");
         check(drum::instrumentCount(track.getLibrary().snapshot().kits[0])==countBefore+1,"Library screen could not add its instrument to the kit");
+        auto* libraryPads=control(*libraryScreen,"instrument-grid");int librarySide=(libraryPads->getWidth()-36)/4;
+        juce::Point<float> plus{float(librarySide-18),18};auto plusEvent=juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),plus,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,libraryPads,libraryPads,now,plus,now,1,false);
+        libraryPads->mouseDown(plusEvent);libraryPads->mouseUp(plusEvent);check(drum::instrumentCount(track.getLibrary().snapshot().kits[0])==countBefore+2,"Tile plus did not add to the one active kit");
+        check(libraryPads->keyPressed(juce::KeyPress(juce::KeyPress::deleteKey)),"Selected Library instrument did not handle Delete");
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(30);auto* removal=dynamic_cast<juce::AlertWindow*>(juce::Component::getCurrentlyModalComponent());check(removal!=nullptr,"Delete did not request confirmation");removal->exitModalState(0);juce::MessageManager::getInstance()->runDispatchLoopUntil(30);
+        check(track.libraryEditorProcessor()->getLibrary().snapshot().kits[0].groups[0].instruments.size()==1,"Cancelling Delete removed the library sound");
+        auto sample=juce::File::getCurrentWorkingDirectory().getChildFile("library-drop-"+juce::Uuid().toString()+".wav");juce::WavAudioFormat format;std::unique_ptr<juce::AudioFormatWriter> writer(format.createWriterFor(sample.createOutputStream().release(),48000,1,16,{},0));check(writer!=nullptr,"Could not create drop fixture");juce::AudioBuffer<float> silence(1,32);silence.clear();writer->writeFromAudioSampleBuffer(silence,0,32);writer.reset();
+        dynamic_cast<juce::FileDragAndDropTarget*>(libraryPads)->filesDropped({sample.getFullPathName()},librarySide/2,librarySide/2);check(track.libraryEditorProcessor()->getSampleEngine().waitForLoading(10000),"Library drop timed out");juce::MessageManager::getInstance()->runDispatchLoopUntil(40);juce::Timer::callPendingTimersSynchronously();auto dropped=track.libraryEditorProcessor()->getLibrary().snapshot().kits[0].groups[0].instruments;check(dropped.size()==2 && dropped[0].samplePath.isEmpty() && dropped[1].samplePath==sample.getFullPathName(),"Drop over a Library pad replaced it instead of adding");
         screenshot(main,"drum-toolbar-library.png");track.libraryEditorProcessor()->discardLibraryDocuments();back->onClick();
         check(track.getLibrary().snapshot().activeKit==kitId && control(main,"kit-menu")->isVisible(),"Library navigation lost the current kit");
     }

@@ -109,7 +109,8 @@ void runControlTests()
     auto imageFile=juce::File::getCurrentWorkingDirectory().getChildFile("drum-controls.png"); imageFile.deleteFile();
     juce::FileOutputStream imageStream(imageFile); juce::PNGImageFormat().writeImageToStream(editor.createComponentSnapshot(editor.getLocalBounds()),imageStream);
 
-    DrumAudioProcessor dropped; DrumAudioProcessorEditor dropEditor(dropped);
+    // Kit pads retain replacement behaviour; Library drops add new instruments.
+    DrumAudioProcessor dropped(true); dropped.newKit(); DrumAudioProcessorEditor dropEditor(dropped);
     auto* target=dynamic_cast<juce::FileDragAndDropTarget*>(control(dropEditor,"instrument-grid")); check(target!=nullptr,"Grid is not a drop target");
     target->filesDropped({r.file.getFullPathName(),r.file.getFullPathName()},10,150);
     check(dropped.getSampleEngine().waitForLoading(10000),"Bulk drop timed out");

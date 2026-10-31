@@ -99,6 +99,7 @@ public:
     juce::String selected;
     int colour = 0;
     std::function<void(juce::String)> select;
+    std::function<void(juce::String)> context,addToKit,remove;
     std::function<void(const juce::StringArray&,juce::String)> drop;
     bool dragging = false;
     bool isInterestedInFileDrag(const juce::StringArray& files) override { return !files.isEmpty(); }
@@ -145,7 +146,8 @@ public:
             g.drawRoundedRectangle(area.toFloat().reduced(0.7f), 9.0f, chosen ? 1.6f : 1.0f);
             if(moving && n==dragTarget){g.setColour(accent);g.fillRect(area.getX(),area.getY(),area.getWidth(),4);}
             label(g, drum::noteName(i.note), { area.getX()+10, area.getY()+8, 50, 19 }, 12, playing?text:groupColour(colour));
-            label(g, juce::String(i.note), { area.getRight()-40, area.getY()+8, 30, 19 }, 11, playing?text:muted, juce::Justification::centredRight);
+            label(g, juce::String(i.note), { area.getRight()-(addToKit?70:40), area.getY()+8, 30, 19 }, 11, playing?text:muted, juce::Justification::centredRight);
+            if(addToKit){g.setColour(accent);g.setFont(juce::FontOptions(23));g.drawText("+",juce::Rectangle<int>{area.getRight()-32,area.getY()+4,28,28},juce::Justification::centred);}
             g.setColour(text);g.setFont(juce::FontOptions(15.0f));
             g.drawFittedText(i.name,area.reduced(10,0).withTrimmedTop(30).withTrimmedBottom(42),juce::Justification::centred,2);
             juce::String flags=i.controls.mute?"MUTE  ":i.controls.solo?"SOLO  ":"";
@@ -157,14 +159,20 @@ public:
     }
     void mouseDown(const juce::MouseEvent& event) override
     {
-        if(!event.mods.isLeftButtonDown())return;
+        if(!event.mods.isLeftButtonDown() && !event.mods.isPopupMenu())return;
         for(int n=0;n<(int)instruments.size();++n)if(cell(n).contains(event.getPosition()))
         {
+            if(getWantsKeyboardFocus())grabKeyboardFocus();
+            auto clicked=instruments[(size_t)n].id;
+            if(event.mods.isPopupMenu()){if(select)select(clicked);if(context)context(clicked);return;}
+            if(addToKit && juce::Rectangle<int>(cell(n).getRight()-32,cell(n).getY()+4,28,28).contains(event.getPosition())){if(select)select(clicked);addToKit(clicked);return;}
             dragId=instruments[(size_t)n].id;dragStart=event.getPosition();moving=false;dragTarget=n;
             const auto id=instruments[(size_t)n].id;pressedNote=instruments[(size_t)n].note;
             if(select)select(id);if(play)play(pressedNote,true);break;
         }
     }
+    void mouseDoubleClick(const juce::MouseEvent& e) override {if(!context)return;releaseKey();for(int n=0;n<(int)instruments.size();++n)if(cell(n).contains(e.getPosition())){context(instruments[(size_t)n].id);return;}}
+    bool keyPressed(const juce::KeyPress& key) override {if(remove && selected.isNotEmpty() && key.getKeyCode()==juce::KeyPress::deleteKey){remove(selected);return true;}return false;}
     void mouseDrag(const juce::MouseEvent& e) override {
         if(dragId.isEmpty() || e.getPosition().getDistanceFrom(dragStart)<6)return;
         moving=true;releaseKey();dragTarget=-1;
@@ -272,7 +280,7 @@ public:
         setup(openLibrary,"Libraries","open-kit-library");openLibrary.onClick=[this]{showLibrary();};
         setup(saveLibrary,"Save all","save-kit-library");saveLibrary.onClick=[this]{if(processor.saveSharedLibrary){auto result=processor.saveSharedLibrary();status=result.ok?"Shared library saved.":result.message;statusError=!result.ok;repaint();}};
         setup(reloadLibrary,"Reload library","reload-kit-library");reloadLibrary.onClick=[this]{confirm("Reload shared library?","This replaces unsaved library edits with the saved global kits.",[this]{if(processor.reloadSharedLibrary)complete(processor.reloadSharedLibrary());});};
-        setup(useSound,"Add","use-library-sound");useSound.onClick=[this]{if(processor.useLibrarySound && instrument()){auto result=processor.useLibrarySound(view.activeKit,instrumentId);status=result.ok?"Copied "+instrument()->name+" to the kit.":result.message;statusError=!result.ok;if(!result.ok)juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Add instrument",result.message);repaint();}};
+        setup(useSound,"Add","use-library-sound");useSound.onClick=[this]{addLibraryInstrument(instrumentId);};
 
         setup(newLibraryButton,"New library","new-library");newLibraryButton.onClick=[this]{auto result=processor.openSharedLibrary();if(!result.ok){complete(result);return;}auto* target=processor.libraryEditorProcessor();auto added=target->getLibrary().addKit();if(added.ok)target->getLibrary().rename(added.id,"Library "+juce::String((int)target->getLibrary().snapshot().kits.size()));else {complete(added);return;}showLibrary();};
         setup(patternButton,"MIDI","open-patterns");patternButton.onClick=[this]{if(!patternEditor){patternEditor=std::make_unique<DrumPatternEditor>(processor);addChildComponent(*patternEditor);resized();}patternEditor->open();};
@@ -373,7 +381,8 @@ public:
         addAndMakeVisible(groups); groups.setModel(this); groups.setRowHeight(61); groups.setOutlineThickness(0);
         groups.setComponentID("groups"); groups.setName("Instrument groups");
         addAndMakeVisible(viewport); viewport.setViewedComponent(&grid,false); viewport.setScrollBarsShown(true,false);
-        grid.drop=[this](const juce::StringArray& files,juce::String id) { handleDrop(files,id); };
+        grid.drop=[this](const juce::StringArray& files,juce::String id) { handleDrop(files,processor.isMidiTrack()?id:juce::String()); };
+        if(!processor.isMidiTrack()){grid.setWantsKeyboardFocus(true);grid.context=[this](juce::String id){showInstrumentMenu(id);};grid.remove=[this](juce::String id){removeLibraryInstrument(id);};grid.addToKit=[this](juce::String id){addLibraryInstrument(id);};}
         grid.setComponentID("instrument-grid");
         viewport.setScrollBarThickness(8); grid.select = [this](juce::String id) { importStatus=false; instrumentId=id; refresh(); };
         grid.reorder=[this](juce::String id,int position){complete(library.positionInstrument(view.activeKit,id,position));scrollToSelected();};
@@ -446,7 +455,7 @@ public:
         if(auto* i=instrument()) mapping=i->name+"   /   "+drum::noteName(i->note)+"   /   MIDI "+juce::String(i->note);
         label(g,mapping,{keyPanel.getX()+280,keyPanel.getY()+9,keyPanel.getWidth()-298,27},12,muted,juce::Justification::centredRight);
         label(g,status,{24,getHeight()-29,getWidth()-48,22},12,statusError?juce::Colour(0xfff2a3a3):muted);
-        label(g,"Drop samples in empty space to add instruments",{centre.getX()+18,centre.getBottom()-67,centre.getWidth()-36,22},11,muted);
+        label(g,processor.isMidiTrack()?"Drop samples in empty space to add instruments":"Drop samples anywhere to add instruments",{centre.getX()+18,centre.getBottom()-67,centre.getWidth()-36,22},11,muted);
     }
     void resized() override
     {
@@ -529,7 +538,7 @@ public:
     }
     bool isInterestedInFileDrag(const juce::StringArray& files) override { return !files.isEmpty(); }
     void filesDropped(const juce::StringArray& files,int x,int y) override
-    { handleDrop(files,right.contains(x,y)&&instrument()?instrumentId:juce::String()); }
+    { handleDrop(files,processor.isMidiTrack() && right.contains(x,y)&&instrument()?instrumentId:juce::String()); }
 private:
     void chooseDocument(bool save){
         auto kind=processor.isMidiTrack()?juce::String("kit"):juce::String("library");auto extension=processor.isMidiTrack()?".drumkit":".drumlib";
@@ -587,9 +596,51 @@ private:
         processor.getEffects().capture();if(!processor.libraryDocumentsDirty()){if(onBackToKit)onBackToKit();return;}
         juce::Component::SafePointer<Workspace> safe(this);juce::AlertWindow::showAsync(juce::MessageBoxOptions().withTitle("Unsaved libraries").withMessage("Save changes to your libraries before returning to the kit?").withButton("Save all").withButton("Quit without saving").withButton("Cancel").withAssociatedComponent(this),[safe](int result){if(!safe)return;if(result==1)safe->saveLibrariesAndFinish();if(result==2){safe->processor.discardLibraryDocuments();safe->refresh();if(safe->onBackToKit)safe->onBackToKit();}});
     }
+    void removeLibraryInstrument(juce::String id){
+        if(processor.isMidiTrack() || id.isEmpty())return;auto kitId=view.activeKit;auto* sound=drum::findInstrument(kit(),id);if(!sound)return;
+        juce::Component::SafePointer<Workspace> safe(this);juce::AlertWindow::showAsync(juce::MessageBoxOptions().withTitle("Remove instrument?").withMessage("Remove '"+sound->name+"' from this library? The sample file and copies already added to the kit will be kept.").withIconType(juce::MessageBoxIconType::WarningIcon).withButton("Remove").withButton("Cancel").withAssociatedComponent(this),[safe,kitId,id](int result){if(safe && result==1)safe->complete(safe->library.removeInstrument(kitId,id));});
+    }
+    void showInstrumentMenu(juce::String id){
+        auto kitId=view.activeKit;juce::PopupMenu menu;menu.addItem(1,"Duplicate",drum::instrumentCount(kit())<88);menu.addItem(2,"Remove...");menu.addSeparator();menu.addItem(3,"Add to kit");
+        juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&grid),[safe,kitId,id](int action){if(!safe)return;if(action==1){auto result=safe->library.duplicateInstrument(kitId,id);if(result.ok)safe->instrumentId=result.id;safe->complete(result);}if(action==2)safe->removeLibraryInstrument(id);if(action==3)safe->addLibraryInstrument(id);});
+    }
+    void addLibraryInstrument(juce::String id){
+        if(addingToKit || processor.isMidiTrack() || id.isEmpty())return;
+        auto* target=processor.destinationKitProcessor();if(!target){complete(drum::Result::fail("Open Library from a Drum kit instance to add this sound."));return;}
+        addingToKit=true;auto sourceKit=view.activeKit;
+        if(target->hasOpenKit()){chooseKitGroup(sourceKit,id);return;}
+        juce::Component::SafePointer<Workspace> safe(this);juce::AlertWindow::showAsync(juce::MessageBoxOptions().withTitle("No kit open").withMessage("Create a new kit or load a saved kit for this instrument.").withButton("New").withButton("Load").withButton("Close").withAssociatedComponent(this),[safe,sourceKit,id](int choice){
+            if(!safe)return;auto* destination=safe->processor.destinationKitProcessor();
+            if(choice==1){destination->newKit();safe->chooseKitGroup(sourceKit,id);return;}
+            if(choice==2){
+                safe->chooser=std::make_unique<juce::FileChooser>("Load kit",drum::PortableFiles::root().getChildFile("Kits"),"*.drumkit");
+                safe->chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,[safe,sourceKit,id](const juce::FileChooser& dialog){if(!safe)return;if(dialog.getResult()==juce::File()){safe->addingToKit=false;return;}auto result=safe->processor.destinationKitProcessor()->openDocument(dialog.getResult());if(!result.ok){safe->addingToKit=false;safe->complete(result);return;}safe->chooseKitGroup(sourceKit,id);});return;
+            }
+            safe->addingToKit=false;
+        });
+    }
+    void chooseKitGroup(juce::String sourceKit,juce::String id){
+        auto* target=processor.destinationKitProcessor();processor.getEffects().capture();auto source=library.snapshot();const drum::Group* sourceGroup=nullptr;const drum::Instrument* sourceSound=nullptr;
+        for(const auto& collection:source.kits)if(collection.id==sourceKit)for(const auto& group:collection.groups)for(const auto& sound:group.instruments)if(sound.id==id){sourceGroup=&group;sourceSound=&sound;}
+        if(!target || !target->hasOpenKit() || !sourceSound){addingToKit=false;complete(drum::Result::fail("The source instrument or destination kit is no longer open."));return;}
+        auto destination=target->getLibrary().snapshot();auto* active=drum::activeKit(destination);auto destinationId=destination.activeKit;
+        if(drum::instrumentCount(*active)>=88){addingToKit=false;complete(drum::Result::fail("The active kit already has 88 instruments."));return;}
+        auto copy=*sourceSound;auto groupCopy=*sourceGroup;
+        auto transfer=[safe=juce::Component::SafePointer<Workspace>(this),target,destinationId,copy,groupCopy](juce::String groupId,bool create){
+            if(!safe)return;safe->addingToKit=false;
+            if(!target->hasOpenKit() || target->getLibrary().snapshot().activeKit!=destinationId){safe->complete(drum::Result::fail("The active kit changed; add the instrument again."));return;}
+            auto result=create?target->getLibrary().importGroupedInstrument(destinationId,groupCopy,copy,false):target->getLibrary().importInstrument(destinationId,groupId,copy);
+            if(result.ok){target->updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));safe->status="Added "+copy.name+" to the active kit.";safe->statusError=false;safe->repaint();}else safe->complete(result);
+        };
+        for(const auto& group:active->groups)if(group.name==sourceGroup->name){transfer(group.id,false);return;}
+        juce::PopupMenu menu;menu.addSectionHeader("Add to a kit group");int n=1;std::vector<juce::String> ids;
+        for(const auto& group:active->groups){menu.addItem(n++,group.name);ids.push_back(group.id);}
+        menu.addSeparator();menu.addItem(1001,"Create group: "+sourceGroup->name,active->groups.size()<16);menu.addItem(1002,"Close");
+        juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&grid),[safe,transfer,ids](int choice){if(!safe)return;safe->addingToKit=false;if(choice==1001)transfer({},true);else if(choice>0 && choice<=(int)ids.size())transfer(ids[(size_t)choice-1],false);});
+    }
     void handleDrop(const juce::StringArray& files,const juce::String& target)
     {
-        if(processor.librariesEmpty() || !processor.hasOpenKit()){status="Choose New or Load from the Kit or Library menu first.";statusError=true;repaint();return;}
+        if(processor.isMidiTrack() && !processor.hasOpenKit()){status="Choose New or Load from the Kit menu first.";statusError=true;repaint();return;}
         auto fail=[this](juce::String message){status=message; statusError=true; repaint();};
         if(files.isEmpty()) return;
         if(target.isNotEmpty() && files.size()!=1) { fail("Drop one sample on a card, or several in empty space to create instruments."); return; }
@@ -601,6 +652,7 @@ private:
             if(!file.hasFileExtension("wav;aif;aiff;flac;ogg;mp3"))
             { fail("Drag audio samples from Live's Samples browser. For instrument presets, render the sound to WAV first."); return; }
         }
+        if(processor.librariesEmpty()){auto created=processor.newLibraryDocument();complete(created);if(!created.ok)return;}
         for(auto& path:files)
             if(target.isEmpty()) processor.getSampleEngine().requestImport(view.activeKit,groupId,juce::File(path));
             else processor.getSampleEngine().requestLoad(view.activeKit,target,juce::File(path));
@@ -858,6 +910,7 @@ private:
     juce::Label note;
     juce::ComboBox destination,choke;
     std::unique_ptr<DrumPatternEditor> patternEditor;
+    bool addingToKit=false;
     juce::TextButton liveSetupButton,useKitButton,patternButton,newLibraryButton;
     juce::TextButton openLibrary,saveLibrary,reloadLibrary,useSound,newKitButton,openDocumentButton,saveDocumentButton,saveAsButton;
     juce::TextButton kitMenu,libraryMenu;

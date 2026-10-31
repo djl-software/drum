@@ -78,3 +78,11 @@ Use the large **+** beside GROUPS to add a group. The group count is at the bott
 With no libraries open, the page shows no tabs; the old empty Kit 1 placeholder is hidden. Use Library > New or Load to begin. Closing all tabs remains empty on the next opening. Existing libraries containing sounds are kept.
 
 When closing the Library page or plugin editor, Drum remembers the open tabs, active library, selected group/instrument and unsaved drafts in the local Library workspace settings. This does not save or overwrite `.drumlib` files; their Save/Save As and unsaved markers still apply. Choose Quit without saving to discard drafts before leaving. A restored Live Set uses its own saved workspace instead of the more recent global preferences.
+
+## Library instrument shortcuts (0.16.14)
+
+Drop audio samples anywhere on the main Library page to add instruments to its selected group, including over existing tiles or the instrument panel. Existing sounds are kept. If no library is open, a valid audio drop creates an unsaved library first. Edit Sound retains its sample-editing drop behaviour.
+
+Click a tile to select it and audition. With the tile grid focused, Delete asks before removing the selected instrument. Double-click or right-click a tile for Duplicate, Remove or Add to kit. Remove asks for confirmation and leaves the sample file and kit copies intact. The **+** in each tile's corner also adds that sound to the kit.
+
+If no kit is open, choose New, Load or Close; Close cancels the add. New/Load creates or opens the single active kit in this Drum instance. A matching group name receives the copy directly; otherwise choose an existing kit group or Create group using the source group's name. Cancelling either chooser adds nothing. Library settings and effects are copied independently, with the existing 88-instrument and 16-group limits.

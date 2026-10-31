@@ -36,6 +36,7 @@ public:
     juce::String librarySelectedGroup,librarySelectedInstrument;
 
     DrumAudioProcessor* libraryEditorProcessor() const{return libraryPreview.get();}
+    DrumAudioProcessor* destinationKitProcessor() const{return libraryOwner;}
     drum::Result openSharedLibrary();
     bool sharedLibraryDirty() const{return libraryPreview && sharedStore.hasChanges(libraryPreview->getLibrary());}
     void closeSharedLibrary(){previewActive.store(false);if(libraryPreview){libraryPreview->getSampleEngine().pauseAudition();libraryPreview->effects.hideEditors();if(libraryLoaded){libraryPreview->effects.capture();libraryPreview->rememberLibraryWorkspace();}}}
@@ -90,6 +91,7 @@ private:
     juce::MidiBuffer patternMidi;
     drum::GlobalKitStore sharedStore;
     std::unique_ptr<DrumAudioProcessor> libraryPreview;
+    DrumAudioProcessor* libraryOwner=nullptr;
     std::atomic<bool> previewActive{false};
     juce::AudioBuffer<float> previewBuffer;
     juce::MidiBuffer previewMidi;

@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.14 adds Library instrument context menus, confirmed Delete-key removal, tile **+** buttons, and guided copying into the single active kit. Sample drops across the Library page add sounds instead of replacing existing pads.
+
 Version 0.16.13 starts the Library browser with no tabs when nothing is open, and remembers open libraries, active library/group/instrument and unsaved drafts between openings. Saved Live Set workspaces take priority over recent preferences.
 
 Version 0.16.12 makes the main screen's **Library** button open the Library page directly, without a dropdown arrow.

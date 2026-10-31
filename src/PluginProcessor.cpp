@@ -13,6 +13,7 @@ DrumAudioProcessor::DrumAudioProcessor(bool track)
     if(trackInstance){
         auto state=library.snapshot();library.rename(state.activeKit,"No kit open");library.rename(state.kits[0].groups[0].id,"Sounds");
         libraryPreview=std::make_unique<DrumAudioProcessor>(false);
+        libraryPreview->libraryOwner=this;
         libraryPreview->useLibrarySound=[this](const juce::String& kitId,const juce::String& instrumentId){
             if(!kitOpened.load())return drum::Result::fail("No kit is open. Choose New kit or Open kit in Drum, then Add again.");libraryPreview->effects.capture();auto source=libraryPreview->library.snapshot();const drum::Kit* kit=nullptr;for(const auto& candidate:source.kits)if(candidate.id==kitId)kit=&candidate;
             auto* sound=kit?drum::findInstrument(*kit,instrumentId):nullptr;if(!sound)return drum::Result::fail("Select a library sound first.");auto target=library.snapshot();const drum::Group* sourceGroup=nullptr;for(const auto& group:kit->groups)for(const auto& candidate:group.instruments)if(candidate.id==instrumentId)sourceGroup=&group;auto result=library.importGroupedInstrument(target.activeKit,*sourceGroup,*sound);if(result.ok)triggerAsyncUpdate();return result;
