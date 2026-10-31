@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.19 expands the Sample waveform, replaces separate Start/End sliders with on-waveform flags, and arranges Sample controls four per row.
+
 Version 0.16.18 removes Auto Tune and displays the highest-power spectrum note as the estimated key, including on instrument tiles. Manual coarse/fine tuning remains.
 
 Version 0.16.17 moves the renamed Tune tab after Filter, restores tuning for pitched drum sweeps, ignores silent padding in analysis, and adds an audio-driven waveform playhead with distinct waveform/spectrum colours.

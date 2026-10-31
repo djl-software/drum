@@ -239,3 +239,9 @@ Amber waveforms and blue/violet note spectra are visually distinct from the mint
 ### Spectrum key estimates (0.16.18)
 
 Auto Tune and its target selector have been removed. Use Coarse and Fine to tune manually. The displayed key is now the highest-power C–B spectrum column, rather than the pitch detector or major/minor classifier. Instrument tiles also show this spectral estimate, including noisy or varying hits, labelled “(est.)”. Tile estimates use source analysis shifted by manual tuning; the Tune page uses the edited preview. Silence has no measurable key and displays “No signal”. A dominant note alone does not establish major/minor or a Camelot code. Legacy manual key labels remain in saved data but no longer override the display.
+
+### Sample layout (0.16.19)
+
+Sample opens in Source view for trimming. Drag the blue Start/End vertical markers and flags on the waveform; their percentage positions are displayed beside them. Separate Start/End slider boxes are hidden. Reverse still measures positions from the reversed beginning. Choose Edited to preview processing, or switch to another edit tab.
+
+The remaining Sample controls are arranged four per row, including slicing. The waveform fills the height remaining above those controls; compact windows keep the controls scrollable.

@@ -64,8 +64,9 @@ struct SoundEditor::Field final : juce::Component
         if(key=="keyOverride")return "Key label";if(key=="mono")return "Channels";
         return parameter.label;
     }
-    void paint(juce::Graphics& g) override { text(g,label(),{0,0,114,getHeight()},11,muted); }
-    void resized() override { slider.setBounds(118,1,getWidth()-118,26); combo.setBounds(118,1,getWidth()-118,26); }
+    void paint(juce::Graphics& g) override { text(g,label(),{0,0,labelWidth(),getHeight()},11,muted); }
+    int labelWidth() const {return parameter.page==0?juce::jlimit(50,90,getWidth()/3):114;}
+    void resized() override {const int x=labelWidth()+4;if(parameter.page==0)slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,juce::jmin(78,getWidth()-x),26);slider.setBounds(x,1,getWidth()-x,26);combo.setBounds(x,1,getWidth()-x,26); }
     void update(double v,bool newSelection)
     {
         if(newSelection) slider.hideTextBox(true);
@@ -172,6 +173,7 @@ public:
     bool reversed() const {return sourceMode() && owner.sound.reverse!=0;}
     double trimStart() const {return markerValue(owner.sound,&drum::SoundParameters::start);}
     double trimEnd() const {return markerValue(owner.sound,&drum::SoundParameters::end);}
+    void showSource(){view.setSelectedId(1,juce::sendNotificationSync);}
     void showEdited() {if(view.getSelectedId()!=2)view.setSelectedId(2,juce::sendNotificationSync);}
     int send() const {return view.getSelectedId()-3;}
     void setSample(std::shared_ptr<const drum::Sample> value,bool reset)
@@ -267,11 +269,13 @@ public:
         }
         if(sourceMode())
         {
-            g.setColour(mint);
+            g.setColour(juce::Colour(0xff70c9ff));
             g.drawVerticalLine((int)x(trimStart()),(float)area.getY(),(float)area.getBottom());
             g.drawVerticalLine((int)x(trimEnd())-1,(float)area.getY(),(float)area.getBottom());
-            text(g,"START",{(int)x(trimStart())+4,area.getY()+17,48,16},10,mint);
-            text(g,"END",{(int)x(trimEnd())-30,area.getY()+17,28,16},10,mint);
+            const float left=x(trimStart()),right=x(trimEnd())-1,top=(float)area.getY();
+            juce::Path handles;handles.addTriangle(left,top,left+12,top,left,top+14);handles.addTriangle(right,top,right-12,top,right,top+14);g.fillPath(handles);
+            text(g,"START "+juce::String(trimStart()*100,2)+"%",{(int)left+5,area.getY()+18,100,18},11,juce::Colour(0xff70c9ff));
+            text(g,"END "+juce::String(trimEnd()*100,2)+"%",{(int)right-100,area.getY()+18,98,18},11,juce::Colour(0xff70c9ff));
         }
         if(source){const auto head=owner.processor.getSampleEngine().playbackPosition(owner.note);
             if(head.active){const double position=sourceMode()?(reversed()?1-head.source:head.source):head.seconds/(source->audio.getNumSamples()/source->rate);
@@ -773,13 +777,14 @@ void SoundEditor::changeKeyTuning()
 }
 void SoundEditor::setPage(int value)
 {
+    if(value==0)waveform->showSource();else if(page==0)waveform->showEdited();
     page=value; viewport.setViewPosition(0,0);
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)n].setToggleState(n==page,juce::dontSendNotification);
     for(auto& field:fields)
     {
         bool numeric=false;for(auto& members:envelopeMembers)for(auto m:members)numeric|=field->parameter.member==m;
         const bool amount=field->parameter.member==&drum::SoundParameters::pitchAmount || field->parameter.member==&drum::SoundParameters::filterAmount;
-        field->setVisible(field->parameter.page==page && (!numeric || adsrValues.getToggleState()) && !amount && (page!=2 || filterEnvelopePage));
+        field->setVisible(field->parameter.page==page && field->parameter.member!=&drum::SoundParameters::start && field->parameter.member!=&drum::SoundParameters::end && (!numeric || adsrValues.getToggleState()) && !amount && (page!=2 || filterEnvelopePage));
     }
     for(auto& field:macroFields) field->setVisible(page==5);
     for(int n=0;n<3;++n)envelopes[(size_t)n]->setVisible(n==2?page==2 && filterEnvelopePage:page==1);
@@ -819,9 +824,9 @@ void SoundEditor::resized()
     const int graphHeight=page==1 || page==2?180:0;
     const int graphWidth=getWidth()-36;
     const int waveTop=150;
-    const int reserved=page==8?340:page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:page==7?310:160;
+    const int reserved=page==8?340:page==1?82:page==2?!filterEnvelopePage?12:116:page==0?148:page==7?310:160;
     const int minimumWaveHeight=page==7?160:184;
-    const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),waveformHeight);
+    const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),page==0?getHeight():waveformHeight);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
     const int graphTop=waveTop+12+height;
@@ -834,12 +839,12 @@ void SoundEditor::resized()
     if(page==8){int keyBottom=getHeight()-38;int spectrumHeight=juce::jmax(110,keyBottom-controlsTop-102);keySpectrum->setBounds(18,controlsTop,graphWidth,spectrumHeight);int row=controlsTop+spectrumHeight+6;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,30);}
     chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
-    const int width=juce::jmax(1,viewport.getWidth()-12),columns=width>=1000?3:2,gap=16,cell=(width-gap*(columns-1))/columns;
+    const int width=juce::jmax(1,viewport.getWidth()-12),columns=page==0?4:width>=1000?3:2,gap=16,cell=(width-gap*(columns-1))/columns;
     int top=6;
     int n=0; for(auto& field:fields) if(field->isVisible())
     {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28); ++n;}
     int bottom=top+((n+columns-1)/columns)*34+6;
-    if(page==0) {sliceCount.setBounds(0,bottom,160,28);slice.setBounds(172,bottom,180,28);bottom+=40;}
+    if(page==0) {sliceCount.setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28);++n;slice.setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28);++n;bottom=top+((n+columns-1)/columns)*34+6;}
     if(page==5)
     {
         const int cellWidth=(width-30)/2;

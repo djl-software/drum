@@ -46,7 +46,7 @@ void settle(juce::Component& root)
     while(juce::Time::getMillisecondCounterHiRes()-start<10000)
     {
         juce::Thread::sleep(10);juce::Timer::callPendingTimersSynchronously();
-        if(juce::Time::getMillisecondCounterHiRes()-start>200 && control<juce::Label>(root,"waveform-status").getText().startsWith("One hit"))return;
+        if(juce::Time::getMillisecondCounterHiRes()-start>200 && (control<juce::Label>(root,"waveform-status").getText().startsWith("One hit") || control<juce::Label>(root,"waveform-status").getText().startsWith("Source")))return;
     }
     throw std::runtime_error("Envelope preview timed out");
 }
@@ -147,7 +147,12 @@ void runEnvelopeTests()
     auto file=juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav");
     p.getSampleEngine().requestLoad(kit,id,file);check(p.getSampleEngine().waitForLoading(10000),"Envelope sample load timed out");
     check(p.getSampleEngine().statusFor(id).ready,"Envelope fixture unavailable");check(p.getSampleEngine().waveformFor(id)->tonal.complete,"Imported sample was not analysed");p.getSampleEngine().prepare(48000);
-    DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");click(editor,"edit-tab-1");settle(editor);
+    DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");
+    check(!control<juce::Slider>(editor,"edit-start").isShowing() && !control<juce::Slider>(editor,"edit-end").isShowing(),"Separate trim sliders still visible");
+    check(control<juce::Component>(editor,"sample-waveform").getHeight()>340,"Sample waveform did not expand");
+    auto sampleField=[&](const char* id){return find(editor,id)->getParentComponent()->getBounds();};
+    check(sampleField("edit-sampleGain").getY()==sampleField("edit-normalise").getY() && sampleField("edit-normalise").getX()>sampleField("edit-reverse").getX() && sampleField("edit-snap").getY()>sampleField("edit-normalise").getY(),"Sample controls not four per row");
+    capture(editor,"drum-sample-layout.png");click(editor,"edit-tab-1");settle(editor);
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
     auto& soundEditor=control<SoundEditor>(editor,"sound-editor");
     click(editor,"edit-tab-8");check(control<juce::TextButton>(editor,"edit-tab-8").getButtonText()=="Tune","Tune tab name incorrect");check(control<juce::TextButton>(editor,"edit-tab-8").getX()>control<juce::TextButton>(editor,"edit-tab-2").getX() && control<juce::TextButton>(editor,"edit-tab-8").getX()<control<juce::TextButton>(editor,"edit-tab-3").getX(),"Tune tab order incorrect");check(control<juce::Component>(editor,"key-spectrum").isVisible(),"Key spectrum not visible on Key tab");

@@ -129,18 +129,18 @@ void runPreviewTests()
     controls={};controls.sound.mode=2;check(library.setControls(kit,id,controls).ok,"UI preview controls failed");check(engine.waitForLoading(10000),"UI preview bank timed out");
     for(int n=0;n<drum::numMacros;++n)processor.macro(n).setValueNotifyingHost(0.5f);
     engine.prepare(48000);
-    DrumAudioProcessorEditor editor(processor);editor.setSize(1280,900);click(editor,"open-sound-editor");settle(editor);
+    DrumAudioProcessorEditor editor(processor);editor.setSize(1280,900);click(editor,"open-sound-editor");control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);settle(editor);
     auto initial=pixels(editor);
     auto& wave=control<juce::Component>(editor,"sample-waveform");auto bounds=wave.getBoundsInParent();
     const auto initialStatus=control<juce::Label>(editor,"waveform-status").getText();
     for(int page=0;page<7;++page)
     {
-        click(editor,"edit-tab-"+juce::String(page));
+        click(editor,"edit-tab-"+juce::String(page));control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);settle(editor);
         check(wave.isVisible() && wave.getHeight()>=184,"Waveform disappeared between tabs");
         check(control<juce::Label>(editor,"waveform-status").getText()==initialStatus,"Tab switch changed preview signal");
         capture(editor,"drum-preview-tab-"+juce::String(page)+".png");
     }
-    click(editor,"edit-tab-0");initial=pixels(editor);control<juce::ComboBox>(editor,"edit-mono").setSelectedId(2,juce::sendNotificationSync);settle(editor);
+    click(editor,"edit-tab-0");control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);initial=pixels(editor);control<juce::ComboBox>(editor,"edit-mono").setSelectedId(2,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Mono playback did not update waveform");capture(editor,"drum-source-channels.png");
     control<juce::ComboBox>(editor,"edit-mono").setSelectedId(1,juce::sendNotificationSync);settle(editor);
     click(editor,"edit-tab-6");initial=pixels(editor);control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(2,juce::sendNotificationSync);
@@ -188,6 +188,7 @@ void runPreviewTests()
     check(fitted>3,"Fit Y did not enlarge a quiet preview");
     capture(editor,"drum-waveform-quiet-fit.png");
     for(int tab=0;tab<7;++tab) {click(editor,"edit-tab-"+juce::String(tab));check(vertical.getSelectedId()==fitted,"Tab change reset vertical zoom");}
+    settle(editor);
     auto& channels=control<juce::ComboBox>(editor,"waveform-channels");
     channels.setSelectedId(3,juce::sendNotificationSync);auto leftView=pixels(editor);
     channels.setSelectedId(4,juce::sendNotificationSync);check(pixels(editor)!=leftView,"Right channel view matches the different left signal");

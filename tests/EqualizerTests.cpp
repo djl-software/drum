@@ -68,7 +68,7 @@ void runEqualizerTests()
     auto wet=drum::SampleEngine::renderPreview(source,current(),{},120,48000);check(wet.sample && dry.sample && std::abs(wet.sample->peak-dry.sample->peak)>0.01,"EQ does not affect edited waveform DSP");
     for(int n=0;n<40;++n){juce::Thread::sleep(10);juce::Timer::callPendingTimersSynchronously();}
     capture(editor,"drum-eight-band-eq.png");editor.setSize(800,600);capture(editor,"drum-eight-band-eq-compact.png");editor.setSize(1280,900);
-    click(editor,"edit-tab-0");auto& sampleGain=control<juce::Slider>(editor,"edit-sampleGain");sampleGain.setValue(24,juce::sendNotificationSync);
+    click(editor,"edit-tab-0");control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);auto& sampleGain=control<juce::Slider>(editor,"edit-sampleGain");sampleGain.setValue(24,juce::sendNotificationSync);
     auto settle=[&] {for(int n=0;n<1000;++n){juce::Thread::sleep(10);juce::Timer::callPendingTimersSynchronously();if(n>20 && control<juce::Label>(editor,"waveform-status").getText().startsWith("One hit"))return;}throw std::runtime_error("Clipping preview timed out");};
     settle();
     check(sampleGain.findColour(juce::Slider::textBoxBackgroundColourId)==juce::Colour(0xff8f2638),"High sample gain does not warn red");capture(editor,"drum-sample-clipping.png");
