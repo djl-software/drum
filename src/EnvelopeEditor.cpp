@@ -72,7 +72,7 @@ EnvelopeEditor::EnvelopeEditor(juce::String id,juce::String heading,juce::Colour
     depth.onDragStart=[this]{if(onBeginGesture)onBeginGesture();};depth.onDragEnd=[this]{if(onEndGesture)onEndGesture();};
 }
 EnvelopeEditor::~EnvelopeEditor()=default;
-juce::Rectangle<float> EnvelopeEditor::plot() const {return {35,64,std::max(1.0f,(float)getWidth()-55),std::max(1.0f,(float)getHeight()-104)};}
+juce::Rectangle<float> EnvelopeEditor::plot() const {return {35,getHeight()<160?60.0f:64.0f,std::max(1.0f,(float)getWidth()-55),std::max(1.0f,(float)getHeight()-(getHeight()<160?80:104))};}
 juce::Point<float> EnvelopeEditor::position(const drum::EnvelopePoint& p) const
 {const auto a=plot();return {a.getX()+(float)((p.ms-offset)/span)*a.getWidth(),amount<0?a.getY()+(float)p.level*a.getHeight():a.getBottom()-(float)p.level*a.getHeight()};}
 double EnvelopeEditor::timeAt(float x) const {return offset+(x-plot().getX())/plot().getWidth()*span;}
@@ -118,7 +118,7 @@ void EnvelopeEditor::resized()
     zoomOut.setBounds(getWidth()-106,7,25,22);zoomIn.setBounds(getWidth()-78,7,25,22);fitButton.setBounds(getWidth()-50,7,40,22);
     adsr.setBounds(getWidth()-155,7,44,22);activate.setBounds(105,7,110,22);
     depth.setBounds(92,7,std::max(70,getWidth()-253),22);
-    reset.setBounds(10,32,44,20);undo.setBounds(58,32,44,20);redo.setBounds(106,32,44,20);layoutHandles();
+    const int toolbarY=getHeight()<160?29:32,toolbarH=getHeight()<160?19:20;reset.setBounds(10,toolbarY,44,toolbarH);undo.setBounds(58,toolbarY,44,toolbarH);redo.setBounds(106,toolbarY,44,toolbarH);layoutHandles();
 }
 void EnvelopeEditor::layoutHandles()
 {
@@ -139,9 +139,9 @@ void EnvelopeEditor::paint(juce::Graphics& g)
     label(g,status,{158,32,getWidth()-168,18},10,active?colour:muted);
     if(shape.count<2)return;
     const auto a=plot();const auto c=active?colour:muted;
-    for(int n=0;n<5;++n){const float x=a.getX()+a.getWidth()*n/4;g.setColour(grid);g.drawVerticalLine((int)x,a.getY(),a.getBottom());label(g,timeText(offset+span*n/4),{(int)x-(n==4?53:0),(int)a.getBottom()+9,58,15},9,muted);}
+    for(int n=0;n<5;++n){const float x=a.getX()+a.getWidth()*n/4;g.setColour(grid);g.drawVerticalLine((int)x,a.getY(),a.getBottom());label(g,timeText(offset+span*n/4),{(int)x-(n==4?53:0),(int)a.getBottom()+(getHeight()<160?2:9),58,15},9,muted);}
     g.setColour(grid);g.drawHorizontalLine((int)a.getY(),a.getX(),a.getRight());g.drawHorizontalLine((int)a.getBottom(),a.getX(),a.getRight());
-    label(g,amount<0?"0":unit=="%" || amount==0?"100%":juce::String(amount,1),{2,57,32,15},9,muted);
+    label(g,amount<0?"0":unit=="%" || amount==0?"100%":juce::String(amount,1),{2,(int)a.getY()-7,32,15},9,muted);
     label(g,amount<0?juce::String(amount,1):"0",{2,(int)a.getBottom()-7,32,15},9,muted);
     {
         juce::Graphics::ScopedSaveState save(g);g.reduceClipRegion(a.expanded(1).toNearestInt());juce::Path path;
@@ -162,7 +162,7 @@ void EnvelopeEditor::paint(juce::Graphics& g)
         if(bending && line>0){const auto& p=shape.points[(size_t)line];const auto& prev=shape.points[(size_t)line-1];const auto grip=position({prev.ms+(p.ms-prev.ms)*p.pivot,drum::envelopeSegment(prev.level,p,p.pivot)});g.setColour(ink);g.drawEllipse(grip.x-4,grip.y-4,8,8,1);}
     }
     for(int n=0;n<shape.count;++n)if(handles[(size_t)n]->isVisible()){g.setColour(c.withAlpha(0.5f));g.drawLine({position(shape.points[(size_t)n]),handles[(size_t)n]->getBounds().getCentre().toFloat()});}
-    label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click line: add / drag line: curve / double-click point: remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
+    if(getHeight()>=160)label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click line: add / drag line: curve / double-click point: remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
 }
 void EnvelopeEditor::submit(drum::EnvelopeShape value,bool audibleEdit)
 {for(int n=0;n<value.count;++n)value.points[(size_t)n].ms=std::min(value.points[(size_t)n].ms,limit);if(editable() && drum::validEnvelope(value) && onShape)onShape(value,audibleEdit);}

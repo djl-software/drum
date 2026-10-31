@@ -152,7 +152,7 @@ void runEnvelopeTests()
     check(control<juce::Component>(editor,"sample-waveform").getHeight()>340,"Sample waveform did not expand");
     auto sampleField=[&](const char* id){return find(editor,id)->getParentComponent()->getBounds();};
     check(sampleField("edit-sampleGain").getY()==sampleField("edit-normalise").getY() && sampleField("edit-normalise").getX()>sampleField("edit-reverse").getX() && sampleField("edit-snap").getY()>sampleField("edit-normalise").getY(),"Sample controls not four per row");
-    capture(editor,"drum-sample-layout.png");click(editor,"edit-tab-1");settle(editor);
+    const int sampleWaveHeight=control<juce::Component>(editor,"sample-waveform").getHeight();capture(editor,"drum-sample-layout.png");click(editor,"edit-tab-1");settle(editor);check(control<juce::Component>(editor,"sample-waveform").getHeight()==sampleWaveHeight,"Envelope waveform does not match Sample");
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
     auto& soundEditor=control<SoundEditor>(editor,"sound-editor");
     click(editor,"edit-tab-8");check(control<juce::TextButton>(editor,"edit-tab-8").getButtonText()=="Tune","Tune tab name incorrect");check(control<juce::TextButton>(editor,"edit-tab-8").getX()>control<juce::TextButton>(editor,"edit-tab-2").getX() && control<juce::TextButton>(editor,"edit-tab-8").getX()<control<juce::TextButton>(editor,"edit-tab-3").getX(),"Tune tab order incorrect");check(control<juce::Component>(editor,"key-spectrum").isVisible(),"Key spectrum not visible on Key tab");
@@ -173,8 +173,8 @@ void runEnvelopeTests()
     auto onLine=[&](EnvelopeEditor& graph,const drum::EnvelopeShape& shape,int segment,double fraction)
     {
         const auto a=shape.points[segment-1],b=shape.points[segment];const double ms=a.ms+(b.ms-a.ms)*fraction;
-        return juce::Point<float>{35+(float)(ms/(shape.points[shape.count-1].ms*1.1))*(graph.getWidth()-55),
-            (float)(graph.getHeight()-40)-(float)drum::envelopeSegment(a.level,b,fraction)*(graph.getHeight()-104)};
+        const auto plot=graph.getPlotBounds();return juce::Point<float>{plot.getX()+(float)(ms/(shape.points[shape.count-1].ms*1.1))*plot.getWidth(),
+            plot.getBottom()-(float)drum::envelopeSegment(a.level,b,fraction)*plot.getHeight()};
     };
     auto line=onLine(pitch,drum::adsrShape(80,200,0.2,100),2,0.5);
     check(editor.getComponentAt(editor.getLocalPoint(&pitch,line.roundToInt()))==&pitch,"Envelope line is intercepted by another component");

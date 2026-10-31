@@ -245,3 +245,7 @@ Auto Tune and its target selector have been removed. Use Coarse and Fine to tune
 Sample opens in Source view for trimming. Drag the blue Start/End vertical markers and flags on the waveform; their percentage positions are displayed beside them. Separate Start/End slider boxes are hidden. Reverse still measures positions from the reversed beginning. Choose Edited to preview processing, or switch to another edit tab.
 
 The remaining Sample controls are arranged four per row, including slicing. The waveform fills the height remaining above those controls; compact windows keep the controls scrollable.
+
+### Envelopes & pitch layout (0.16.20)
+
+The waveform matches Sample's tall waveform. Amplitude and pitch graphs sit side by side below it, with compact toolbars. Five remaining controls share one narrow row beneath the graphs. Optional ADSR numeric controls scroll within that row instead of reducing graph height. This layout prioritises waveform height; the envelope graphs are correspondingly smaller.

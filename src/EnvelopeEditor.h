@@ -15,6 +15,7 @@ public:
     std::function<void(const drum::EnvelopeShape&,bool)> onShape;
     std::function<void()> onActivate,onReset,onUseAdsr,onUndo,onRedo,onBeginGesture,onEndGesture;
     std::function<void(double)> onAmount;
+    juce::Rectangle<float> getPlotBounds() const {return plot();}
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;

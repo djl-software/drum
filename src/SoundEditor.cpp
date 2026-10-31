@@ -65,8 +65,8 @@ struct SoundEditor::Field final : juce::Component
         return parameter.label;
     }
     void paint(juce::Graphics& g) override { text(g,label(),{0,0,labelWidth(),getHeight()},11,muted); }
-    int labelWidth() const {return parameter.page==0?juce::jlimit(50,90,getWidth()/3):114;}
-    void resized() override {const int x=labelWidth()+4;if(parameter.page==0)slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,juce::jmin(78,getWidth()-x),26);slider.setBounds(x,1,getWidth()-x,26);combo.setBounds(x,1,getWidth()-x,26); }
+    int labelWidth() const {return parameter.page<=1?juce::jlimit(46,90,getWidth()/3):114;}
+    void resized() override {const int x=labelWidth()+4;if(parameter.page<=1)slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,juce::jmin(78,getWidth()-x),26);slider.setBounds(x,1,getWidth()-x,26);combo.setBounds(x,1,getWidth()-x,26); }
     void update(double v,bool newSelection)
     {
         if(newSelection) slider.hideTextBox(true);
@@ -821,15 +821,16 @@ void SoundEditor::resized()
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)order[n]].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
     adsrValues.setBounds(getWidth()-146,116,128,24);
     eqTab.setBounds(getWidth()-446,116,126,24);filterTab.setBounds(getWidth()-312,116,154,24);
-    const int graphHeight=page==1 || page==2?180:0;
+    int graphHeight=page==2?180:0;
     const int graphWidth=getWidth()-36;
     const int waveTop=150;
-    const int reserved=page==8?340:page==1?82:page==2?!filterEnvelopePage?12:116:page==0?148:page==7?310:160;
+    const int reserved=page==8?340:page==2?!filterEnvelopePage?12:116:(page==0 || page==1)?148:page==7?310:160;
     const int minimumWaveHeight=page==7?160:184;
-    const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),page==0?getHeight():waveformHeight);
+    const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),(page==0 || page==1)?getHeight():waveformHeight);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
     const int graphTop=waveTop+12+height;
+    if(page==1)graphHeight=juce::jmax(68,getHeight()-37-graphTop-32-8);
     if(page==1)
     {
         const int half=(graphWidth-12)/2;envelopes[0]->setBounds(18,graphTop,half,graphHeight);envelopes[1]->setBounds(30+half,graphTop,graphWidth-half-12,graphHeight);
@@ -839,11 +840,12 @@ void SoundEditor::resized()
     if(page==8){int keyBottom=getHeight()-38;int spectrumHeight=juce::jmax(110,keyBottom-controlsTop-102);keySpectrum->setBounds(18,controlsTop,graphWidth,spectrumHeight);int row=controlsTop+spectrumHeight+6;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,30);}
     chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
-    const int width=juce::jmax(1,viewport.getWidth()-12),columns=page==0?4:width>=1000?3:2,gap=16,cell=(width-gap*(columns-1))/columns;
-    int top=6;
+    const int width=juce::jmax(1,viewport.getWidth()-12),columns=page==0?4:page==1?5:width>=1000?3:2,gap=page==1?10:16,cell=(width-gap*(columns-1))/columns;
+    const int rowHeight=page==1?28:34;
+    int top=page==1?2:6;
     int n=0; for(auto& field:fields) if(field->isVisible())
-    {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28); ++n;}
-    int bottom=top+((n+columns-1)/columns)*34+6;
+    {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*rowHeight,cell,28); ++n;}
+    int bottom=top+((n+columns-1)/columns)*rowHeight+(page==1?2:6);
     if(page==0) {sliceCount.setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28);++n;slice.setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28);++n;bottom=top+((n+columns-1)/columns)*34+6;}
     if(page==5)
     {
