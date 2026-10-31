@@ -28,7 +28,7 @@ The configured main location on this PC is:
 
 Save operations collect the sample audio and write relative paths. Move or back up the **whole Drum folder**, including Samples. Saving to another location uses a Samples folder beside the document's containing folder; keep the same Libraries/Kits/Samples arrangement. Missing samples prevent a portable save without replacing the previous document.
 
-DAW project state also saves the open kit. It does not automatically collect files: use Save kit first for a portable copy. Open library tabs, file associations and unsaved drafts are retained in the instance state. Closing the plugin window does not silently save library files. Use Done to choose whether to save or discard edits.
+DAW project state also saves the open kit. It does not automatically collect files: use Save kit first for a portable copy. Open library tabs, file associations and unsaved drafts are retained in the instance state. Closing the plugin window does not silently save library files. Use Close to choose whether to save or discard edits.
 
 Third-party VST3 modules, licences and any external files managed internally by those effects are not bundled. Install those plugins separately on another PC. Built-in effects use the same saved format across platforms. A future tablet version will not host external VST3 effects; portable storage does not make a VST3 chain executable there.
 
@@ -53,7 +53,7 @@ The editor and saved format are shared by VST3 and desktop standalone builds. MP
 
 ## Toolbar and screen navigation (0.16.8)
 
-The kit screen starts with **Update**, **Kit** and **Library**. Update refreshes the current kit's Live connection. Kit opens a conventional dropdown with New, Load, Save and Save as. Library opens the library screen or runs its New/Load/Save actions. Library takes the place of the kit screen within the same Drum window, using the same group, pad, editing and keyboard layout. **Done**, immediately right of Library, returns to the kit. If any libraries have unsaved changes, choose Save all, Quit without saving, or Cancel. Save all asks for filenames where needed; cancelling or a save error keeps the Library screen open.
+The kit screen starts with **Update**, **Kit** and **Library**. Update refreshes the current kit's Live connection. Kit opens a conventional dropdown with New, Load, Save and Save as. Library opens the library screen or runs its New/Load/Save actions. Library takes the place of the kit screen within the same Drum window, using the same group, pad, editing and keyboard layout. **Close**, immediately right of Library, returns to the kit. If any libraries have unsaved changes, choose Save all, Quit without saving, or Cancel. Save all asks for filenames where needed; cancelling or a save error keeps the Library screen open.
 
 Drag a pad onto another pad in the current group to move it to that position. The intervening pads shift and MIDI keys are reassigned contiguously. The marker above the target pad shows the drop position. For another group, use the existing destination-group control. Instrument settings, effects and internal MIDI identities stay with the moved pad. External clip remapping still requires the Live companion and its enabled Setup option.
 
@@ -63,8 +63,12 @@ The MIDI toolbar button is temporarily hidden. Stored MIDI clips and the editor 
 
 ## Library tabs (0.16.10)
 
-The brighter Libraries heading identifies the screen. Tabs occupy the row below Library and Done, replacing the editable library-name field. Each tab reserves space for the complete filename and an unsaved marker; the row scrolls horizontally when needed. Up to eight libraries can be open.
+The brighter Libraries heading identifies the screen. Tabs occupy the row below Library and Close, replacing the editable library-name field. Each tab reserves space for the complete filename and an unsaved marker; the row scrolls horizontally when needed. Up to eight libraries can be open.
 
 Right-click a tab for **Save**, **Save as**, **Duplicate** or **Close**. Save is disabled when there are no changes. Save as writes a new filename and updates the same tab, leaving the old file intact. Duplicate immediately opens a separate unsaved copy. Close removes only the open tab, never the file; unsaved changes offer Save, Close without saving or Cancel. There is no Remove action. Closing the final tab leaves an empty screen with New/Load available.
 
 Quit without saving restores saved libraries and closes new unsaved copies. Reopening a library already open from the same path selects its tab; a conflicting unsaved version must be saved or closed first. Save your Live Set to retain the open tabs and their drafts across restarts.
+
+## Library Groups panel (0.16.11)
+
+Use the large **+** beside GROUPS to add a group. The group count is at the bottom of the panel. Click a group row to select it; click its dropdown arrow (or right-click the row) for Rename, Duplicate or Delete. Rename opens a name field; Duplicate selects the new copy. Delete requires confirmation because the group and its instruments are removed and remaining keyboard assignments shift. The final group cannot be deleted, and adding/duplicating observes the 16-group and 88-instrument limits. The old bottom name field and group buttons are removed from the Library screen.
