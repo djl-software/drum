@@ -131,6 +131,7 @@ std::shared_ptr<const Sample> SampleEngine::decode(const juce::File& file, juce:
         const auto range=sample->waveform.range(sample->audio,c,0,sample->audio.getNumSamples());
         sample->peak=juce::jmax(sample->peak,std::abs(range.minimum),std::abs(range.maximum));
     }
+    sample->tonal=analyseTonal(sample->audio,sample->rate,[this]{return threadShouldExit();});
     cache[key]=sample; return sample;
 }
 void SampleEngine::run()

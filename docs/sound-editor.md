@@ -223,3 +223,9 @@ Analysis averages multiple windows across the processed waveform (up to the 30-s
 **Coarse** changes playback tuning by semitones (-48 to +48). **Fine** adjusts -100 to +100 cents; 100 cents equals one semitone. These are the same stored instrument-tuning and fine-detune controls used elsewhere, not additional offsets. They change sample playback speed and therefore duration, alongside pitch. Adjust Coarse to move the sound towards the desired note, then Fine for a smaller correction, listening while watching the spectrum. Reset page returns both to zero; double-click a numeric value to reset that control. Macro-assigned tuning controls are disabled here while mapped.
 
 The waveform stays above the spectrum. The detected pitch and existing key/Camelot indicator remain separate from the assigned MIDI trigger note. Tuning changes are saved with the instrument in its kit or library.
+
+### Tile keys and Auto Tune (0.16.16)
+
+Samples are analysed on the loading worker for both kits and libraries. Tiles display a detected musical key and Camelot code, for example Am / 8A. Single pitched hits show their note with “key uncertain”; noise and ambiguous hits show “Key uncertain”. A single note cannot establish major/minor. Tile labels describe source analysis with coarse/fine tuning applied, before envelopes, modulation and effects; the Key tab analyses the edited preview. Analysis is cached with the decoded sample and recalculated when loaded again.
+
+Choose a **Target key** in the Key tab and click **Auto Tune**. Drum chooses the nearest transposition to the target root and sets the existing Coarse/Fine values, including cents correction for a stable detected note. The waveform and spectrum update. This is sample transposition, not real-time pitch correction or major/minor conversion. A major phrase stays major when transposed. Uncertain/varying notes cannot be auto-tuned; tune these by ear. Macro-controlled tuning is protected.

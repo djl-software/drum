@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <vector>
+#include <limits>
 namespace drum
 {
 namespace
@@ -26,6 +27,20 @@ juce::String camelotCode(int key)
 {
     constexpr int major[]{8,3,10,5,12,7,2,9,4,11,6,1},minor[]{5,12,7,2,9,4,11,6,1,8,3,10};
     return key<0 || key>=24?"--":juce::String(key>=12?minor[key%12]:major[key%12])+(key>=12?"A":"B");
+}
+juce::String tileKey(const TonalAnalysis& a,double transpose)
+{
+    if(!a.complete)return "Analysing...";
+    const int shift=(int)std::round(transpose);
+    if(a.key>=0){const int key=((a.key%12+shift)%12+12)%12+(a.key>=12?12:0);return juce::String(names[key%12])+(key>=12?"m":"")+" / "+camelotCode(key);}
+    if(a.midi>=0 && !a.varying){const int root=((int)std::round(a.midi+transpose)%12+12)%12;return juce::String(names[root])+" (note; key uncertain)";}
+    return "Key uncertain";
+}
+double tuningToKey(const TonalAnalysis& a,int target)
+{
+    if(target<0 || target>=24 || (a.key<0 && (a.midi<0 || a.varying)))return std::numeric_limits<double>::quiet_NaN();
+    const double source=a.key>=0?a.key%12:a.midi;
+    double shift=std::fmod(target%12-source,12.0);if(shift>6)shift-=12;if(shift< -6)shift+=12;return shift;
 }
 TonalAnalysis analyseTonal(const juce::AudioBuffer<float>& audio,double rate,const std::function<bool()>& cancelled)
 {

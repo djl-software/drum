@@ -474,6 +474,20 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
     auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);slider.setSliderStyle(juce::Slider::LinearHorizontal);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint);slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,ink);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
+    addAndMakeVisible(targetKey);addAndMakeVisible(autoTune);targetKey.setComponentID("target-key");autoTune.setComponentID("auto-tune");
+    for(int k=0;k<24;++k)targetKey.addItem(drum::musicalKey(k)+" / "+drum::camelotCode(k),k+1);
+    targetKey.setTextWhenNothingSelected("Target key...");autoTune.setTooltip("Transpose to the target root. This does not convert major to minor. No correction is made for uncertain pitch.");
+    autoTune.onClick=[this]{
+        if(!keyCoarse.isEnabled() || !keyFine.isEnabled())return;
+        if(targetKey.getSelectedId()==0){message="Select a target key first.";repaint();return;}
+        if(keySpectrum->busy){message="Wait for the edited sound analysis to finish.";repaint();return;}
+        const double shift=drum::tuningToKey(keySpectrum->analysis,targetKey.getSelectedId()-1);
+        if(!std::isfinite(shift)){message="No stable pitch or key: tune this sound by ear.";repaint();return;}
+        const double total=keyCoarse.getValue()+keyFine.getValue()/100+shift;const double coarse=std::clamp(std::round(total),-48.0,48.0);
+        if(std::abs(total-coarse)>1){message="Target exceeds the tuning range.";repaint();return;}
+        keyCoarse.setValue(coarse,juce::dontSendNotification);keyFine.setValue((total-coarse)*100,juce::dontSendNotification);changeKeyTuning();
+        message="Tuned to target root. Transposition preserves the sample's major/minor character.";repaint();
+    };
     keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Shared with Envelopes & pitch.");addAndMakeVisible(keyStatus);keyStatus.setColour(juce::Label::textColourId,muted);keyStatus.setFont(juce::FontOptions(12));
     for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
@@ -787,7 +801,7 @@ void SoundEditor::setPage(int value)
     equalizer.setVisible(page==2 && !filterEnvelopePage);eqTab.setVisible(page==2);filterTab.setVisible(page==2);
     eqTab.setToggleState(!filterEnvelopePage,juce::dontSendNotification);filterTab.setToggleState(filterEnvelopePage,juce::dontSendNotification);
     slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5 && page!=7);chain.setVisible(page==7);viewport.setVisible(page!=7);
-    keySpectrum->setVisible(page==8);keyCoarse.setVisible(page==8);keyFine.setVisible(page==8);keyCoarseLabel.setVisible(page==8);keyFineLabel.setVisible(page==8);keyStatus.setVisible(page==8);if(page==8)viewport.setVisible(false);
+    keySpectrum->setVisible(page==8);keyCoarse.setVisible(page==8);keyFine.setVisible(page==8);keyCoarseLabel.setVisible(page==8);keyFineLabel.setVisible(page==8);keyStatus.setVisible(page==8);targetKey.setVisible(page==8);autoTune.setVisible(page==8);if(page==8)viewport.setVisible(false);
     resized(); repaint();
 }
 void SoundEditor::paint(juce::Graphics& g)
@@ -830,7 +844,7 @@ void SoundEditor::resized()
     }
     if(page==2){envelopes[2]->setBounds(18,graphTop,graphWidth,graphHeight);equalizer.setBounds(18,graphTop,graphWidth,graphHeight);}
     const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
-    if(page==8){int keyBottom=getHeight()-38;int spectrumHeight=juce::jmax(110,keyBottom-controlsTop-102);keySpectrum->setBounds(18,controlsTop,graphWidth,spectrumHeight);int row=controlsTop+spectrumHeight+6;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,42);}
+    if(page==8){int keyBottom=getHeight()-38;int spectrumHeight=juce::jmax(110,keyBottom-controlsTop-138);keySpectrum->setBounds(18,controlsTop,graphWidth,spectrumHeight);int row=controlsTop+spectrumHeight+6;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);targetKey.setBounds(18,row+36,250,28);autoTune.setBounds(278,row+36,100,28);keyStatus.setBounds(18,row+68,graphWidth,30);}
     chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=width>=1000?3:2,gap=16,cell=(width-gap*(columns-1))/columns;

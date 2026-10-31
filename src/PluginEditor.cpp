@@ -96,6 +96,7 @@ class InstrumentGrid final : public juce::Component, public juce::FileDragAndDro
 {
 public:
     std::vector<drum::Instrument> instruments;
+    std::function<juce::String(const drum::Instrument&)> keyLabel;
     juce::String selected;
     int colour = 0;
     std::function<void(juce::String)> select;
@@ -149,7 +150,8 @@ public:
             label(g, juce::String(i.note), { area.getRight()-(addToKit?70:40), area.getY()+8, 30, 19 }, 11, playing?text:muted, juce::Justification::centredRight);
             if(addToKit){g.setColour(accent);g.setFont(juce::FontOptions(23));g.drawText("+",juce::Rectangle<int>{area.getRight()-32,area.getY()+4,28,28},juce::Justification::centred);}
             g.setColour(text);g.setFont(juce::FontOptions(15.0f));
-            g.drawFittedText(i.name,area.reduced(10,0).withTrimmedTop(30).withTrimmedBottom(42),juce::Justification::centred,2);
+            g.drawFittedText(i.name,area.reduced(10,0).withTrimmedTop(30).withTrimmedBottom(61),juce::Justification::centred,2);
+            if(keyLabel)label(g,keyLabel(i),area.reduced(10,0).withY(area.getBottom()-59).withHeight(17),11,accent);
             juce::String flags=i.controls.mute?"MUTE  ":i.controls.solo?"SOLO  ":"";
             if(i.controls.choke>0)flags+="CH "+juce::String(i.controls.choke);
             label(g,flags,area.reduced(10,0).withY(area.getBottom()-40).withHeight(16),10,i.controls.mute?juce::Colour(0xfff2a3a3):text);
@@ -384,6 +386,7 @@ public:
         grid.drop=[this](const juce::StringArray& files,juce::String id) { handleDrop(files,processor.isMidiTrack()?id:juce::String()); };
         if(!processor.isMidiTrack()){grid.setWantsKeyboardFocus(true);grid.context=[this](juce::String id){showInstrumentMenu(id);};grid.remove=[this](juce::String id){removeLibraryInstrument(id);};grid.addToKit=[this](juce::String id){addLibraryInstrument(id);};}
         grid.setComponentID("instrument-grid");
+        grid.keyLabel=[this](const drum::Instrument& i){auto sample=processor.getSampleEngine().waveformFor(i.id);return sample?drum::tileKey(sample->tonal,i.controls.tuning+i.controls.sound.detune/100):i.samplePath.isEmpty()?juce::String():juce::String("Analysing...");};
         viewport.setScrollBarThickness(8); grid.select = [this](juce::String id) { importStatus=false; instrumentId=id; refresh(); };
         grid.reorder=[this](juce::String id,int position){complete(library.positionInstrument(view.activeKit,id,position));scrollToSelected();};
         grid.play=[this](int n,bool down){playKey(n,down);};

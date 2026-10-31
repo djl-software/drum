@@ -22,6 +22,7 @@ struct Sample
     double rate = 44100.0;
     float peak = 0.0f;
     WaveformData waveform;
+    TonalAnalysis tonal;
     size_t bytes() const { return (size_t)audio.getNumChannels() * (size_t)audio.getNumSamples() * sizeof(float) + waveform.bytes(); }
 };
 struct SampleStatus

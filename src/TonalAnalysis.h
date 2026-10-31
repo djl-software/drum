@@ -12,6 +12,8 @@ struct TonalAnalysis
     std::array<float,12> noteEnergy{}; // Relative spectral power, C..B, folded across octaves.
 };
 TonalAnalysis analyseTonal(const juce::AudioBuffer<float>&,double rate,const std::function<bool()>& cancelled={});
+juce::String tileKey(const TonalAnalysis&,double transpose=0);
+double tuningToKey(const TonalAnalysis&,int target);
 juce::String musicalNote(double midi);
 juce::String musicalKey(int key);
 juce::String camelotCode(int key);

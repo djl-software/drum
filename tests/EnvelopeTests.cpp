@@ -109,6 +109,14 @@ void tonalTests()
         for(int n=0;n<48000;++n){double v=0;for(double hz:frequencies)v+=0.2*std::sin(juce::MathConstants<double>::twoPi*hz*n/48000);audio.setSample(0,n,(float)v);audio.setSample(1,n,(float)-v);}
     };
     tones({440});auto a=drum::analyseTonal(audio,48000);near(a.midi,69,0.05,"A4 pitch detection failed");check(a.key==-1 && !a.varying,"Single tone invented major/minor");
+    check(drum::tileKey(a).startsWith("A (note"),"Single hit tile invented a mode");
+    near(drum::tuningToKey(a,0),3,.05,"Auto tune A to C did not choose nearest octave");
+    auto detuned=a;detuned.midi=69.25;near(drum::tuningToKey(detuned,21),-.25,.001,"Auto tune ignored cents");
+    drum::TonalAnalysis minor;minor.complete=true;minor.key=21;
+    check(drum::tileKey(minor)=="Am / 8A","Minor key tile label incorrect");
+    check(drum::tileKey(minor,2)=="Bm / 10A","Transposed tile label incorrect");
+    near(drum::tuningToKey(minor,23),2,.001,"Minor key transposition incorrect");
+    check(!std::isfinite(drum::tuningToKey(drum::TonalAnalysis{},0)),"Uncertain sound was auto tuned");
     auto strongest=[](const drum::TonalAnalysis& result){return (int)std::distance(result.noteEnergy.begin(),std::max_element(result.noteEnergy.begin(),result.noteEnergy.end()));};
     check(strongest(a)==9 && a.noteEnergy[9]>.99f,"Key spectrum did not map A4 to A");
     tones({220});check(strongest(drum::analyseTonal(audio,48000))==9,"Key spectrum did not combine octaves");
@@ -136,7 +144,7 @@ void runEnvelopeTests()
     const auto id=library.addInstrument(kit,group).id;
     auto file=juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav");
     p.getSampleEngine().requestLoad(kit,id,file);check(p.getSampleEngine().waitForLoading(10000),"Envelope sample load timed out");
-    check(p.getSampleEngine().statusFor(id).ready,"Envelope fixture unavailable");p.getSampleEngine().prepare(48000);
+    check(p.getSampleEngine().statusFor(id).ready,"Envelope fixture unavailable");check(p.getSampleEngine().waveformFor(id)->tonal.complete,"Imported sample was not analysed");p.getSampleEngine().prepare(48000);
     DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");click(editor,"edit-tab-1");settle(editor);
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
     auto& soundEditor=control<SoundEditor>(editor,"sound-editor");
@@ -144,6 +152,9 @@ void runEnvelopeTests()
     control<juce::Slider>(editor,"key-coarse").setValue(3,juce::sendNotificationSync);control<juce::Slider>(editor,"key-fine").setValue(17.5,juce::sendNotificationSync);
     near(current().tuning,3,.001,"Key coarse did not affect instrument tuning");near(current().sound.detune,17.5,.001,"Key fine did not affect playback detune");settle(editor);capture(editor,"drum-key-tab.png");
     juce::MemoryBlock keyState;p.getStateInformation(keyState);DrumAudioProcessor recalledKey;recalledKey.setStateInformation(keyState.getData(),(int)keyState.getSize());auto recalledState=recalledKey.getLibrary().snapshot();auto recalledControls=drum::findInstrument(*drum::activeKit(recalledState),id)->controls;near(recalledControls.tuning,3,.001,"Key tuning was not saved");near(recalledControls.sound.detune,17.5,.001,"Key fine tuning was not saved");
+    control<juce::ComboBox>(editor,"target-key").setSelectedId(3,juce::dontSendNotification);click(editor,"auto-tune");
+    check(std::abs(current().tuning-3)>.1 || std::abs(current().sound.detune-17.5)>.1,"Auto Tune button did not change tuning");settle(editor);capture(editor,"drum-auto-tune.png");
+    std::array<float,drum::numMacros> keyMacros{};auto tunedPreview=drum::SampleEngine::renderPreview(p.getSampleEngine().waveformFor(id),current(),keyMacros,120,48000);check(tunedPreview.sample!=nullptr,"Tuned preview missing");auto tunedPitch=drum::analyseTonal(tunedPreview.sample->audio,48000);near(std::remainder(tunedPitch.midi-2,12.0),0,.08,"Auto Tune playback missed target D");
     click(editor,"reset-edit-page");near(current().tuning,0,.001,"Key reset did not reset coarse");near(current().sound.detune,0,.001,"Key reset did not reset fine");click(editor,"edit-tab-1");
     auto refresh=[&]{auto s=library.snapshot();soundEditor.select(kit,drum::findInstrument(*drum::activeKit(s),id));};
     auto& amp=control<EnvelopeEditor>(editor,"envelope-amp");auto& pitch=control<EnvelopeEditor>(editor,"envelope-pitch");auto& filter=control<EnvelopeEditor>(editor,"envelope-filter");
