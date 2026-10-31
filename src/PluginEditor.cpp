@@ -60,7 +60,7 @@ public:
     {
         if(button.getComponentID().endsWith("-menu")){
             g.setColour(text);g.setFont(juce::FontOptions(13));g.drawText(button.getButtonText(),button.getLocalBounds().reduced(12,0).withTrimmedRight(12),juce::Justification::centredLeft);
-            if(button.getButtonText()!="Close"){juce::Path arrow;float x=(float)button.getWidth()-15,y=(float)button.getHeight()/2;arrow.addTriangle(x-4,y-2,x+4,y-2,x,y+3);g.fillPath(arrow);}return;
+            if(button.getButtonText()!="Close" && !bool(button.getProperties()["direct-navigation"])){juce::Path arrow;float x=(float)button.getWidth()-15,y=(float)button.getHeight()/2;arrow.addTriangle(x-4,y-2,x+4,y-2,x,y+3);g.fillPath(arrow);}return;
         }
         if(button.getComponentID()=="add-group" && button.getButtonText()=="+"){g.setColour(text.withMultipliedAlpha(button.isEnabled()?1.0f:0.35f));g.setFont(juce::FontOptions(28));g.drawText("+",button.getLocalBounds(),juce::Justification::centred);return;}
         if(button.getComponentID()=="play-sample")
@@ -268,7 +268,7 @@ public:
     {
         setLookAndFeel(&look);
         setup(kitMenu,"Kit","kit-menu");kitMenu.onClick=[this]{if(!processor.isMidiTrack() && onBackToKit){finishLibraries();return;}showKitMenu();};
-        setup(libraryMenu,"Library","library-menu");libraryMenu.onClick=[this]{showLibraryMenu();};
+        setup(libraryMenu,"Library","library-menu");libraryMenu.getProperties().set("direct-navigation",processor.isMidiTrack());libraryMenu.onClick=[this]{if(processor.isMidiTrack())showLibrary();else showLibraryMenu();};
         setup(openLibrary,"Libraries","open-kit-library");openLibrary.onClick=[this]{showLibrary();};
         setup(saveLibrary,"Save all","save-kit-library");saveLibrary.onClick=[this]{if(processor.saveSharedLibrary){auto result=processor.saveSharedLibrary();status=result.ok?"Shared library saved.":result.message;statusError=!result.ok;repaint();}};
         setup(reloadLibrary,"Reload library","reload-kit-library");reloadLibrary.onClick=[this]{confirm("Reload shared library?","This replaces unsaved library edits with the saved global kits.",[this]{if(processor.reloadSharedLibrary)complete(processor.reloadSharedLibrary());});};

@@ -207,7 +207,7 @@ void runManagementTests()
         auto moved=track.getLibrary().snapshot().kits[0].groups[0].instruments;
         check(moved[0].id==second && moved[1].id==third && moved[2].id==first,"Pad drag did not insert and shift intervening pads");
         check(moved[0].note==21 && moved[1].note==22 && moved[2].note==23,"Pad drag left gaps in MIDI assignments");
-        screenshot(main,"drum-toolbar-kit.png");click(main,"open-kit-library");
+        screenshot(main,"drum-toolbar-kit.png");click(main,"library-menu");
         juce::TextButton* back=nullptr;std::function<void(juce::Component&)> findBack=[&](juce::Component& c){if(auto* b=dynamic_cast<juce::TextButton*>(&c);b && b->getComponentID()=="kit-menu" && b->getButtonText()=="Close" && b->isVisible())back=b;for(auto* child:c.getChildren())findBack(*child);};findBack(main);
         check(back!=nullptr,"Library is not a screen in the main editor");
         auto* libraryScreen=back->getParentComponent();check(!control(*libraryScreen,"group-name")->isVisible() && !control(*libraryScreen,"copy-group")->isVisible() && !control(*libraryScreen,"delete-group")->isVisible(),"Old Library group controls remain visible");check(dynamic_cast<juce::TextButton*>(control(*libraryScreen,"add-group"))->getButtonText()=="+","Library group add is not a plus");auto countBefore=drum::instrumentCount(track.getLibrary().snapshot().kits[0]);

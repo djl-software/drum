@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.12 makes the main screen's **Library** button open the Library page directly, without a dropdown arrow.
+
 Version 0.16.11 renames Library Done to **Close**, moves group actions into row dropdowns, and adds a clearer GROUPS heading, top **+**, and bottom group count.
 
 Version 0.16.10 adds filename-based Library tabs, unsaved markers, Save/Save As/Duplicate/Close menus, and a Done button with save-or-discard handling. Up to eight libraries can be open; full-width tabs scroll when needed. Library files are never deleted by Close.
