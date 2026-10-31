@@ -11,10 +11,12 @@ public:
     juce::String parameterName() const{return "DJL Link "+token;}
     juce::File file() const{return folder().getChildFile(token+".json");}
     std::atomic<bool> autoRemap{false};
+    int setupRequest=0;
+    void requestSetup(){++setupRequest;publish();}
     void publish(){
         auto state=library.snapshot();auto* kit=activeKit(state);if(!kit)return;
         auto* object=new juce::DynamicObject;juce::var payload(object);
-        object->setProperty("protocol",1);object->setProperty("token",token);
+        object->setProperty("protocol",1);object->setProperty("setupRequest",setupRequest);object->setProperty("token",token);
         object->setProperty("timestamp",juce::Time::getCurrentTime().toMilliseconds()/1000.0);
         object->setProperty("kit",kit->name);object->setProperty("kitId",kit->id);object->setProperty("autoRemap",autoRemap.load());juce::Array<juce::var> notes;
         for(const auto& group:kit->groups)for(const auto& instrument:group.instruments){auto* note=new juce::DynamicObject;

@@ -125,7 +125,8 @@ const Instrument* findInstrument(const Kit& kit, const juce::String& id)
 juce::String noteName(int note)
 {
     static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-    return juce::String(names[note % 12]) + juce::String(note / 12 - 1);
+    // Match Live's trigger-note convention: MIDI 60 is C3, MIDI 21 is A-1.
+    return juce::String(names[note % 12]) + juce::String(note / 12 - 2);
 }
 KitLibrary::KitLibrary(bool track):trackLayout(track) { state.kits.push_back(makeKit("Kit 1")); state.activeKit = state.kits.front().id; }
 State KitLibrary::snapshot() const { const juce::ScopedLock guard(lock); return state; }

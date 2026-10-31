@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.7 aligns MIDI trigger-note labels with Live (MIDI 21 = A-1, MIDI 60 = C3). Key assignments and playback are unchanged. The companion also loads the saved mapping rack automatically when Drum is loaded (while stopped); **Use kit** refreshes setup without opening Explorer.
+
 Version 0.16.6 adds **Setup > Automatically update Ableton clips**, an opt-in companion feature for following instrument moves in Session and Arrangement MIDI clips. Deleted instruments' notes are muted; existing note IDs and expression are retained. See [Live setup](docs/midi-editor.md#named-instruments-in-ableton-live).
 
 Version 0.16.5 adds **Use kit** and an optional Live companion for automatically updating named MIDI rows with the Drum window closed. One mapping rack is placed before each Drum instance; existing Live clip notes are not rewritten. See [Live setup](docs/midi-editor.md#named-instruments-in-ableton-live).

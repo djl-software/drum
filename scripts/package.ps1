@@ -28,3 +28,5 @@ Write-Output "Packaged development build: $OutputDirectory"
 $drumCompanionDestination = Join-Path $OutputDirectory 'companion'
 New-Item -ItemType Directory -Force -Path $drumCompanionDestination | Out-Null
 Copy-Item -LiteralPath "$PSScriptRoot\..\companion\DJL_Drum_Link" -Destination $drumCompanionDestination -Recurse -Force
+
+Copy-Item -LiteralPath "$PSScriptRoot\..\companion\DJL Drum Link.adg" -Destination $drumCompanionDestination -Force

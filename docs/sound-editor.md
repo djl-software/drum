@@ -208,7 +208,7 @@ Implementation reference: [Microsoft UI Automation threading guidance](https://l
 
 ## Contiguous keyboard order (0.13.4)
 
-A kit is an ordered sound library mapped to consecutive keyboard keys. The first sound uses A0 (MIDI 21), then A#0, B0, C1 and so on, up to C8 (MIDI 108) for all 88 sounds. Group order comes first; pad order within each group comes second. Both black and white keys count. Add a sound to an earlier group and later sounds shift up. Delete a sound and later sounds shift down. Moving/copying groups or sounds, loading samples as new instruments and slicing follow the same rule.
+A kit is an ordered sound library mapped to consecutive keyboard keys. The first sound uses A-1 (MIDI 21), then A#-1, B-1, C0 and so on, up to C7 (MIDI 108) for all 88 sounds. Group order comes first; pad order within each group comes second. Both black and white keys count. Add a sound to an earlier group and later sounds shift up. Delete a sound and later sounds shift down. Moving/copying groups or sounds, loading samples as new instruments and slicing follow the same rule.
 
 Use the instrument/group move controls to change order. The instrument details show the assigned key instead of allowing independent note assignments. Clicking a pad, playing its keyboard key and audition Play still trigger that sound. Sample pitch/tuning is unaffected by this reassignment.
 

@@ -266,12 +266,8 @@ public:
             juce::Component::SafePointer<Workspace> safe(this);
             menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&liveSetupButton),[safe](int selected){if(safe && selected==1){safe->processor.setAutoRemapLiveClips(!safe->processor.autoRemapLiveClips());safe->status=safe->processor.autoRemapLiveClips()?"Auto-remap enabled: future kit moves update linked Live clips. Deleted instruments' notes are muted.":"Automatic Live clip updates off.";safe->repaint();}});
         };
-        setup(useKitButton,"Use kit","use-kit-live");useKitButton.setTooltip("Create Live's named-key rack. Place it before Drum once; the DJL Drum Link companion keeps names updated.");useKitButton.onClick=[this]{
-            auto state=library.snapshot();auto* active=drum::activeKit(state);if(!active)return;
-            auto folder=drum::PortableFiles::root().getChildFile("Ableton Maps");
-            auto file=folder.getChildFile("DJL Drum Link.adg");auto result=drum::LiveNoteMap::writeLinked(*active,file);
-            if(!result.ok){complete(result);return;}processor.publishLiveKit();
-            status="Place DJL Drum Link.adg immediately before Drum once. Enable DJL Drum Link in Live's Control Surfaces.";repaint();file.revealToUser();
+        setup(useKitButton,"Use kit","use-kit-live");useKitButton.setTooltip("Connect this kit using the saved DJL Drum Link rack in Live. The companion inserts it if needed when playback is stopped.");useKitButton.onClick=[this]{
+            processor.useLiveKit();status="Kit connection requested. DJL Drum Link will use its saved rack; stop playback to allow insertion.";statusError=false;repaint();
         };
         setup(saveDocumentButton,processor.isMidiTrack()?"Save kit":"Save library as","save-document");saveDocumentButton.onClick=[this]{if(processor.isMidiTrack() && processor.documentFile().existsAsFile())complete(processor.saveDocument(processor.documentFile()));else chooseDocument(true);};
         setup(saveAsButton,"Save kit as","save-document-as");saveAsButton.onClick=[this]{chooseDocument(true);};

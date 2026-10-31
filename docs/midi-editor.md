@@ -60,7 +60,7 @@ References: [Notes](https://www.ableton.com/en/live-manual/12/editing-midi/), [C
 
 ## Named instruments in Ableton Live
 
-**Use kit** on the kit screen creates `Drum/Ableton Maps/DJL Drum Link.adg` and reveals it in the file browser. Put this MIDI Effect Rack **immediately before DJL Drum** on the same track, once per Drum instance. Keep its rack name and key zones unchanged. It contains 88 empty chains, one for each key from MIDI 21 to 108, with no extra instruments, samples or audio effects. Unoccupied keys show `(unused)`.
+The companion automatically requests the saved **DJL Drum Link** MIDI Effect Rack before a newly loaded top-level Drum instance. It waits for stopped playback and inactive browser hot-swap. The installer places the preset in `User Library/Presets/MIDI Effects/MIDI Effect Rack/DJL Drum/DJL Drum Link.adg`. **Use kit** on the kit screen refreshes the current kit publication and requests another setup attempt if needed; it no longer exports a file or opens Explorer. The current kit in Drum supplies the instrument names and mapping. Existing racks are reused; a misplaced existing rack must be moved immediately before Drum rather than duplicated. Keep its rack name and key zones unchanged. It contains 88 empty chains, one for each key from MIDI 21 to 108, with no extra instruments, samples or audio effects. Unoccupied keys show `(unused)`.
 
 Install the bundled `DJL_Drum_Link` folder under your Ableton User Library's `Remote Scripts` folder. Restart Live, then select **DJL Drum Link** in an unused Control Surface slot under Settings > Link, Tempo & MIDI. Leave Input and Output as **None**. One script serves all Drum tracks. See [Ableton's installation instructions](https://help.ableton.com/hc/en-us/articles/209072009-Installing-third-party-remote-scripts).
 
@@ -83,3 +83,5 @@ Each update uses a Live undo step. If Live rejects or incompletely applies an up
 The native note-ID remapping path still needs an in-Live acceptance check after installing 0.16.6.
 
 If the companion is disabled, the rack retains its last names and still passes notes on the assigned key range. Stale/malformed publications and edited racks containing effects are ignored. Do not stack mapping racks or insert another device between the mapping rack and Drum. No controller/MPE events or audio are processed by the companion.
+
+Automatic insertion uses Live's browser API and still needs an in-Live acceptance check. If Live has not indexed the installed preset, setup waits; the status bar reports this. Auto-insertion currently targets top-level track devices; nested Drum instances still need the saved rack placed manually in the same chain.

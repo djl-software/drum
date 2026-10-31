@@ -7,6 +7,7 @@ import time
 from _Framework.ControlSurface import ControlSurface
 from .protocol import RACK_NAMES, token_for, names_from, update_rack
 from .remap import TrackState
+from .autosetup import AutoSetup
 
 
 def create_instance(c_instance):
@@ -21,6 +22,8 @@ class DrumLink(ControlSurface):
         self._last_status = None
         self._last_diagnostic = None
         self._remaps = {}
+        self._auto_setup = AutoSetup()
+        self._requests = {}
         self.log_message("DJL Drum Link started")
 
     def _pairs(self, devices, depth=0):
@@ -54,6 +57,20 @@ class DrumLink(ControlSurface):
                         entry = {"index": index, "name": str(device.name), "class": str(device.class_name), "chains": len(getattr(device,"chains",()))}
                         entry["parameters"] = [{"name": str(p.name), "original": str(getattr(p,"original_name",p.name))} for p in device.parameters][:24]
                         diagnostic.append(entry)
+                # Read only this track's instance request files; no global guessing.
+                for device in devices:
+                    token = token_for(device)
+                    if token:
+                        try:
+                            with open(os.path.join(self._folder,token+".json"),"r",encoding="utf-8-sig") as stream:
+                                publication=json.load(stream)
+                            names_from(publication,token,now)
+                            self._requests[token]=int(publication.get("setupRequest",0))
+                        except (OSError,ValueError,TypeError):
+                            pass
+                setup_status=self._auto_setup.ensure(self.song(),self.application().browser,track,self._requests)
+                if setup_status and setup_status != getattr(self,"_setup_status",None):
+                    self._setup_status=setup_status;self.show_message(setup_status);self.log_message(setup_status)
                 pairs = list(self._pairs(track.devices))
                 for rack, token in pairs:
                     active_tokens.add(token)

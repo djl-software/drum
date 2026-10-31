@@ -215,7 +215,7 @@
             ],
             [
               "MIDI 21-108",
-              "88 unique trigger positions per kit, A0 through C8 in Drum's naming."
+              "88 unique trigger positions per kit, A-1 through C7 in Drum's naming."
             ]
           ],
           "widths": [
@@ -850,7 +850,7 @@
           "rows": [
             [
               "Trigger",
-              "Assigned note name and MIDI number, such as A0 / MIDI 21. This selects the slot."
+              "Assigned note name and MIDI number, such as A-1 / MIDI 21. This selects the slot."
             ],
             [
               "Preview",

@@ -29,6 +29,7 @@ public:
 
     bool autoRemapLiveClips() const{return liveKitLink && liveKitLink->autoRemap.load();}
     void setAutoRemapLiveClips(bool value){if(liveKitLink){liveKitLink->autoRemap=value;liveKitLink->publish();triggerAsyncUpdate();}}
+    void useLiveKit(){if(liveKitLink)liveKitLink->requestSetup();}
     void publishLiveKit(){if(liveKitLink)liveKitLink->publish();}
     ~DrumAudioProcessor() override;
     drum::KitLibrary& getLibrary() { return library; }

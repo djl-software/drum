@@ -9,7 +9,7 @@ A **Kit** is the selection played by one Drum instance on a DAW MIDI track. Only
 1. Load Drum on a MIDI track. Choose **New kit**, or **Open kit** for an existing `.drumkit` file.
 2. Give the kit a name. Open **Libraries**, select a library, group and instrument, then press **Add**. If no kit is open, Drum prompts you to create or open one first.
 3. The instrument joins the group with the same name, creating that group if necessary. Matching group names from different libraries are combined. New groups are appended; groups can be moved with Up/Down.
-4. Keyboard keys are consecutive from A0 / MIDI 21, following group order and instrument order. Adding to an earlier group shifts later groups. Check existing MIDI clips after changing the order.
+4. Keyboard keys are consecutive from A-1 / MIDI 21, following group order and instrument order. Adding to an earlier group shifts later groups. Check existing MIDI clips after changing the order.
 5. Edit each sound and its chain as usual. Sidechain sources reset on import because the source instrument may not exist in this kit; select a kit-local source afterwards.
 6. Use **Save kit** or **Save kit as**. Load the same file in other instances for independently editable copies, or use different kits on each track. Opening or creating a kit replaces the current one after confirmation, so save edits first.
 
