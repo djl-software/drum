@@ -31,11 +31,14 @@ public:
     void initialiseLibraryDocuments();
     std::unique_ptr<juce::XmlElement> libraryWorkspaceState() const;
     bool restoreLibraryWorkspace(const juce::XmlElement&);
+    drum::Result rememberLibraryWorkspace();
+    static juce::File libraryWorkspaceFile();
+    juce::String librarySelectedGroup,librarySelectedInstrument;
 
     DrumAudioProcessor* libraryEditorProcessor() const{return libraryPreview.get();}
     drum::Result openSharedLibrary();
     bool sharedLibraryDirty() const{return libraryPreview && sharedStore.hasChanges(libraryPreview->getLibrary());}
-    void closeSharedLibrary(){previewActive.store(false);if(libraryPreview){libraryPreview->getSampleEngine().pauseAudition();libraryPreview->effects.hideEditors();}}
+    void closeSharedLibrary(){previewActive.store(false);if(libraryPreview){libraryPreview->getSampleEngine().pauseAudition();libraryPreview->effects.hideEditors();if(libraryLoaded){libraryPreview->effects.capture();libraryPreview->rememberLibraryWorkspace();}}}
     std::function<drum::Result(const juce::String&,const juce::String&)> useLibrarySound;
     std::function<drum::Result()> saveSharedLibrary,reloadSharedLibrary;
     juce::String libraryStatus() const {const juce::ScopedLock lock(migrationLock);return migrationStatus;}
@@ -81,6 +84,7 @@ private:
     mutable std::map<juce::String,bool> libraryDirtyCache;
     bool closedLibraries=false;
     std::unique_ptr<juce::XmlElement> libraryElement(const juce::String&) const;
+    bool isDefaultLibraryPlaceholder() const;
     drum::KitLibrary library;
     std::unique_ptr<drum::PatternPlayer> patternPlayer;
     juce::MidiBuffer patternMidi;

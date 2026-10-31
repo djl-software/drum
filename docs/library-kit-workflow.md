@@ -72,3 +72,9 @@ Quit without saving restores saved libraries and closes new unsaved copies. Reop
 ## Library Groups panel (0.16.11)
 
 Use the large **+** beside GROUPS to add a group. The group count is at the bottom of the panel. Click a group row to select it; double-click the row, click its dropdown arrow, or right-click it for Rename, Duplicate or Delete. Rename opens a name field; Duplicate selects the new copy. Delete requires confirmation because the group and its instruments are removed and remaining keyboard assignments shift. The final group cannot be deleted, and adding/duplicating observes the 16-group and 88-instrument limits. The old bottom name field and group buttons are removed from the Library screen.
+
+## Remembered Library workspace (0.16.13)
+
+With no libraries open, the page shows no tabs; the old empty Kit 1 placeholder is hidden. Use Library > New or Load to begin. Closing all tabs remains empty on the next opening. Existing libraries containing sounds are kept.
+
+When closing the Library page or plugin editor, Drum remembers the open tabs, active library, selected group/instrument and unsaved drafts in the local Library workspace settings. This does not save or overwrite `.drumlib` files; their Save/Save As and unsaved markers still apply. Choose Quit without saving to discard drafts before leaving. A restored Live Set uses its own saved workspace instead of the more recent global preferences.

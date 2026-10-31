@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.13 starts the Library browser with no tabs when nothing is open, and remembers open libraries, active library/group/instrument and unsaved drafts between openings. Saved Live Set workspaces take priority over recent preferences.
+
 Version 0.16.12 makes the main screen's **Library** button open the Library page directly, without a dropdown arrow.
 
 Version 0.16.11 renames Library Done to **Close**, moves group actions into row dropdowns, and adds a clearer GROUPS heading, top **+**, and bottom group count.

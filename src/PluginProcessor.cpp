@@ -179,7 +179,14 @@ void DrumAudioProcessor::migrateLegacyKits()
 }
 drum::Result DrumAudioProcessor::openSharedLibrary()
 {
-    if(!libraryPreview)return drum::Result::fail("This is already the kit library.");{const juce::ScopedLock lock(migrationLock);migrationAttempted=false;}migrateLegacyKits();if(libraryLoaded){previewActive.store(true);return drum::Result::success();}auto result=sharedStore.load(libraryPreview->library);if(result.ok){libraryPreview->initialiseLibraryDocuments();libraryLoaded=true;previewActive.store(true);}return result;
+    if(!libraryPreview)return drum::Result::fail("This is already the kit library.");{const juce::ScopedLock lock(migrationLock);migrationAttempted=false;}migrateLegacyKits();if(libraryLoaded){previewActive.store(true);return drum::Result::success();}
+    auto remembered=libraryWorkspaceFile();
+    if(remembered.existsAsFile()){
+        auto xml=remembered.getSize()<=256ll*1024*1024?juce::parseXML(remembered):nullptr;
+        if(!xml || !xml->hasTagName("LibraryWorkspace") || !libraryPreview->restoreLibraryWorkspace(*xml))return drum::Result::fail("The remembered Library workspace cannot be read. It has been kept unchanged.");
+        libraryLoaded=true;previewActive.store(true);return drum::Result::success();
+    }
+    auto result=sharedStore.load(libraryPreview->library);if(result.ok){libraryPreview->initialiseLibraryDocuments();libraryLoaded=true;previewActive.store(true);}return result;
 }
 
 void DrumAudioProcessor::newKit()
@@ -235,6 +242,12 @@ void DrumAudioProcessor::initialiseLibraryDocuments()
     const juce::ScopedLock documentGuard(libraryDocumentLock);
     libraryDocuments.clear();closedLibraries=false;libraryDirtyRevision=~uint64_t(0);
     for(const auto& kit:library.snapshot().kits)libraryDocuments[kit.id].baseline=libraryElement(kit.id);
+    closedLibraries=isDefaultLibraryPlaceholder();
+}
+bool DrumAudioProcessor::isDefaultLibraryPlaceholder() const
+{
+    auto state=library.snapshot();if(state.kits.size()!=1)return false;const auto& kit=state.kits[0];
+    return kit.name=="Kit 1" && kit.groups.size()==1 && kit.groups[0].name=="Group 1" && drum::instrumentCount(kit)==0 && kit.patterns.empty() && libraryDocumentFile(kit.id)==juce::File() && !libraryDocumentDirty(kit.id);
 }
 bool DrumAudioProcessor::libraryDocumentDirty(const juce::String& id) const
 {
@@ -266,7 +279,7 @@ drum::Result DrumAudioProcessor::newLibraryDocument()
 {
     const juce::ScopedLock documentGuard(libraryDocumentLock);
     if(trackInstance)return drum::Result::fail("Open the Library screen first.");
-    if(closedLibraries){closedLibraries=false;auto id=library.snapshot().activeKit;library.rename(id,"Untitled library");return drum::Result::success(id);}
+    if(closedLibraries){closedLibraries=false;auto id=library.snapshot().activeKit;libraryDocuments.erase(id);library.rename(id,"Untitled library");return drum::Result::success(id);}
     auto result=library.addKit();if(result.ok)library.rename(result.id,"Untitled library");return result;
 }
 drum::Result DrumAudioProcessor::duplicateLibraryDocument(const juce::String& id)
@@ -298,7 +311,7 @@ void DrumAudioProcessor::discardLibraryDocuments()
 std::unique_ptr<juce::XmlElement> DrumAudioProcessor::libraryWorkspaceState() const
 {
     const juce::ScopedLock documentGuard(libraryDocumentLock);
-    auto state=std::make_unique<juce::XmlElement>("LibraryWorkspace");state->setAttribute("closed",closedLibraries);state->addChildElement(library.toXml().release());
+    auto state=std::make_unique<juce::XmlElement>("LibraryWorkspace");state->setAttribute("closed",closedLibraries);state->setAttribute("selectedGroup",librarySelectedGroup);state->setAttribute("selectedInstrument",librarySelectedInstrument);state->addChildElement(library.toXml().release());
     for(const auto& entry:libraryDocuments){auto* doc=state->createNewChildElement("Document");doc->setAttribute("id",entry.first);doc->setAttribute("file",entry.second.file.getFullPathName());if(entry.second.baseline)doc->addChildElement(new juce::XmlElement(*entry.second.baseline));}
     return state;
 }
@@ -312,5 +325,13 @@ bool DrumAudioProcessor::restoreLibraryWorkspace(const juce::XmlElement& saved)
         auto& info=restored[id];if(path.isNotEmpty())info.file=juce::File(path);
         if(auto* base=doc->getFirstChildElement()){auto test=std::make_unique<juce::XmlElement>(*content);test->deleteAllChildElements();test->addChildElement(new juce::XmlElement(*base));test->setAttribute("activeKit",id);if(base->getStringAttribute("id")!=id || !check.restore(*test))return false;info.baseline=std::make_unique<juce::XmlElement>(*base);}
     }
-    if(!library.restore(*content))return false;libraryDocuments=std::move(restored);closedLibraries=saved.getBoolAttribute("closed");libraryDirtyRevision=~uint64_t(0);return true;
+    if(!library.restore(*content))return false;libraryDocuments=std::move(restored);closedLibraries=saved.getBoolAttribute("closed");libraryDirtyRevision=~uint64_t(0);if(!closedLibraries)closedLibraries=isDefaultLibraryPlaceholder();librarySelectedGroup=saved.getStringAttribute("selectedGroup");librarySelectedInstrument=saved.getStringAttribute("selectedInstrument");return true;
+}
+juce::File DrumAudioProcessor::libraryWorkspaceFile()
+{
+    auto test=juce::SystemStats::getEnvironmentVariable("DJL_DRUM_TEST_LIBRARY",{});return test.isNotEmpty()?juce::File(test).getSiblingFile("library-workspace.xml"):juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("DJL/Drum/library-workspace.xml");
+}
+drum::Result DrumAudioProcessor::rememberLibraryWorkspace()
+{
+    auto file=libraryWorkspaceFile();if(!file.getParentDirectory().createDirectory().wasOk() || !file.replaceWithText(libraryWorkspaceState()->toString()))return drum::Result::fail("Could not remember the Library workspace.");return drum::Result::success();
 }

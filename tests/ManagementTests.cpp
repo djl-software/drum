@@ -30,6 +30,17 @@ void screenshot(juce::Component& editor, const char* name)
 void runManagementTests()
 {
     {
+        DrumAudioProcessor blank;blank.initialiseLibraryDocuments();check(blank.librariesEmpty(),"Default Kit 1 must not appear as an open library");
+        good(blank.rememberLibraryWorkspace());DrumAudioProcessor next(true);good(next.openSharedLibrary());check(next.libraryEditorProcessor()->librariesEmpty(),"Empty Library workspace was not remembered");
+        auto& browser=*next.libraryEditorProcessor();auto created=browser.newLibraryDocument();good(created);check(!browser.librariesEmpty() && browser.libraryDocumentDirty(created.id),"New did not open an unsaved library from the empty screen");
+        auto group=browser.getLibrary().snapshot().kits[0].groups[0].id;auto sound=browser.getLibrary().addInstrument(created.id,group);good(sound);
+        browser.librarySelectedGroup=group;browser.librarySelectedInstrument=sound.id;next.closeSharedLibrary();
+        DrumAudioProcessor reopened(true);good(reopened.openSharedLibrary());auto& remembered=*reopened.libraryEditorProcessor();check(remembered.getLibrary().snapshot().activeKit==created.id && remembered.librarySelectedGroup==group && remembered.librarySelectedInstrument==sound.id && remembered.libraryDocumentDirty(created.id),"Remembered tabs, selection or unsaved draft lost");
+        juce::MemoryBlock saved;reopened.getStateInformation(saved);good(remembered.closeLibraryDocument(created.id));reopened.closeSharedLibrary();
+        DrumAudioProcessor recalled(true);recalled.setStateInformation(saved.getData(),(int)saved.getSize());good(recalled.openSharedLibrary());check(!recalled.libraryEditorProcessor()->librariesEmpty(),"Remembered empty preferences overrode saved Live Set workspace");
+        DrumAudioProcessor fresh(true);good(fresh.openSharedLibrary());check(fresh.libraryEditorProcessor()->librariesEmpty(),"Closing all tabs did not persist");
+    }
+    {
         DrumAudioProcessor documents;
         auto id=documents.getLibrary().snapshot().activeKit;
         auto folder=juce::File::getCurrentWorkingDirectory().getChildFile("library-document-tests").getChildFile(juce::Uuid().toString());
@@ -191,7 +202,7 @@ void runManagementTests()
     DrumAudioProcessor empty; DrumAudioProcessorEditor emptyEditor(empty); screenshot(emptyEditor,"drum-layout-empty.png");
     // The top-level editor swaps sibling screens and keeps the current kit intact.
     {
-        DrumAudioProcessor track(true);track.newKit();auto before=track.getLibrary().snapshot();auto kitId=before.activeKit;
+        DrumAudioProcessor track(true);good(track.openSharedLibrary());if(track.libraryEditorProcessor()->librariesEmpty())good(track.libraryEditorProcessor()->newLibraryDocument());track.newKit();auto before=track.getLibrary().snapshot();auto kitId=before.activeKit;
         good(track.getLibrary().rename(kitId,"Toolbar save test"));
         auto first=track.getLibrary().addInstrument(kitId,before.kits[0].groups[0].id).id;
         auto second=track.getLibrary().addInstrument(kitId,before.kits[0].groups[0].id).id;

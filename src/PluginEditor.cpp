@@ -399,6 +399,7 @@ public:
         soundEditor.close=[this] { soundEditor.setVisible(false); refresh(); };
         status=processor.isMidiTrack()?(processor.hasOpenKit()?"Kit edits are independent of the library. Save kit to collect its samples.":"Choose Kit > New or Load to begin. Add instruments from Library."):"Right-click a library tab to save, duplicate or close it. * means unsaved changes.";
         for(int n=0;n<128;++n)noteSerials[(size_t)n]=processor.getSampleEngine().noteActivity(n)>>32;
+        if(!processor.isMidiTrack()){groupId=processor.librarySelectedGroup;instrumentId=processor.librarySelectedInstrument;}
         refresh(); startTimerHz(30);
     }
     ~Workspace() override { processor.getSampleEngine().pauseAudition();grid.releaseKey();keyboard.releaseKey();stopTimer(); groups.setModel(nullptr); viewport.setViewedComponent(nullptr,false);tabViewport.setViewedComponent(nullptr,false); setLookAndFeel(nullptr); }
@@ -675,6 +676,7 @@ private:
         if(!drum::findGroup(kit(),groupId)) groupId=kit().groups.front().id;
         bool inGroup=false; for(auto& i:group().instruments) if(i.id==instrumentId) inGroup=true;
         if(!inGroup) instrumentId=group().instruments.empty()?juce::String():group().instruments.front().id;
+        if(!processor.isMidiTrack()){processor.librarySelectedGroup=groupId;processor.librarySelectedInstrument=instrumentId;}
         for(int n=0;n<8;++n)
         {
             auto& b=kitTabs[(size_t)n]; b.setVisible(n<(int)view.kits.size() && !processor.librariesEmpty());
