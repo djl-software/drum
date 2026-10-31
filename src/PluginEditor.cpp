@@ -744,8 +744,13 @@ private:
     }
     void listBoxItemClicked(int row,const juce::MouseEvent& event) override
     {
-        if(processor.isMidiTrack() || row<0 || row>=(int)kit().groups.size())return;
         if(!event.mods.isPopupMenu() && event.x<groups.getWidth()-44)return;
+        showGroupMenu(row);
+    }
+    void listBoxItemDoubleClicked(int row,const juce::MouseEvent&) override {showGroupMenu(row);}
+    void showGroupMenu(int row)
+    {
+        if(processor.isMidiTrack() || row<0 || row>=(int)kit().groups.size())return;
         const auto selected=kit().groups[(size_t)row];auto kitId=view.activeKit;
         juce::PopupMenu menu;menu.addItem(1,"Rename...");menu.addItem(2,"Duplicate",kit().groups.size()<16 && drum::instrumentCount(kit())+(int)selected.instruments.size()<=88);menu.addSeparator();menu.addItem(3,"Delete...",kit().groups.size()>1);
         juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea(groups.getRowPosition(row,true).translated(groups.getScreenX(),groups.getScreenY())),[safe,kitId,selected](int action){
