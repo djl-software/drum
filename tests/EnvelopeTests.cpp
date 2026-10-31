@@ -109,12 +109,21 @@ void tonalTests()
         for(int n=0;n<48000;++n){double v=0;for(double hz:frequencies)v+=0.2*std::sin(juce::MathConstants<double>::twoPi*hz*n/48000);audio.setSample(0,n,(float)v);audio.setSample(1,n,(float)-v);}
     };
     tones({440});auto a=drum::analyseTonal(audio,48000);near(a.midi,69,0.05,"A4 pitch detection failed");check(a.key==-1 && !a.varying,"Single tone invented major/minor");
+    auto strongest=[](const drum::TonalAnalysis& result){return (int)std::distance(result.noteEnergy.begin(),std::max_element(result.noteEnergy.begin(),result.noteEnergy.end()));};
+    check(strongest(a)==9 && a.noteEnergy[9]>.99f,"Key spectrum did not map A4 to A");
+    tones({220});check(strongest(drum::analyseTonal(audio,48000))==9,"Key spectrum did not combine octaves");
+    tones({261.625565});check(strongest(drum::analyseTonal(audio,48000))==0,"Key spectrum does not start with C");
+    tones({440*std::pow(2.0,1.0/12)});check(strongest(drum::analyseTonal(audio,48000))==10,"Transposed tone did not move to A sharp");
+    tones({32.703196});check(strongest(drum::analyseTonal(audio,48000))==0,"Low C was omitted from the Key spectrum");
+    for(int n=0;n<48000;++n){audio.setSample(0,n,.2f*(float)std::sin(juce::MathConstants<double>::twoPi*440*n/48000));audio.setSample(1,n,.2f*(float)std::sin(juce::MathConstants<double>::twoPi*261.625565*n/48000));}auto stereo=drum::analyseTonal(audio,48000);check(stereo.noteEnergy[0]>.5f && stereo.noteEnergy[9]>.5f,"Key spectrum lost one stereo channel");
+    juce::AudioBuffer<float> late(1,480000);late.clear();for(int n=240000;n<288000;++n)late.setSample(0,n,.2f*(float)std::sin(juce::MathConstants<double>::twoPi*440*n/48000));check(drum::analyseTonal(late,48000).noteEnergy[9]>.9f,"Analysis ignored audio beyond four seconds");
     tones({220});near(drum::analyseTonal(audio,48000).midi,57,0.05,"A3 pitch detection failed");
     tones({261.625565,329.627557,391.995436});a=drum::analyseTonal(audio,48000);std::cout<<"C chord key estimate: "<<a.key<<"\n";check(a.key==0,"C major chord recognition failed");
     tones({233.081881,277.182631,349.228231});a=drum::analyseTonal(audio,48000);check(a.key==22,"Bb minor chord recognition failed");
     juce::Random random(123);for(int c=0;c<2;++c)for(int n=0;n<48000;++n)audio.setSample(c,n,random.nextFloat()*0.5f-0.25f);
     a=drum::analyseTonal(audio,48000);check(a.midi<0 && a.key<0,"Noise given a definite pitch/key");
     audio.clear();a=drum::analyseTonal(audio,48000);check(a.midi<0 && a.key<0 && a.complete,"Silence analysis incorrect");
+    check(std::all_of(a.noteEnergy.begin(),a.noteEnergy.end(),[](float v){return v==0;}),"Silence retained a stale Key spectrum");
     check(!drum::analyseTonal(audio,48000,[]{return true;}).complete,"Analysis cancellation ignored");
     check(drum::camelotCode(22)=="3A" && drum::camelotCode(21)=="8A" && drum::camelotCode(0)=="8B","Camelot mapping incorrect");
     check(drum::musicalNote(69)=="A4","Note octave incorrect");
@@ -131,6 +140,11 @@ void runEnvelopeTests()
     DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");click(editor,"edit-tab-1");settle(editor);
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
     auto& soundEditor=control<SoundEditor>(editor,"sound-editor");
+    click(editor,"edit-tab-8");check(control<juce::Component>(editor,"key-spectrum").isVisible(),"Key spectrum not visible on Key tab");
+    control<juce::Slider>(editor,"key-coarse").setValue(3,juce::sendNotificationSync);control<juce::Slider>(editor,"key-fine").setValue(17.5,juce::sendNotificationSync);
+    near(current().tuning,3,.001,"Key coarse did not affect instrument tuning");near(current().sound.detune,17.5,.001,"Key fine did not affect playback detune");settle(editor);capture(editor,"drum-key-tab.png");
+    juce::MemoryBlock keyState;p.getStateInformation(keyState);DrumAudioProcessor recalledKey;recalledKey.setStateInformation(keyState.getData(),(int)keyState.getSize());auto recalledState=recalledKey.getLibrary().snapshot();auto recalledControls=drum::findInstrument(*drum::activeKit(recalledState),id)->controls;near(recalledControls.tuning,3,.001,"Key tuning was not saved");near(recalledControls.sound.detune,17.5,.001,"Key fine tuning was not saved");
+    click(editor,"reset-edit-page");near(current().tuning,0,.001,"Key reset did not reset coarse");near(current().sound.detune,0,.001,"Key reset did not reset fine");click(editor,"edit-tab-1");
     auto refresh=[&]{auto s=library.snapshot();soundEditor.select(kit,drum::findInstrument(*drum::activeKit(s),id));};
     auto& amp=control<EnvelopeEditor>(editor,"envelope-amp");auto& pitch=control<EnvelopeEditor>(editor,"envelope-pitch");auto& filter=control<EnvelopeEditor>(editor,"envelope-filter");
     check(amp.isVisible() && pitch.isVisible() && !filter.isVisible(),"Envelope graphs shown on wrong page");

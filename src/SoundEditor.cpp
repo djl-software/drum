@@ -436,6 +436,23 @@ private:
     SoundEditor& owner;
     int initialHeight=340;
 };
+class SoundEditor::KeySpectrum final : public juce::Component {
+public:
+    drum::TonalAnalysis analysis;bool busy=false,hasSample=false;
+    void update(const drum::TonalAnalysis& next,bool working,bool loaded){analysis=next;busy=working;hasSample=loaded;repaint();}
+    void paint(juce::Graphics& g) override {
+        g.setColour(bg);g.fillRoundedRectangle(getLocalBounds().toFloat(),8);
+        text(g,"NOTE ENERGY / EDITED SOUND / BEFORE CHAIN",{14,8,getWidth()-28,22},12,muted);
+        auto plot=getLocalBounds().reduced(44,0).withTrimmedTop(40).withTrimmedBottom(32);if(plot.getHeight()<20)return;
+        const float width=plot.getWidth()/12.0f;const char* names[]{"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
+        for(int n=0;n<12;++n){auto column=juce::Rectangle<float>(plot.getX()+n*width,(float)plot.getY(),width,(float)plot.getHeight());g.setColour((n==1||n==3||n==6||n==8||n==10)?juce::Colour(0xff111e2b):juce::Colour(0xff1b2b38));g.fillRect(column);g.setColour(juce::Colour(0xff314151));g.drawVerticalLine((int)column.getX(),column.getY(),column.getBottom());
+            if(!busy){const float power=analysis.noteEnergy[(size_t)n];const float level=power>0?juce::jlimit(0.0f,1.0f,(48+10*std::log10(power))/48):0;auto bar=column.reduced(6,0).withTop(column.getBottom()-level*column.getHeight());g.setGradientFill(juce::ColourGradient(mint,bar.getCentreX(),bar.getY(),mint.withAlpha(.1f),bar.getCentreX(),bar.getBottom(),false));g.fillRect(bar);}
+            g.setColour(ink);g.setFont(juce::FontOptions(14));g.drawText(names[n],juce::Rectangle<int>((int)column.getX(),plot.getBottom()+5,(int)width,24),juce::Justification::centred);
+        }
+        for(int db=0;db>=-48;db-=12){int y=plot.getY()+juce::roundToInt(-db/48.0f*plot.getHeight());g.setColour(juce::Colour(0xff3b4d5b));g.drawHorizontalLine(y,(float)plot.getX(),(float)plot.getRight());text(g,juce::String(db),{4,y-9,36,18},11,muted);}
+        if(!hasSample || busy)text(g,busy?"Analysing edited audio...":"Load a sample to analyse its notes.",plot.reduced(15),16);
+    }
+};
 SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(),p.getEffects()),waveform(std::make_unique<Waveform>(*this)),waveformDivider(std::make_unique<WaveformDivider>(*this))
 {
     setComponentID("sound-editor"); setOpaque(true);addAndMakeVisible(chain);
@@ -447,12 +464,17 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
         if(!i || kit->id!=kitId) return;
         auto c=i->controls; for(auto& parameter:drum::soundParameters) if(parameter.page==page) c.sound.*(parameter.member)=parameter.initial;
+        if(page==8){c.tuning=0;c.sound.detune=0;}
         if(page==1){c.sound.envelopes[0]={};c.sound.envelopes[1]={};constrainEnvelope(c.sound,0);constrainEnvelope(c.sound,1);}else if(page==2){c.sound.envelopes[2]={};c.sound.equalizer={};constrainEnvelope(c.sound,2);}
         auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
         if(result.ok){for(int n=0;n<3;++n)if(page==(n==2?2:1))recordEnvelope(n,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
         message=result.ok?"Page reset. The source file is unchanged.":result.message; refresh();
     };
-    const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer","Chain"};
+    const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer","Chain","Key"};
+    keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
+    auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);slider.setSliderStyle(juce::Slider::LinearHorizontal);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint);slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,ink);slider.onValueChange=[this]{changeKeyTuning();};};
+    tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
+    keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Shared with Envelopes & pitch.");addAndMakeVisible(keyStatus);keyStatus.setColour(juce::Label::textColourId,muted);keyStatus.setFont(juce::FontOptions(12));
     for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
     addAndMakeVisible(*waveform);
@@ -524,6 +546,10 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     if(selectedSample && nextSample!=selectedSample)envelopeHistory={};
     selectedSample=nextSample;
     selectedControls=i?i->controls:drum::InstrumentControls{};
+    if(!keyCoarse.isMouseButtonDown())keyCoarse.setValue(selectedControls.tuning,juce::dontSendNotification);
+    if(!keyFine.isMouseButtonDown())keyFine.setValue(sound.detune,juce::dontSendNotification);
+    bool mappedCoarse=false,mappedFine=false;for(const auto& m:selectedControls.macros){mappedCoarse|=m.target==3;if(m.target>3)mappedFine|=drum::macroTargets[(size_t)m.target].member==&drum::SoundParameters::detune;}
+    keyCoarse.setEnabled(i && !mappedCoarse);keyFine.setEnabled(i && !mappedFine);
     equalizer.setEnabled(i!=nullptr);equalizer.update(sound.equalizer,processor.getSampleEngine().previewSampleRate());
     auto libraryState=processor.getLibrary().snapshot();
     if(i && !i->controls.solo)for(auto& group:drum::activeKit(libraryState)->groups)for(auto& other:group.instruments)
@@ -709,6 +735,10 @@ void SoundEditor::refreshPreview()
     else if(key>=0)description+="     Key (estimate): "+drum::musicalKey(key)+" / "+drum::camelotCode(key);
     else description+="     Key / Camelot: uncertain";
     noteIndicator.setText(description,juce::dontSendNotification);
+    keySpectrum->update(analysis,busy,selectedSample!=nullptr);
+    juce::String detail="Relative energy: strongest note = 0 dB. Octaves combined. ";
+    if(busy)detail+="Updating...";else if(analysis.midi<0)detail+="No stable pitch detected.";else detail+="Pitch: "+drum::musicalNote(analysis.midi)+(analysis.varying?" (varies)":"")+" / confidence "+juce::String(juce::roundToInt(100*analysis.confidence))+"%.";
+    keyStatus.setText(detail,juce::dontSendNotification);
 }
 void SoundEditor::visibilityChanged() {if(waveform)refreshPreview();equalizer.visibilityChanged();}
 void SoundEditor::refresh()
@@ -735,6 +765,12 @@ void SoundEditor::change(const drum::SoundParameter& parameter,double value)
     message=result.ok?"Saved with this kit. Markers, direction, playback mode and loop on/off apply on the next hit.":"Start must be before End; loop start must be before loop end.";
     refresh();
 }
+void SoundEditor::changeKeyTuning()
+{
+    if(updating)return;auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);if(!i || kit->id!=kitId)return;
+    auto controls=i->controls;controls.tuning=keyCoarse.getValue();controls.sound.detune=keyFine.getValue();auto result=processor.getLibrary().setControls(kitId,instrumentId,controls);
+    if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));waveform->showEdited();message=result.ok?"Tuning saved; waveform and note spectrum update from the edited audio.":result.message;refresh();
+}
 void SoundEditor::setPage(int value)
 {
     page=value; viewport.setViewPosition(0,0);
@@ -751,6 +787,7 @@ void SoundEditor::setPage(int value)
     equalizer.setVisible(page==2 && !filterEnvelopePage);eqTab.setVisible(page==2);filterTab.setVisible(page==2);
     eqTab.setToggleState(!filterEnvelopePage,juce::dontSendNotification);filterTab.setToggleState(filterEnvelopePage,juce::dontSendNotification);
     slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5 && page!=7);chain.setVisible(page==7);viewport.setVisible(page!=7);
+    keySpectrum->setVisible(page==8);keyCoarse.setVisible(page==8);keyFine.setVisible(page==8);keyCoarseLabel.setVisible(page==8);keyFineLabel.setVisible(page==8);keyStatus.setVisible(page==8);if(page==8)viewport.setVisible(false);
     resized(); repaint();
 }
 void SoundEditor::paint(juce::Graphics& g)
@@ -765,7 +802,8 @@ void SoundEditor::paint(juce::Graphics& g)
         "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
         "Add Click, Pulse or Noise independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note.",
-        "Drag VST3 effects into this instrument\'s chain. Audio flows left to right. The waveform shows the sound before this chain."};
+        "Drag VST3 effects into this instrument\'s chain. Audio flows left to right. The waveform shows the sound before this chain.",
+        "C through B, combined across octaves. Coarse = semitones; Fine = cents. The spectrum follows the edited sound."};
     text(g,help[page],{18,116,getWidth()-(page==2?470:page==1?170:36),24},12,muted);
     text(g,message.isEmpty()?"Non-destructive edits. The original audio file is preserved.":message,{18,getHeight()-29,getWidth()-36,23},11,muted);
 }
@@ -780,7 +818,7 @@ void SoundEditor::resized()
     const int graphHeight=page==1 || page==2?180:0;
     const int graphWidth=getWidth()-36;
     const int waveTop=150;
-    const int reserved=page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:page==7?310:160;
+    const int reserved=page==8?340:page==1?82:page==2?!filterEnvelopePage?12:116:page==0?244:page==7?310:160;
     const int minimumWaveHeight=page==7?160:184;
     const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),waveformHeight);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
@@ -792,6 +830,7 @@ void SoundEditor::resized()
     }
     if(page==2){envelopes[2]->setBounds(18,graphTop,graphWidth,graphHeight);equalizer.setBounds(18,graphTop,graphWidth,graphHeight);}
     const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
+    if(page==8){int keyBottom=getHeight()-38;int spectrumHeight=juce::jmax(110,keyBottom-controlsTop-102);keySpectrum->setBounds(18,controlsTop,graphWidth,spectrumHeight);int row=controlsTop+spectrumHeight+6;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,42);}
     chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=width>=1000?3:2,gap=16,cell=(width-gap*(columns-1))/columns;

@@ -31,18 +31,19 @@ TonalAnalysis analyseTonal(const juce::AudioBuffer<float>& audio,double rate,con
 {
     TonalAnalysis result;
     if(audio.getNumChannels()<1 || audio.getNumSamples()<32 || !std::isfinite(rate) || rate<8000){result.complete=true;return result;}
-    const int sourceFrames=std::min(audio.getNumSamples(),(int)(rate*4));
+    const int sourceFrames=std::min(audio.getNumSamples(),(int)(rate*30));
     int channel=0;if(audio.getNumChannels()>1 && audio.getRMSLevel(1,0,sourceFrames)>audio.getRMSLevel(0,0,sourceFrames))channel=1;
     const double analysisRate=std::min(12000.0,rate),ratio=analysisRate/rate;
-    std::vector<float> data;data.reserve((size_t)(4*analysisRate)+1);
+    std::vector<float> data,secondary;data.reserve((size_t)(sourceFrames*ratio)+1);if(audio.getNumChannels()>1)secondary.reserve((size_t)(sourceFrames*ratio)+1);
     const double alpha=1-std::exp(-juce::MathConstants<double>::twoPi*2500/rate);
-    std::array<double,4> filter{};double phase=0,dc=0,energy=0;
-    const auto* source=audio.getReadPointer(channel);
+    std::array<double,4> filter{},secondaryFilter{};double phase=0,dc=0,secondaryDc=0,energy=0;
+    const auto* source=audio.getReadPointer(channel);const auto* other=audio.getNumChannels()>1?audio.getReadPointer(1-channel):nullptr;
     for(int n=0;n<sourceFrames;++n)
     {
         if((n&4095)==0 && cancelled && cancelled())return {};
         double value=source[n];for(auto& stage:filter){stage+=alpha*(value-stage);value=stage;}
-        phase+=ratio;if(phase>=1){phase-=1;dc+=0.001*(value-dc);value-=dc;data.push_back((float)value);energy+=value*value;}
+        double otherValue=other?other[n]:0;if(other)for(auto& stage:secondaryFilter){stage+=alpha*(otherValue-stage);otherValue=stage;}
+        phase+=ratio;if(phase>=1){phase-=1;dc+=0.001*(value-dc);value-=dc;data.push_back((float)value);energy+=value*value;if(other){secondaryDc+=.001*(otherValue-secondaryDc);secondary.push_back((float)(otherValue-secondaryDc));}}
     }
     result.complete=true;if(data.size()<96 || energy/data.size()<1e-10)return result;
     const int window=std::min(2048,(int)data.size()),maxLag=std::min((int)(analysisRate/25),window/2),length=window-maxLag;
@@ -74,8 +75,18 @@ TonalAnalysis analyseTonal(const juce::AudioBuffer<float>& audio,double rate,con
         result.varying=result.highMidi-result.lowMidi>1.0;
         for(double c:confidences)result.confidence+=c;result.confidence/=confidences.size();
     }
-    if(data.size()<analysisRate*0.12)return result;
     constexpr int size=4096;juce::dsp::FFT fft(12);std::vector<float> spectrum(size*2);std::array<double,12> chroma{};
+    std::array<double,12> notePower{};
+    const int first=std::max(2,(int)(25*size/analysisRate)),last=std::min(size/2-1,(int)(3000*size/analysisRate));
+    auto accumulateNotes=[&](double peak){
+        if(peak>=1e-4)for(int k=first;k<=last;++k){
+            const double v=spectrum[(size_t)k];if(v<peak*.02 || v<=spectrum[(size_t)k-1] || v<spectrum[(size_t)k+1])continue;
+            const double left=spectrum[(size_t)k-1],right=spectrum[(size_t)k+1],denominator=left-2*v+right;
+            const double fine=std::abs(denominator)>1e-12?std::clamp(.5*(left-right)/denominator,-.5,.5):0;
+            const double pitch=69+12*std::log2((k+fine)*analysisRate/size/440);const int lower=(int)std::floor(pitch);const double fraction=pitch-lower;
+            notePower[(size_t)((lower%12+12)%12)]+=v*v*(1-fraction);notePower[(size_t)(((lower+1)%12+12)%12)]+=v*v*fraction;
+        }
+    };
     int tonalFrames=0,fundamentalFrames=0;
     for(int frame=0;frame<16;++frame)
     {
@@ -84,9 +95,9 @@ TonalAnalysis analyseTonal(const juce::AudioBuffer<float>& audio,double rate,con
         const int offset=(int)((data.size()-available)*frame/15);
         for(int n=0;n<available;++n)spectrum[(size_t)n]=data[(size_t)offset+n]*(float)(0.5-0.5*std::cos(juce::MathConstants<double>::twoPi*n/std::max(1,available-1)));
         fft.performFrequencyOnlyForwardTransform(spectrum.data());
-        const int first=std::max(2,(int)(40*size/analysisRate)),last=std::min(size/2-1,(int)(3000*size/analysisRate));
         double arithmetic=0,logs=0,peak=0;for(int k=first;k<=last;++k){const double v=std::max(1e-12,(double)spectrum[(size_t)k]);arithmetic+=v;logs+=std::log(v);peak=std::max(peak,v);}
         const int bins=last-first+1;const double flatness=std::exp(logs/bins)/(arithmetic/bins);
+        accumulateNotes(peak);
         if(peak<1e-4 || flatness>0.25)continue;++tonalFrames;
         // Do not turn a pitched drum's harmonics into a major/minor label.
         // Chords may correlate at a subharmonic which has no actual spectral peak.
@@ -105,7 +116,15 @@ TonalAnalysis analyseTonal(const juce::AudioBuffer<float>& audio,double rate,con
             chroma[(size_t)(rounded%12)]+=std::sqrt(v/peak);
         }
     }
-    if(tonalFrames<4 || fundamentalFrames>tonalFrames/2)return result;
+    // Sum channel power, never waveforms: inverted stereo must not cancel notes.
+    if(!secondary.empty())for(int frame=0;frame<16;++frame){
+        if(cancelled && cancelled())return {};
+        std::fill(spectrum.begin(),spectrum.end(),0);const int available=std::min(size,(int)secondary.size());const int offset=(int)((secondary.size()-available)*frame/15);
+        for(int n=0;n<available;++n)spectrum[(size_t)n]=secondary[(size_t)offset+n]*(float)(.5-.5*std::cos(juce::MathConstants<double>::twoPi*n/std::max(1,available-1)));
+        fft.performFrequencyOnlyForwardTransform(spectrum.data());double peak=0;for(int k=first;k<=last;++k)peak=std::max(peak,(double)spectrum[(size_t)k]);accumulateNotes(peak);
+    }
+    const double strongest=*std::max_element(notePower.begin(),notePower.end());if(strongest>0)for(size_t n=0;n<12;++n)result.noteEnergy[n]=(float)(notePower[n]/strongest);
+    if(data.size()<analysisRate*0.12 || tonalFrames<4 || fundamentalFrames>tonalFrames/2)return result;
     double max=*std::max_element(chroma.begin(),chroma.end());int present=0;for(double v:chroma)if(v>max*0.18)++present;
     if(present<3 || present>9)return result;
     constexpr double major[]{1,0,0.2,0,0.8,0.2,0,0.65,0,0.2,0,0.2};

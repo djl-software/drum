@@ -4,6 +4,7 @@
 #include "EnvelopeEditor.h"
 #include "EqualizerEditor.h"
 #include "ChainEditor.h"
+#include "ResetSlider.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 class SoundEditor final : public juce::Component, public juce::FileDragAndDropTarget,private juce::Timer
@@ -23,6 +24,8 @@ private:
     struct MacroField;
     class Waveform;
     class WaveformDivider;
+    class KeySpectrum;
+    void changeKeyTuning();
     void change(const drum::SoundParameter&,double);
     void refresh();
     void refreshPreview();
@@ -71,7 +74,10 @@ private:
     EqualizerEditor equalizer;
     bool filterEnvelopePage=false;
     juce::ComboBox sliceCount;
-    std::array<juce::TextButton,8> tabs;
+    std::array<juce::TextButton,9> tabs;
+    std::unique_ptr<KeySpectrum> keySpectrum;
+    ResetSlider keyCoarse,keyFine;
+    juce::Label keyCoarseLabel,keyFineLabel,keyStatus;
     juce::Viewport viewport;
     juce::Component content;
     std::unique_ptr<Waveform> waveform;
