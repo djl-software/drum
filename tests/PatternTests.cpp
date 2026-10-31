@@ -10,6 +10,32 @@ void runPatternTests(){
     auto kick=model.addInstrument(kitId,group).id,snare=model.addInstrument(kitId,group).id;auto patternId=model.addPattern(kitId).id;
     auto kit=model.snapshot().kits[0];auto pattern=kit.patterns[0];pattern.hits={{kick,0,110},{snare,2,65}};good(model.setPattern(kitId,pattern));
     good(model.reorderInstrument(kitId,snare,-1));kit=model.snapshot().kits[0];check(kit.patterns[0].hits==pattern.hits,"Reorder changed instrument identities in a pattern");
+    // The Live map labels the current assignments without copying audio devices.
+    {
+        auto mapKit=kit;mapKit.name="Kit & <test>";mapKit.groups[0].instruments[0].name="Snare & <rim>";
+        auto mapFile=juce::File::getCurrentWorkingDirectory().getChildFile("drum-live-note-map-test.adg");
+        good(drum::LiveNoteMap::write(mapKit,mapFile));juce::FileInputStream packed(mapFile);
+        juce::GZIPDecompressorInputStream unpacked(&packed,false,juce::GZIPDecompressorInputStream::gzipFormat);
+        auto xml=juce::parseXML(unpacked.readEntireStreamAsString());check(xml!=nullptr,"Live map is not gzip XML");
+        auto* preset=xml->getChildByName("GroupDevicePreset");auto* rack=preset->getChildByName("Device")->getChildByName("MidiEffectGroupDevice");
+        check(rack->getChildByName("ShowsZonesInsteadOfNoteNames")->getBoolAttribute("Value"),"Live note names disabled");
+        auto* branches=preset->getChildByName("BranchPresets");check(branches->getNumChildElements()==2,"Wrong number of named key zones");
+        int n=0;for(auto* branch:branches->getChildIterator()){
+            const auto& instrument=mapKit.groups[0].instruments[(size_t)n++];
+            check(branch->getChildByName("Name")->getStringAttribute("Value")==instrument.name,"Live map loses escaped instrument name");
+            check(branch->getChildByName("DevicePresets")->getNumChildElements()==0,"Live map introduces MIDI processing");
+            auto* range=branch->getChildByName("ZoneSettings")->getChildByName("KeyRange");
+            for(auto tag:{"Min","Max","CrossfadeMin","CrossfadeMax"})check(range->getChildByName(tag)->getIntAttribute("Value")==instrument.note,"Live map changes note assignment");
+        }
+        auto linked=drum::LiveNoteMap::create(drum::LiveNoteMap::linkedKit(mapKit));
+        auto* linkedBranches=linked->getChildByName("GroupDevicePreset")->getChildByName("BranchPresets");
+        check(linkedBranches->getNumChildElements()==88,"Linked rack must reserve every kit key");
+        for(int key=21;key<=108;++key)check(linkedBranches->getChildElement(key-21)->getChildByName("ZoneSettings")->getChildByName("KeyRange")->getChildByName("Min")->getIntAttribute("Value")==key,"Linked rack key order changed");
+        good(drum::LiveNoteMap::writeLinked(mapKit,juce::File::getCurrentWorkingDirectory().getChildFile("DJL Drum Link.adg")));
+        mapKit.groups[0].instruments[1].note=mapKit.groups[0].instruments[0].note;
+        check(!drum::LiveNoteMap::write(mapKit,mapFile).ok,"Live map permits duplicated MIDI routes");
+        mapKit.groups.clear();check(!drum::LiveNoteMap::write(mapKit,mapFile).ok,"Empty Live map should not be exported");
+    }
     auto file=juce::File::getCurrentWorkingDirectory().getChildFile("pattern-midi-test.mid");good(drum::PatternPlayer::exportMidi(kit,kit.patterns[0],120,file));juce::FileInputStream stream(file);juce::MidiFile midi;check(midi.readFrom(stream) && midi.getTimeFormat()==960 && midi.getNumTracks()==1,"Invalid exported MIDI");
     auto* sequence=midi.getTrack(0);int hits=0;for(int n=0;n<sequence->getNumEvents();++n){auto message=sequence->getEventPointer(n)->message;if(!message.isNoteOn())continue;++hits;if(message.getTimeStamp()==0)check(message.getNoteNumber()==22 && message.getVelocity()==110,"Kick export did not follow its new key");else check(message.getTimeStamp()==480 && message.getNoteNumber()==21 && message.getVelocity()==65,"Snare timing or velocity changed");}check(hits==2 && sequence->getEndTime()==3840,"Pattern length or hit count changed");
     drum::PatternPlayer player(model);player.prepare(1000);player.start(patternId);juce::MidiBuffer events;events.ensureSize(100000);player.process(events,2048,120);int starts=0;for(const auto event:events)if(event.getMessage().isNoteOn()){check(event.samplePosition==0 || event.samplePosition==250 || event.samplePosition==2000,"Pattern playback timing wrong");++starts;}check(starts==3,"Pattern looping missed or duplicated a hit");player.stop();events.clear();player.process(events,16,120);check(!events.isEmpty() && (*events.begin()).getMessage().isNoteOff(),"Pattern stop left a held MIDI note");
@@ -28,6 +54,19 @@ void runPatternTests(){
     for(auto& h:grouped.hits){h.groupMode=0;h.chance=0;}good(restored.setPattern(kitId,grouped));groupedPlayer.start(grouped.id);events.clear();groupedPlayer.process(events,2000,120);for(const auto event:events)check(!event.getMessage().isNoteOn(),"Zero-chance note played");
     // The main screen must create a library even when no kit is open.
     {DrumAudioProcessor root(true);good(root.openSharedLibrary());auto count=root.libraryEditorProcessor()->getLibrary().snapshot().kits.size();DrumAudioProcessorEditor main(root);auto* create=dynamic_cast<juce::TextButton*>(control(main,"new-library"));check(create && create->isVisible() && create->isEnabled(),"New library control unavailable without a kit");create->onClick();check(!root.hasOpenKit() && root.libraryEditorProcessor()->getLibrary().snapshot().kits.size()==count+1,"New library action did not create a collection");}
+    { // Publication belongs to the processor, so no editor needs to exist.
+        juce::File publication;
+        {
+            DrumAudioProcessor first(true),second(true);first.newKit();second.newKit();
+            auto firstName=first.getParameters().getLast()->getName(128),secondName=second.getParameters().getLast()->getName(128);
+            check(firstName.startsWith("DJL Link ") && firstName!=secondName,"Live instances share a link token");
+            auto initial=first.getLibrary().snapshot();good(first.getLibrary().addInstrument(initial.activeKit,initial.kits[0].groups[0].id));
+            first.publishLiveKit();publication=drum::LiveKitLink::folder().getChildFile(firstName.substring(9)+".json");
+            auto payload=juce::JSON::parse(publication);check(payload["notes"].size()==1,"Kit was not published without an editor");
+            check((int)payload["notes"][0]["note"]==21,"Published wrong kit note");
+        }
+        check(!publication.existsAsFile(),"Link file survives processor destruction");
+    }
     DrumAudioProcessor processor(true);processor.newKit();auto initial=processor.getLibrary().snapshot();good(processor.getLibrary().addInstrument(initial.activeKit,initial.kits[0].groups[0].id));DrumPatternEditor editor(processor);editor.setSize(1000,640);editor.open();auto* roll=control(editor,"midi-piano-roll");check(roll,"Piano roll is missing");roll->mouseDoubleClick(mouse(*roll,{50,13},{50,13}));auto edited=[&]{return processor.getLibrary().snapshot().kits[0].patterns[0];};check(edited().hits.size()==1 && edited().hits[0].beat()==.5,"Double click did not create a MIDI note");
     roll->mouseDown(mouse(*roll,{60,13},{60,13}));roll->mouseDrag(mouse(*roll,{160,13},{60,13}));roll->mouseUp(mouse(*roll,{160,13},{60,13}));check(edited().hits[0].beat()==1.5,"Dragging did not move the MIDI note");
     roll->mouseDown(mouse(*roll,{174,13},{174,13}));roll->mouseDrag(mouse(*roll,{224,13},{174,13}));roll->mouseUp(mouse(*roll,{224,13},{174,13}));check(edited().hits[0].duration==.75,"Dragging note edge did not resize it");

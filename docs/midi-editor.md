@@ -56,3 +56,18 @@ The current 0.16.4 update changes Notes lanes only. Envelopes/MPE editing and lo
 Acceptance for the follow-on work must compare imported/exported event timestamps and values, channels, note-on/off velocities, overlapping notes, controller/program messages, pitch bend, aftertouch, tempo and signature events, and MPE channel relationships. Unknown or unsupported content must be retained or explicitly reported, never silently discarded. Test at multiple source tick resolutions and with multitrack files. Notes edits must keep associated per-note expression aligned. MIDI playback support must be tested separately from file preservation; retaining a controller does not guarantee the sampler responds to it.
 
 References: [Notes](https://www.ableton.com/en/live-manual/12/editing-midi/), [Clip Envelopes](https://www.ableton.com/en/live-manual/12/clip-envelopes/), [MPE](https://www.ableton.com/en/live-manual/12/editing-mpe/), [MIDI and Live Clips](https://www.ableton.com/en/live-manual/12/managing-files-and-sets/#midi-files).
+
+
+## Named instruments in Ableton Live
+
+**Use kit** on the kit screen creates `Drum/Ableton Maps/DJL Drum Link.adg` and reveals it in the file browser. Put this MIDI Effect Rack **immediately before DJL Drum** on the same track, once per Drum instance. Keep its rack name and key zones unchanged. It contains 88 empty chains, one for each key from MIDI 21 to 108, with no extra instruments, samples or audio effects. Unoccupied keys show `(unused)`.
+
+Install the bundled `DJL_Drum_Link` folder under your Ableton User Library's `Remote Scripts` folder. Restart Live, then select **DJL Drum Link** in an unused Control Surface slot under Settings > Link, Tempo & MIDI. Leave Input and Output as **None**. One script serves all Drum tracks. See [Ableton's installation instructions](https://help.ableton.com/hc/en-us/articles/209072009-Installing-third-party-remote-scripts).
+
+The companion reads each Drum instance's current instrument names and assignments twice a second and updates only its immediately preceding DJL mapping rack. It stays connected with Drum's editor closed. It does not launch an external helper or access the network. An instance identifier in a non-automatable plugin parameter prevents two tracks from sharing the wrong map; duplicated/restored instances get fresh identifiers automatically.
+
+Open a Live MIDI clip and turn **Fold off**. The rack requests **Show Names in MIDI Editor**; if necessary enable that option in its chain-list context menu. Save the Live Set to keep the rack. Actual rack loading and Live name display still require verification in Live 12.
+
+Names follow additions, deletions, renames and reordering automatically. MIDI key zones remain fixed. **Existing Live clip notes are not moved by this version.** Reordering the kit can therefore change which sounds those clips trigger. The separate option for automatic clip-note rewriting remains unimplemented. Drum's internal MIDI clips retain instrument identities and can be exported afresh.
+
+If the companion is disabled, the rack retains its last names and still passes notes on the assigned key range. Stale/malformed publications and edited racks containing effects are ignored. Do not stack mapping racks or insert another device between the mapping rack and Drum. No controller/MPE events or audio are processed by the companion.

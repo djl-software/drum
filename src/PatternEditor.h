@@ -2,6 +2,7 @@
 #include "PluginProcessor.h"
 #include "MidiEditing.h"
 #include "MidiNumberBox.h"
+#include "LiveNoteMap.h"
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <map>
 class DrumPatternEditor final:public juce::Component,private juce::Timer {

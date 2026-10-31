@@ -6,6 +6,7 @@
 #include "GlobalKitStore.h"
 #include "PortableFiles.h"
 #include "PatternPlayer.h"
+#include "LiveKitLink.h"
 
 class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater
 {
@@ -26,6 +27,7 @@ public:
     std::function<drum::Result()> saveSharedLibrary,reloadSharedLibrary;
     juce::String libraryStatus() const {const juce::ScopedLock lock(migrationLock);return migrationStatus;}
 
+    void publishLiveKit(){if(liveKitLink)liveKitLink->publish();}
     ~DrumAudioProcessor() override;
     drum::KitLibrary& getLibrary() { return library; }
     drum::PatternPlayer& getPatterns(){return *patternPlayer;}
@@ -51,6 +53,7 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 private:
+    std::unique_ptr<drum::LiveKitLink> liveKitLink;
     const bool trackInstance;
     std::atomic<bool> kitOpened{false};
     juce::File currentDocument;

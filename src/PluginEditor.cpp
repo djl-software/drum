@@ -261,6 +261,13 @@ public:
         setup(patternButton,"MIDI","open-patterns");patternButton.onClick=[this]{if(!patternEditor){patternEditor=std::make_unique<DrumPatternEditor>(processor);addChildComponent(*patternEditor);resized();}patternEditor->open();};
         setup(newKitButton,"New kit","new-kit");newKitButton.onClick=[this]{confirm("Create a new kit?","Save the current kit first if you want to keep it.",[this]{processor.newKit();groupId.clear();instrumentId.clear();refresh();});};
         setup(openDocumentButton,processor.isMidiTrack()?"Open kit":"Open library","open-document");openDocumentButton.onClick=[this]{confirm("Open a file?","Save current edits first. Opening a kit replaces it; opening a library replaces a collection with the same identity.",[this]{chooseDocument(false);});};
+        setup(useKitButton,"Use kit","use-kit-live");useKitButton.setTooltip("Create Live's named-key rack. Place it before Drum once; the DJL Drum Link companion keeps names updated.");useKitButton.onClick=[this]{
+            auto state=library.snapshot();auto* active=drum::activeKit(state);if(!active)return;
+            auto folder=drum::PortableFiles::root().getChildFile("Ableton Maps");
+            auto file=folder.getChildFile("DJL Drum Link.adg");auto result=drum::LiveNoteMap::writeLinked(*active,file);
+            if(!result.ok){complete(result);return;}processor.publishLiveKit();
+            status="Place DJL Drum Link.adg immediately before Drum once. Enable DJL Drum Link in Live's Control Surfaces.";repaint();file.revealToUser();
+        };
         setup(saveDocumentButton,processor.isMidiTrack()?"Save kit":"Save library as","save-document");saveDocumentButton.onClick=[this]{if(processor.isMidiTrack() && processor.documentFile().existsAsFile())complete(processor.saveDocument(processor.documentFile()));else chooseDocument(true);};
         setup(saveAsButton,"Save kit as","save-document-as");saveAsButton.onClick=[this]{chooseDocument(true);};
         logo = juce::ImageCache::getFromMemory(DJLAssets::DJLLogoWhite_png, DJLAssets::DJLLogoWhite_pngSize);
@@ -469,7 +476,7 @@ public:
             for(auto* component:std::initializer_list<juce::Component*>{&addKit,&copyKit,&deleteKit,&example})component->setVisible(false);
             addInstrument.setButtonText("Add from library");
         }
-        newLibraryButton.setBounds(840,88,138,35);newLibraryButton.setVisible(processor.isMidiTrack());patternButton.setBounds(722,88,110,35);patternButton.setVisible(processor.isMidiTrack());patternButton.setEnabled(processor.hasOpenKit());if(patternEditor)patternEditor->setBounds(24,125,w-48,h-149);
+        useKitButton.setBounds(884,88,94,35);useKitButton.setVisible(processor.isMidiTrack());useKitButton.setEnabled(processor.hasOpenKit());newLibraryButton.setBounds(782,88,96,35);newLibraryButton.setVisible(processor.isMidiTrack());patternButton.setBounds(722,88,54,35);patternButton.setVisible(processor.isMidiTrack());patternButton.setEnabled(processor.hasOpenKit());if(patternEditor)patternEditor->setBounds(24,125,w-48,h-149);
         newKitButton.setVisible(processor.isMidiTrack());saveAsButton.setVisible(processor.isMidiTrack());
         newKitButton.setBounds(200,88,105,35);openDocumentButton.setBounds(processor.isMidiTrack()?313:470,processor.isMidiTrack()?88:138,120,35);
         saveDocumentButton.setBounds(processor.isMidiTrack()?441:598,processor.isMidiTrack()?88:138,140,35);saveAsButton.setBounds(589,88,125,35);
@@ -738,7 +745,7 @@ private:
     juce::Label note;
     juce::ComboBox destination,choke;
     std::unique_ptr<DrumPatternEditor> patternEditor;
-    juce::TextButton patternButton,newLibraryButton;
+    juce::TextButton useKitButton,patternButton,newLibraryButton;
     juce::TextButton openLibrary,saveLibrary,reloadLibrary,useSound,newKitButton,openDocumentButton,saveDocumentButton,saveAsButton;
     std::unique_ptr<SharedLibraryWindow> libraryWindow;
     juce::ListBox groups;

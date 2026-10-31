@@ -29,9 +29,16 @@ DrumAudioProcessor::DrumAudioProcessor(bool track)
         auto* parameter=new juce::AudioParameterFloat(juce::ParameterID("macro"+juce::String(n+1),1),"Macro "+juce::String(n+1),0.0f,1.0f,0.5f);
         addParameter(parameter); macros[(size_t)n]=parameter;
     }
+    if(trackInstance){
+        liveKitLink=std::make_unique<drum::LiveKitLink>(library);
+        // The instance token lives in the name, not an automatable/restored value.
+        // A duplicate instance therefore cannot publish over its source's mapping.
+        addParameter(new juce::AudioParameterFloat(juce::ParameterID("liveLink",1),liveKitLink->parameterName(),juce::NormalisableRange<float>(0,1),0,juce::AudioParameterFloatAttributes().withAutomatable(false)));
+    }
+
 }
 
-DrumAudioProcessor::~DrumAudioProcessor() { patternPlayer->stop();previewActive.store(false);if(libraryPreview)libraryPreview->getSampleEngine().shutdown();sampleEngine.shutdown();cancelPendingUpdate(); }
+DrumAudioProcessor::~DrumAudioProcessor() { liveKitLink.reset(); patternPlayer->stop();previewActive.store(false);if(libraryPreview)libraryPreview->getSampleEngine().shutdown();sampleEngine.shutdown();cancelPendingUpdate(); }
 void DrumAudioProcessor::handleAsyncUpdate()
 {
     if(trackInstance)migrateLegacyKits();
