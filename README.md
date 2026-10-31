@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.6 adds **Setup > Automatically update Ableton clips**, an opt-in companion feature for following instrument moves in Session and Arrangement MIDI clips. Deleted instruments' notes are muted; existing note IDs and expression are retained. See [Live setup](docs/midi-editor.md#named-instruments-in-ableton-live).
+
 Version 0.16.5 adds **Use kit** and an optional Live companion for automatically updating named MIDI rows with the Drum window closed. One mapping rack is placed before each Drum instance; existing Live clip notes are not rewritten. See [Live setup](docs/midi-editor.md#named-instruments-in-ableton-live).
 
 Version 0.16.0 adds explicit New library actions and replaces the step grid with a **MIDI** piano roll: note placement/lengths, selection, undo/redo, expression lanes, loops and editing tools. See [MIDI editor controls](docs/midi-editor.md).

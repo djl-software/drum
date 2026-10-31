@@ -46,6 +46,6 @@ Create collections with **New library** directly from the main screen, even with
 
 The MIDI editor stores up to sixteen clips per kit, up to 8192 notes and 1024 quarter-note beats per clip. It supports free note placement/lengths, selection, clipboard operations, undo/redo, velocity/chance/release editing, loops, and note-editing tools. Drum clips follow instrument identities when the kit order changes. Removing an instrument removes its MIDI notes.
 
-An exported clip belongs to the DAW and is an independent copy. After changing the kit mapping, replace it with a fresh MIDI export. The planned Setup checkbox **Automatically update Ableton clips** remains deferred with the companion integration. This build does not rewrite existing DAW clips.
+An exported clip belongs to the DAW and is an independent copy. After changing the kit mapping, replace it with a fresh MIDI export. With the Live companion connected, **Setup > Automatically update Ableton clips** can follow subsequent instrument moves in the linked track's Session and Arrangement clips. Enable it before editing the kit. Other DAWs and exported files remain independent; see `midi-editor.md` for scope and deletion behaviour.
 
 The editor and saved format are shared by VST3 and desktop standalone builds. MPE, clip automation and Live's MIDI generators are outside the Notes-editor scope chosen for this update. The tablet application remains future work.

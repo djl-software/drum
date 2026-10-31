@@ -64,10 +64,22 @@ References: [Notes](https://www.ableton.com/en/live-manual/12/editing-midi/), [C
 
 Install the bundled `DJL_Drum_Link` folder under your Ableton User Library's `Remote Scripts` folder. Restart Live, then select **DJL Drum Link** in an unused Control Surface slot under Settings > Link, Tempo & MIDI. Leave Input and Output as **None**. One script serves all Drum tracks. See [Ableton's installation instructions](https://help.ableton.com/hc/en-us/articles/209072009-Installing-third-party-remote-scripts).
 
-The companion reads each Drum instance's current instrument names and assignments twice a second and updates only its immediately preceding DJL mapping rack. It stays connected with Drum's editor closed. It does not launch an external helper or access the network. An instance identifier in a non-automatable plugin parameter prevents two tracks from sharing the wrong map; duplicated/restored instances get fresh identifiers automatically.
+The companion reads each Drum instance's current instrument names and assignments twice a second and updates only its immediately preceding DJL mapping rack. It stays connected with Drum's editor closed. It does not launch an external helper or access the network. An instance identifier in a host-visible plugin parameter (its value has no sound effect) prevents two tracks from sharing the wrong map; duplicated/restored instances get fresh identifiers automatically.
 
-Open a Live MIDI clip and turn **Fold off**. The rack requests **Show Names in MIDI Editor**; if necessary enable that option in its chain-list context menu. Save the Live Set to keep the rack. Actual rack loading and Live name display still require verification in Live 12.
+Open a Live MIDI clip and turn **Fold off**. The rack requests **Show Names in MIDI Editor**; if necessary enable that option in its chain-list context menu. Save the Live Set to keep the rack. Rack loading has been confirmed in Live 12.4.16. Version 0.16.6 also corrects visibility of the link identifier; live name synchronisation and remapping need an acceptance check after installing it.
 
-Names follow additions, deletions, renames and reordering automatically. MIDI key zones remain fixed. **Existing Live clip notes are not moved by this version.** Reordering the kit can therefore change which sounds those clips trigger. The separate option for automatic clip-note rewriting remains unimplemented. Drum's internal MIDI clips retain instrument identities and can be exported afresh.
+Names follow additions, deletions, renames and reordering automatically. MIDI key zones remain fixed.
+
+### Automatically update Ableton clips
+
+On the kit screen, open **Setup** and tick **Automatically update Ableton clips**. The setting is off by default and saved with this Drum instance in the Live Set. Enable it before changing the kit order and allow the companion a second to connect. The current kit is the starting mapping; it cannot reconstruct edits made while the companion was off.
+
+Subsequent instrument moves and insertions remap the linked track's existing Session and Arrangement MIDI clips by instrument identity. Simultaneous swaps are applied by note ID, keeping timing, duration, velocity, probability and per-note expression attached to the same notes. Unassigned pitches remain unchanged. There must be exactly one linked Drum instance on the track for clip remapping. Take-lane clips, clips on other tracks and exported `.mid` files are not changed.
+
+Deleting an instrument mutes its notes, rather than making them trigger the instrument that closes the gap. Restoring that instrument identity during the same connected session restores its notes' previous mute state. Recording clips defer changes until recording finishes; avoid rearranging the kit while recording new notes. Opening a different kit, restarting the companion or enabling the option establishes a fresh baseline; it does not guess historic note identities.
+
+Each update uses a Live undo step. If Live rejects or incompletely applies an update, remapping pauses and reports an error in Live's status bar. Check the clips/Live Undo, then turn the Setup option off and on to establish a fresh baseline. Disabling the option leaves clip notes where they are; automatic name updates continue. Drum's internal MIDI clips already retain instrument identities independently.
+
+The native note-ID remapping path still needs an in-Live acceptance check after installing 0.16.6.
 
 If the companion is disabled, the rack retains its last names and still passes notes on the assigned key range. Stale/malformed publications and edited racks containing effects are ignored. Do not stack mapping racks or insert another device between the mapping rack and Drum. No controller/MPE events or audio are processed by the companion.

@@ -261,6 +261,11 @@ public:
         setup(patternButton,"MIDI","open-patterns");patternButton.onClick=[this]{if(!patternEditor){patternEditor=std::make_unique<DrumPatternEditor>(processor);addChildComponent(*patternEditor);resized();}patternEditor->open();};
         setup(newKitButton,"New kit","new-kit");newKitButton.onClick=[this]{confirm("Create a new kit?","Save the current kit first if you want to keep it.",[this]{processor.newKit();groupId.clear();instrumentId.clear();refresh();});};
         setup(openDocumentButton,processor.isMidiTrack()?"Open kit":"Open library","open-document");openDocumentButton.onClick=[this]{confirm("Open a file?","Save current edits first. Opening a kit replaces it; opening a library replaces a collection with the same identity.",[this]{chooseDocument(false);});};
+        setup(liveSetupButton,"Setup","live-setup");liveSetupButton.onClick=[this]{
+            juce::PopupMenu menu;menu.addItem(1,"Automatically update Ableton clips",true,processor.autoRemapLiveClips());
+            juce::Component::SafePointer<Workspace> safe(this);
+            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&liveSetupButton),[safe](int selected){if(safe && selected==1){safe->processor.setAutoRemapLiveClips(!safe->processor.autoRemapLiveClips());safe->status=safe->processor.autoRemapLiveClips()?"Auto-remap enabled: future kit moves update linked Live clips. Deleted instruments' notes are muted.":"Automatic Live clip updates off.";safe->repaint();}});
+        };
         setup(useKitButton,"Use kit","use-kit-live");useKitButton.setTooltip("Create Live's named-key rack. Place it before Drum once; the DJL Drum Link companion keeps names updated.");useKitButton.onClick=[this]{
             auto state=library.snapshot();auto* active=drum::activeKit(state);if(!active)return;
             auto folder=drum::PortableFiles::root().getChildFile("Ableton Maps");
@@ -431,6 +436,7 @@ public:
         if(w<=0 || h<=0) return;
         example.setBounds(w-194,23,170,31);
         openLibrary.setBounds(24,88,170,35);saveLibrary.setBounds(310,23,140,31);reloadLibrary.setBounds(458,23,140,31);useSound.setBounds(w-194,23,170,31);
+        liveSetupButton.setBounds(w-574,23,78,31);liveSetupButton.setVisible(processor.isMidiTrack());
         playSample.setBounds(w-488,23,68,31);loopSample.setBounds(w-412,23,65,31);auditionTempo.setBounds(w-339,23,135,31);
         const int count=(int)view.kits.size(),gap=6,reserved=count<8?142:0;
         const int available=w-48-reserved-gap*juce::jmax(0,count-1);
@@ -745,7 +751,7 @@ private:
     juce::Label note;
     juce::ComboBox destination,choke;
     std::unique_ptr<DrumPatternEditor> patternEditor;
-    juce::TextButton useKitButton,patternButton,newLibraryButton;
+    juce::TextButton liveSetupButton,useKitButton,patternButton,newLibraryButton;
     juce::TextButton openLibrary,saveLibrary,reloadLibrary,useSound,newKitButton,openDocumentButton,saveDocumentButton,saveAsButton;
     std::unique_ptr<SharedLibraryWindow> libraryWindow;
     juce::ListBox groups;

@@ -31,9 +31,10 @@ DrumAudioProcessor::DrumAudioProcessor(bool track)
     }
     if(trackInstance){
         liveKitLink=std::make_unique<drum::LiveKitLink>(library);
-        // The instance token lives in the name, not an automatable/restored value.
+        // The instance token lives in the name, not the restored value.
+        // Live only exposes automatable parameters to its Control Surface API.
         // A duplicate instance therefore cannot publish over its source's mapping.
-        addParameter(new juce::AudioParameterFloat(juce::ParameterID("liveLink",1),liveKitLink->parameterName(),juce::NormalisableRange<float>(0,1),0,juce::AudioParameterFloatAttributes().withAutomatable(false)));
+        addParameter(new juce::AudioParameterFloat(juce::ParameterID("liveLink",1),liveKitLink->parameterName(),juce::NormalisableRange<float>(0,1),0,juce::AudioParameterFloatAttributes().withAutomatable(true)));
     }
 
 }
@@ -103,7 +104,7 @@ void DrumAudioProcessor::getStateInformation(juce::MemoryBlock& data)
     effects.capture();if(libraryPreview && libraryLoaded.load())libraryPreview->effects.capture();
     const auto state = library.toXml();
     for(int n=0;n<drum::numMacros;++n) state->setAttribute("macro"+juce::String(n+1),(double)macros[(size_t)n]->get());
-    if(trackInstance){juce::XmlElement session("DrumSession");session.setAttribute("version",1);session.setAttribute("kitOpen",kitOpened.load());session.setAttribute("document",currentDocument.getFullPathName());session.addChildElement(new juce::XmlElement(*state));const juce::ScopedLock lock(migrationLock);if(legacyKits)session.createNewChildElement("LegacyKits")->addChildElement(new juce::XmlElement(*legacyKits));if(libraryPreview && sharedLibraryDirty()){auto* draft=session.createNewChildElement("LibraryDraft");draft->addChildElement(libraryPreview->library.toXml().release());if(auto base=sharedStore.baselineCopy())draft->createNewChildElement("Baseline")->addChildElement(base.release());}copyXmlToBinary(session,data);}else copyXmlToBinary(*state, data);
+    if(trackInstance){juce::XmlElement session("DrumSession");session.setAttribute("version",1);session.setAttribute("autoRemapLiveClips",autoRemapLiveClips());session.setAttribute("kitOpen",kitOpened.load());session.setAttribute("document",currentDocument.getFullPathName());session.addChildElement(new juce::XmlElement(*state));const juce::ScopedLock lock(migrationLock);if(legacyKits)session.createNewChildElement("LegacyKits")->addChildElement(new juce::XmlElement(*legacyKits));if(libraryPreview && sharedLibraryDirty()){auto* draft=session.createNewChildElement("LibraryDraft");draft->addChildElement(libraryPreview->library.toXml().release());if(auto base=sharedStore.baselineCopy())draft->createNewChildElement("Baseline")->addChildElement(base.release());}copyXmlToBinary(session,data);}else copyXmlToBinary(*state, data);
 }
 
 void DrumAudioProcessor::setStateInformation(const void* data, int size)
@@ -130,7 +131,7 @@ void DrumAudioProcessor::setStateInformation(const void* data, int size)
         }
         if(library.restore(*state))
         {
-          if(trackInstance){kitOpened=saved->getBoolAttribute("kitOpen",true);auto path=saved->getStringAttribute("document");currentDocument=juce::File::isAbsolutePath(path)?juce::File(path):juce::File();const juce::ScopedLock lock(migrationLock);legacyKits=std::move(pending);migrationAttempted=false;triggerAsyncUpdate();}
+          if(trackInstance){if(liveKitLink)liveKitLink->autoRemap=saved->getBoolAttribute("autoRemapLiveClips",false);kitOpened=saved->getBoolAttribute("kitOpen",true);auto path=saved->getStringAttribute("document");currentDocument=juce::File::isAbsolutePath(path)?juce::File(path):juce::File();const juce::ScopedLock lock(migrationLock);legacyKits=std::move(pending);migrationAttempted=false;triggerAsyncUpdate();}
 
           for(int n=0;n<drum::numMacros;++n)
           {

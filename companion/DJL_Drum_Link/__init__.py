@@ -6,6 +6,7 @@ import os
 import time
 from _Framework.ControlSurface import ControlSurface
 from .protocol import RACK_NAMES, token_for, names_from, update_rack
+from .remap import TrackState
 
 
 def create_instance(c_instance):
@@ -19,6 +20,7 @@ class DrumLink(ControlSurface):
         self._last_poll = 0
         self._last_status = None
         self._last_diagnostic = None
+        self._remaps = {}
         self.log_message("DJL Drum Link started")
 
     def _pairs(self, devices, depth=0):
@@ -43,6 +45,7 @@ class DrumLink(ControlSurface):
         self._last_poll = now
         connected, errors = 0, []
         diagnostic = []
+        active_tokens = set()
         try:
             for track in self.song().tracks:
                 devices = list(track.devices)
@@ -51,17 +54,33 @@ class DrumLink(ControlSurface):
                         entry = {"index": index, "name": str(device.name), "class": str(device.class_name), "chains": len(getattr(device,"chains",()))}
                         entry["parameters"] = [{"name": str(p.name), "original": str(getattr(p,"original_name",p.name))} for p in device.parameters][:24]
                         diagnostic.append(entry)
-                for rack, token in self._pairs(track.devices):
+                pairs = list(self._pairs(track.devices))
+                for rack, token in pairs:
+                    active_tokens.add(token)
                     try:
                         path = os.path.join(self._folder, token+".json")
                         if os.path.getsize(path) > 128*1024:
                             raise ValueError("Oversized link data")
                         with open(path, "r", encoding="utf-8-sig") as stream:
-                            names = names_from(json.load(stream), token, now)
+                            payload = json.load(stream)
+                            names = names_from(payload, token, now)
+                        if payload.get("autoRemap") is True:
+                            if len(pairs) != 1:
+                                raise ValueError("Auto-remap requires exactly one linked Drum on this track")
+                            if not isinstance(payload.get("kitId"),str) or not payload["kitId"]:
+                                raise ValueError("Missing kit identity for remapping")
+                            if token not in self._remaps:
+                                self._remaps[token] = TrackState(payload)
+                            changed = self._remaps[token].sync(track, payload, self.song())
+                            if changed:
+                                self.log_message("DJL Drum Link: remapped %d notes" % changed)
+                        else:
+                            self._remaps.pop(token, None)
                         update_rack(rack, names)
                         connected += 1
                     except Exception as exc:
                         errors.append(str(exc))
+            self._remaps = {key: value for key, value in self._remaps.items() if key in active_tokens}
             if diagnostic != self._last_diagnostic:
                 self._last_diagnostic = diagnostic
                 os.makedirs(self._folder, exist_ok=True)
@@ -73,6 +92,8 @@ class DrumLink(ControlSurface):
             if status != self._last_status:
                 self._last_status = status
                 self.log_message("DJL Drum Link: "+json.dumps(status))
+                if errors:
+                    self.show_message("DJL Drum: "+errors[0])
         except Exception as exc:
             self.log_message("DJL Drum Link scan: "+str(exc))
 

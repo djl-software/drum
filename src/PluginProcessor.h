@@ -27,6 +27,8 @@ public:
     std::function<drum::Result()> saveSharedLibrary,reloadSharedLibrary;
     juce::String libraryStatus() const {const juce::ScopedLock lock(migrationLock);return migrationStatus;}
 
+    bool autoRemapLiveClips() const{return liveKitLink && liveKitLink->autoRemap.load();}
+    void setAutoRemapLiveClips(bool value){if(liveKitLink){liveKitLink->autoRemap=value;liveKitLink->publish();triggerAsyncUpdate();}}
     void publishLiveKit(){if(liveKitLink)liveKitLink->publish();}
     ~DrumAudioProcessor() override;
     drum::KitLibrary& getLibrary() { return library; }

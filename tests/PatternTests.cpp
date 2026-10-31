@@ -59,10 +59,13 @@ void runPatternTests(){
         {
             DrumAudioProcessor first(true),second(true);first.newKit();second.newKit();
             auto firstName=first.getParameters().getLast()->getName(128),secondName=second.getParameters().getLast()->getName(128);
+            check(first.getParameters().getLast()->isAutomatable(),"Live link identifier hidden from host scripting");
             check(firstName.startsWith("DJL Link ") && firstName!=secondName,"Live instances share a link token");
             auto initial=first.getLibrary().snapshot();good(first.getLibrary().addInstrument(initial.activeKit,initial.kits[0].groups[0].id));
+            first.setAutoRemapLiveClips(true);juce::MemoryBlock savedLink;first.getStateInformation(savedLink);second.setStateInformation(savedLink.getData(),(int)savedLink.getSize());
+            check(second.autoRemapLiveClips(),"Live auto-remap option was not saved/restored");
             first.publishLiveKit();publication=drum::LiveKitLink::folder().getChildFile(firstName.substring(9)+".json");
-            auto payload=juce::JSON::parse(publication);check(payload["notes"].size()==1,"Kit was not published without an editor");
+            auto payload=juce::JSON::parse(publication);check((bool)payload["autoRemap"],"Live remap option not published");check(payload["notes"].size()==1,"Kit was not published without an editor");
             check((int)payload["notes"][0]["note"]==21,"Published wrong kit note");
         }
         check(!publication.existsAsFile(),"Link file survives processor destruction");
