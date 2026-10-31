@@ -166,6 +166,9 @@ void runEnvelopeTests()
     auto refresh=[&]{auto s=library.snapshot();soundEditor.select(kit,drum::findInstrument(*drum::activeKit(s),id));};
     auto& amp=control<EnvelopeEditor>(editor,"envelope-amp");auto& pitch=control<EnvelopeEditor>(editor,"envelope-pitch");auto& filter=control<EnvelopeEditor>(editor,"envelope-filter");
     check(amp.isVisible() && !pitch.isVisible() && !filter.isVisible(),"Envelope graphs shown on wrong page");
+    auto shown=[&](const char* id){for(auto* c=&control<juce::Component>(editor,id);c!=nullptr;c=c->getParentComponent())if(!c->isVisible())return false;return true;};
+    check(shown("edit-velocityVolume") && shown("edit-randomPan") && !shown("edit-velocityPitch") && !shown("edit-bendRange") && !shown("edit-detune"),"Amplitude mode shows wrong controls");
+    check(control<juce::Slider>(editor,"edit-velocityVolume").getSliderStyle()==juce::Slider::LinearBar,"Amplitude control is not a value bar");
     auto& wave=control<juce::Component>(editor,"sample-waveform");const auto waveBounds=wave.getBounds();
     auto c=current();c.sound.ampAttack=80;c.sound.ampDecay=200;c.sound.ampSustain=0.4;c.sound.ampRelease=200;c.sound.pitchAttack=80;c.sound.pitchDecay=200;c.sound.pitchSustain=0.2;
     check(library.setControls(kit,id,c).ok,"Envelope fixture controls failed");refresh();
@@ -175,7 +178,7 @@ void runEnvelopeTests()
         const auto a=shape.points[segment-1],b=shape.points[segment];const double ms=a.ms+(b.ms-a.ms)*fraction;
         return graph.pointFor({ms,drum::envelopeSegment(a.level,b,fraction)});
     };
-    click(editor,"overlay-pitch");settle(editor);check(pitch.isVisible() && !amp.isVisible(),"Pitch overlay selection failed");
+    click(editor,"overlay-pitch");settle(editor);check(pitch.isVisible() && !amp.isVisible(),"Pitch overlay selection failed");check(!shown("edit-velocityVolume") && shown("edit-velocityPitch") && shown("edit-bendRange") && shown("edit-randomPan") && !shown("edit-detune"),"Pitch mode shows wrong controls");check(control<juce::Slider>(editor,"envelope-pitch-amount").getSliderStyle()==juce::Slider::LinearBar,"Pitch depth is not a value bar");
     auto line=onLine(pitch,drum::adsrShape(80,200,0.2,100),2,0.5);
     check(editor.getComponentAt(editor.getLocalPoint(&pitch,line.roundToInt()))==&pitch,"Envelope line is intercepted by another component");
     pitch.mouseDown(event(pitch,line,line));pitch.mouseUp(event(pitch,line,line));

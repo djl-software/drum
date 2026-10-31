@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.22 shows envelope controls only for the selected Amplitude/Pitch mode, keeps Random pan common, removes duplicate fine tuning, and uses compact value-bar boxes.
+
 Version 0.16.21 overlays editable amplitude and pitch envelopes on the waveform, selected using buttons above it, with a shared time axis and zoom/pan.
 
 Version 0.16.20 matches the Envelopes & pitch waveform to Sample and reduces its bottom controls to a compact row, with smaller envelope graphs.

@@ -255,3 +255,9 @@ The waveform matches Sample's tall waveform. Amplitude and pitch graphs sit side
 In Envelopes & pitch, choose **Amplitude** or **Pitch** above the waveform. The selected envelope is drawn directly over the Edited waveform and can be edited using the existing point/curve gestures. Pink denotes amplitude; blue denotes pitch. Only the selected envelope receives mouse edits. Its reset, undo/redo, ADSR and pitch-depth controls sit beneath the waveform.
 
 Envelope time positions match the waveform's milliseconds. Horizontal zoom and pan are shared; wheel pans, Ctrl+wheel zooms time, Shift+wheel changes waveform height, and middle-drag pans. Use the waveform's Fit X to return to the full preview. Selecting Source temporarily hides the envelope to allow source trimming; selecting an envelope button returns to Edited. The original-sample duration remains the editing limit.
+
+### Mode-specific controls (0.16.22)
+
+Amplitude shows Velocity to volume; Pitch shows Velocity to pitch and Pitch bend range. Random pan is common to both. Optional ADSR values also follow the selected envelope. The duplicate Fine tuning box has been removed here; Fine remains on Tune and still changes the same stored setting.
+
+These numeric controls, including Pitch depth, use value boxes with a shaded level bar. Drag to adjust without jumping to the clicked position, scroll for increments, or click the number to type. Double-click resets the value to its default. Existing macro locks and custom-envelope ADSR protection still apply.

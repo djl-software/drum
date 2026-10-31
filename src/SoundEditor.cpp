@@ -52,6 +52,7 @@ struct SoundEditor::Field final : juce::Component
             slider.setColour(juce::Slider::textBoxOutlineColourId,juce::Colour(0xff2b3648));
             if(p.member==&drum::SoundParameters::attackLevel)
                 slider.setTooltip("0 dB = full-scale peak for the generated burst before EQ, velocity, LFO and mixer; -6 dB is about half amplitude. -60 dB is silent.");
+            if(p.page==1){slider.setSliderStyle(juce::Slider::LinearBar);slider.setSliderSnapsToMousePosition(false);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);}
             slider.onValueChange=[this,&editor] { editor.change(parameter,slider.getValue()/parameter.scale); };
             for(int n=0;n<3;++n)if(std::find(envelopeMembers[n].begin(),envelopeMembers[n].end(),p.member)!=envelopeMembers[n].end())
             {slider.onDragStart=[&editor,n]{editor.beginEnvelopeGesture(n);};slider.onDragEnd=[&editor,n]{editor.endEnvelopeGesture(n);};}
@@ -473,7 +474,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     button(reset,"Reset page","reset-edit-page"); reset.onClick=[this]{
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
         if(!i || kit->id!=kitId) return;
-        auto c=i->controls; for(auto& parameter:drum::soundParameters) if(parameter.page==page) c.sound.*(parameter.member)=parameter.initial;
+        auto c=i->controls; for(auto& parameter:drum::soundParameters) if(parameter.page==page && !(page==1 && parameter.member==&drum::SoundParameters::detune)) c.sound.*(parameter.member)=parameter.initial;
         if(page==8){c.tuning=0;c.sound.detune=0;}
         if(page==1){c.sound.envelopes[0]={};c.sound.envelopes[1]={};constrainEnvelope(c.sound,0);constrainEnvelope(c.sound,1);}else if(page==2){c.sound.envelopes[2]={};c.sound.equalizer={};constrainEnvelope(c.sound,2);}
         auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
@@ -484,7 +485,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
     auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);slider.setSliderStyle(juce::Slider::LinearHorizontal);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint);slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,ink);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
-    keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Shared with Envelopes & pitch.");addAndMakeVisible(keyStatus);keyStatus.setColour(juce::Label::textColourId,muted);keyStatus.setFont(juce::FontOptions(12));
+    keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Applies to the instrument across all tabs.");addAndMakeVisible(keyStatus);keyStatus.setColour(juce::Label::textColourId,muted);keyStatus.setFont(juce::FontOptions(12));
     for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
     addAndMakeVisible(*waveform);
@@ -796,7 +797,11 @@ void SoundEditor::setPage(int value)
     {
         bool numeric=false;for(auto& members:envelopeMembers)for(auto m:members)numeric|=field->parameter.member==m;
         const bool amount=field->parameter.member==&drum::SoundParameters::pitchAmount || field->parameter.member==&drum::SoundParameters::filterAmount;
-        field->setVisible(field->parameter.page==page && field->parameter.member!=&drum::SoundParameters::start && field->parameter.member!=&drum::SoundParameters::end && (!numeric || adsrValues.getToggleState()) && !amount && (page!=2 || filterEnvelopePage));
+        const auto member=field->parameter.member;
+        const bool ampControl=member==&drum::SoundParameters::velocityVolume || std::find(envelopeMembers[0].begin(),envelopeMembers[0].end(),member)!=envelopeMembers[0].end();
+        const bool pitchControl=member==&drum::SoundParameters::velocityPitch || member==&drum::SoundParameters::bendRange || std::find(envelopeMembers[1].begin(),envelopeMembers[1].end(),member)!=envelopeMembers[1].end();
+        const bool selectedMode=page!=1 || member==&drum::SoundParameters::randomPan || (selectedEnvelope==0?ampControl:pitchControl);
+        field->setVisible(selectedMode && field->parameter.page==page && field->parameter.member!=&drum::SoundParameters::start && field->parameter.member!=&drum::SoundParameters::end && (!numeric || adsrValues.getToggleState()) && !amount && (page!=2 || filterEnvelopePage));
     }
     for(auto& field:macroFields) field->setVisible(page==5);
     for(int n=0;n<3;++n)envelopes[(size_t)n]->setVisible(n==2?page==2 && filterEnvelopePage:page==1 && n==selectedEnvelope);

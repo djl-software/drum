@@ -67,6 +67,7 @@ EnvelopeEditor::EnvelopeEditor(juce::String id,juce::String heading,juce::Colour
     addAndMakeVisible(depth);depth.setComponentID(getComponentID()+"-amount");depth.setName("Envelope amount");
     depth.setSliderStyle(juce::Slider::LinearHorizontal);depth.setTextBoxStyle(juce::Slider::TextBoxRight,false,70,22);
     depth.setColour(juce::Slider::trackColourId,juce::Colour(0xff67dfc5));depth.setColour(juce::Slider::thumbColourId,juce::Colour(0xff67dfc5));
+    if(getComponentID()=="envelope-pitch"){depth.setSliderStyle(juce::Slider::LinearBar);depth.setSliderSnapsToMousePosition(false);depth.setColour(juce::Slider::trackColourId,juce::Colour(0xff67dfc5).withAlpha(.3f));depth.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);}
     depth.onValueChange=[this]{if(!updating && onAmount)onAmount(depth.getValue());};
     depth.setDoubleClickReturnValue(true,0);
     depth.onDragStart=[this]{if(onBeginGesture)onBeginGesture();};depth.onDragEnd=[this]{if(onEndGesture)onEndGesture();};
@@ -123,7 +124,7 @@ void EnvelopeEditor::resized()
     const int header=overlay?getHeight()-64:0;
     zoomOut.setBounds(getWidth()-106,7,25,22);zoomIn.setBounds(getWidth()-78,7,25,22);fitButton.setBounds(getWidth()-50,7,40,22);
     adsr.setBounds(getWidth()-155,7,44,22);activate.setBounds(105,7,110,22);
-    depth.setBounds(92,7,std::max(70,getWidth()-253),22);
+    depth.setBounds(92,7,overlay?180:std::max(70,getWidth()-253),22);
     const int toolbarY=getHeight()<160?29:32,toolbarH=getHeight()<160?19:20;reset.setBounds(10,toolbarY,44,toolbarH);undo.setBounds(58,toolbarY,44,toolbarH);redo.setBounds(106,toolbarY,44,toolbarH);
     if(overlay){for(auto* control:std::initializer_list<juce::Component*>{&zoomOut,&zoomIn,&fitButton,&adsr,&activate,&depth,&reset,&undo,&redo})control->setTopLeftPosition(control->getX(),control->getY()+header);zoomOut.setVisible(false);zoomIn.setVisible(false);fitButton.setVisible(false);}
     layoutHandles();
