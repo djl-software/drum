@@ -55,7 +55,7 @@ public:
         g.setColour(slot.bypassed?muted:mint);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1),7,1);
         g.setFont(juce::FontOptions(12,juce::Font::bold));g.drawText(juce::String(position+1)+". "+title,8,3,getWidth()-22,23,juce::Justification::centredLeft,true);
         g.setFont(juce::FontOptions(11));g.setColour(muted);
-        if(source.isVisible()){g.drawText("Gain",8,74,64,15,juce::Justification::centred);g.drawText("Mix",86,74,64,15,juce::Justification::centred);}
+        if(source.isVisible()){drawControlLabel(g,"Gain",{8,80,38,26});drawControlLabel(g,"Mix",{8,110,38,26});}
         else g.drawFittedText(info+"\nUse Open for plugin controls",8,63,144,80,juce::Justification::centred,3);
         const auto peaks=owner.effects.peaks(slot.id);
         for(int c=0;c<2;++c){
@@ -69,7 +69,7 @@ public:
     void resized() override
     {
         edit.setBounds(8,29,64,21);bypass.setBounds(78,29,76,21);source.setBounds(8,53,146,21);
-        gain.setBounds(8,96,64,26);mix.setBounds(86,96,64,26);mute.setBounds(8,140,146,20);
+        gain.setBounds(52,80,102,26);mix.setBounds(52,110,102,26);mute.setBounds(8,140,146,20);
         earlier.setBounds(8,164,24,20);later.setBounds(36,164,24,20);remove.setBounds(66,164,88,20);retry.setBounds(8,54,146,22);
     }
     void mouseDrag(const juce::MouseEvent& e) override {if(e.getDistanceFromDragStart()>5 && e.getMouseDownY()<33 && !owner.isDragAndDropActive())owner.startDragging("slot:"+slot.id,this);}

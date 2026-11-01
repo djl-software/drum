@@ -34,7 +34,7 @@ private:
     int selected=0;
     bool updating=false;
     juce::Point<float> down;
-    juce::ToggleButton enabled{"EQ on"},bandOn{"Band on"};
+    juce::ToggleButton enabled{"EQ on"};
     std::array<juce::TextButton,16> bands;
     std::array<juce::ToggleButton,16> bandEnabled;
     juce::TextButton reset{"Reset EQ"};

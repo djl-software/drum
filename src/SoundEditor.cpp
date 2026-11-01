@@ -65,7 +65,7 @@ struct SoundEditor::Field final : juce::Component
         if(key=="keyOverride")return "Key label";if(key=="mono")return "Channels";
         return parameter.label;
     }
-    void paint(juce::Graphics& g) override { text(g,label(),{0,0,labelWidth(),getHeight()},12,ink); }
+    void paint(juce::Graphics& g) override { drawControlLabel(g,label(),{0,0,labelWidth(),getHeight()}); }
     int labelWidth() const {return juce::jlimit(80,145,(int)(getWidth()*.43));}
     void resized() override {const int x=labelWidth()+4;if(parameter.page<=1)slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,juce::jmin(78,getWidth()-x),26);slider.setBounds(x,1,getWidth()-x,26);combo.setBounds(x,1,getWidth()-x,26); }
     void update(double v,bool newSelection)
@@ -126,13 +126,13 @@ struct SoundEditor::MacroField final : juce::Component
     }
     void paint(juce::Graphics& g) override
     {
-        text(g,"MACRO "+juce::String(index+1),{0,0,getWidth(),22},12,mint);
-        text(g,"Min",{0,82,30,24},11,muted);text(g,"Max",{getWidth()/2+4,82,30,24},11,muted);
+        drawControlLabel(g,"Macro "+juce::String(index+1),{0,0,84,24});
+        drawControlLabel(g,"Min",{0,82,34,24});drawControlLabel(g,"Max",{getWidth()/2+4,82,34,24});
     }
     void resized() override
     {
         value.setBounds(90,0,getWidth()-90,24);target.setBounds(0,34,getWidth(),30);
-        minimum.setBounds(32,82,getWidth()/2-40,25);maximum.setBounds(getWidth()/2+36,82,getWidth()/2-36,25);
+        minimum.setBounds(40,82,getWidth()/2-48,25);maximum.setBounds(getWidth()/2+44,82,getWidth()/2-44,25);
     }
 };
 class SoundEditor::Waveform final : public juce::Component,public juce::SettableTooltipClient
@@ -483,7 +483,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     };
     const char* names[]{"Sample","Envelopes","Filter","LFO","Outputs & sends","Macros","Attack layer","Chain","Tune"};
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
-    auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);useValueBar(slider);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,ink);slider.onValueChange=[this]{changeKeyTuning();};};
+    auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);useValueBar(slider);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,juce::Colours::white);label.setFont(juce::FontOptions(14));label.setJustificationType(juce::Justification::centredRight);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
     keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Applies to the instrument across all tabs.");addAndMakeVisible(keyStatus);keyStatus.setColour(juce::Label::textColourId,muted);keyStatus.setFont(juce::FontOptions(12));
     for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}

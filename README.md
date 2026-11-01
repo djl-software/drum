@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.17.1 right-aligns larger, brighter control labels beside their value bars, places EQ on inside the graph and removes the duplicate Band on switch.
+
 Version 0.17.0 adds 16-band EQ, cut slopes from 6 to 72 dB/oct, below-graph band controls and clearer value labels.
 
 Version 0.16.25 groups Amplitude, Pitch and Filter envelopes under Envelopes and reorders Attack layer and LFO tabs.

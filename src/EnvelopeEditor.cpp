@@ -124,7 +124,7 @@ void EnvelopeEditor::resized()
     const int header=overlay?getHeight()-64:0;
     zoomOut.setBounds(getWidth()-106,7,25,22);zoomIn.setBounds(getWidth()-78,7,25,22);fitButton.setBounds(getWidth()-50,7,40,22);
     adsr.setBounds(getWidth()-155,7,44,22);activate.setBounds(105,7,110,22);
-    depth.setBounds(92,7,overlay?180:std::max(70,getWidth()-253),22);
+    depth.setBounds(108,7,overlay?180:std::max(70,getWidth()-253),22);
     const int toolbarY=getHeight()<160?29:32,toolbarH=getHeight()<160?19:20;reset.setBounds(10,toolbarY,44,toolbarH);undo.setBounds(58,toolbarY,44,toolbarH);redo.setBounds(106,toolbarY,44,toolbarH);
     if(overlay){for(auto* control:std::initializer_list<juce::Component*>{&zoomOut,&zoomIn,&fitButton,&adsr,&activate,&depth,&reset,&undo,&redo})control->setTopLeftPosition(control->getX(),control->getY()+header);zoomOut.setVisible(false);zoomIn.setVisible(false);fitButton.setVisible(false);}
     layoutHandles();
@@ -144,7 +144,7 @@ void EnvelopeEditor::layoutHandles()
 }
 void EnvelopeEditor::paint(juce::Graphics& g)
 {
-    const int header=overlay?getHeight()-64:0;g.setColour(background);g.fillRoundedRectangle(overlay?juce::Rectangle<float>(0,(float)header,(float)getWidth(),64):getLocalBounds().toFloat(),7);label(g,title,{10,header+6,94,24},13,ink);
+    const int header=overlay?getHeight()-64:0;g.setColour(background);g.fillRoundedRectangle(overlay?juce::Rectangle<float>(0,(float)header,(float)getWidth(),64):getLocalBounds().toFloat(),7);drawControlLabel(g,title,{10,header+6,92,24});
     label(g,status,{158,header+32,getWidth()-168,18},10,active?colour:muted);
     if(shape.count<2)return;
     const auto a=plot();const auto c=active?(overlay?(unit=="%"?juce::Colour(0xffff80c0):juce::Colour(0xff8bc5ff)):colour):muted;

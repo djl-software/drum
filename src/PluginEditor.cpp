@@ -441,10 +441,10 @@ public:
             auto info=processor.getSampleEngine().statusFor(i->id);
             auto detail=info.ready ? juce::String(info.seconds,2)+" s / "+(i->controls.sound.mode==2?"Envelope":i->controls.sound.mode==1?"Gate":"Trigger") : info.message.isNotEmpty()?info.message:"WAV, AIFF, FLAC, OGG, MP3";
             label(g,detail,source.reduced(10,0).withTrimmedTop(35).withHeight(22),11,info.ready?accent:muted);
-            label(g,"Volume",{right.getX()+18,right.getY()+264,56,30},11,muted);
-            label(g,"Pan",{right.getX()+18,right.getY()+300,56,30},11,muted);
-            label(g,"Tuning",{right.getX()+18,right.getY()+336,56,30},11,muted);
-            label(g,"Choke",{right.getX()+18,right.getY()+409,56,28},11,muted);
+            drawControlLabel(g,"Volume",{right.getX()+18,right.getY()+264,56,30});
+            drawControlLabel(g,"Pan",{right.getX()+18,right.getY()+300,56,30});
+            drawControlLabel(g,"Tuning",{right.getX()+18,right.getY()+336,56,30});
+            drawControlLabel(g,"Choke",{right.getX()+18,right.getY()+409,56,28});
             juce::ignoreUnused(i);
         }
         else

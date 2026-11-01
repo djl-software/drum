@@ -1,6 +1,13 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 
+inline void drawControlLabel(juce::Graphics& g,const juce::String& name,juce::Rectangle<int> area)
+{
+    g.setColour(juce::Colours::white);
+    g.setFont(juce::FontOptions(14));
+    g.drawFittedText(name,area,juce::Justification::centredRight,1);
+}
+
 class ValueBarLook : public juce::LookAndFeel_V4
 {
 public:

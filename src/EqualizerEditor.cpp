@@ -8,8 +8,7 @@ void label(juce::Graphics& g,const juce::String& s,juce::Rectangle<int> r,juce::
 EqualizerEditor::EqualizerEditor()
 {
     setComponentID("eight-band-eq");setViewportIgnoreDragFlag(true);
-    addAndMakeVisible(enabled);enabled.setComponentID("eq-enabled");enabled.onClick=[this]{equalizer.enabled=enabled.getToggleState();save();};
-    addAndMakeVisible(bandOn);bandOn.setComponentID("eq-band-enabled");bandOn.onClick=[this]{equalizer.bands[(size_t)selected].enabled=bandOn.getToggleState();if(bandOn.getToggleState())equalizer.enabled=true;save();};
+    addAndMakeVisible(enabled);enabled.setComponentID("eq-enabled");enabled.setColour(juce::ToggleButton::textColourId,juce::Colours::white);enabled.onClick=[this]{equalizer.enabled=enabled.getToggleState();save();};
     for(int n=0;n<16;++n)
     {
         auto& button=bands[(size_t)n];addAndMakeVisible(button);button.setButtonText(juce::String(n+1));button.setComponentID("eq-band-"+juce::String(n));
@@ -34,7 +33,7 @@ EqualizerEditor::EqualizerEditor()
     addAndMakeVisible(slope);slope.setComponentID("eq-slope");for(int db=6;db<=72;db+=6)slope.addItem(juce::String(db)+" dB/oct",db);
     slope.onChange=[this]{if(!updating){equalizer.bands[selected].slope=slope.getSelectedId();save();}};
     addAndMakeVisible(reset);reset.setComponentID("eq-reset");reset.onClick=[this]{equalizer={};select(0);save();};
-    const char* names[]{"Frequency","Gain","Q","Output","Shape","Slope"};for(int i=0;i<6;++i){addAndMakeVisible(labels[i]);labels[i].setText(names[i],juce::dontSendNotification);labels[i].setColour(juce::Label::textColourId,ink);labels[i].setFont(juce::FontOptions(12));}
+    const char* names[]{"Frequency","Gain","Q","Output","Shape","Slope"};for(int i=0;i<6;++i){addAndMakeVisible(labels[i]);labels[i].setText(names[i],juce::dontSendNotification);labels[i].setColour(juce::Label::textColourId,juce::Colours::white);labels[i].setFont(juce::FontOptions(14));labels[i].setJustificationType(juce::Justification::centredRight);}
     select(0);
 }
 void EqualizerEditor::update(const drum::Equalizer& value,double sampleRate)
@@ -47,7 +46,7 @@ void EqualizerEditor::select(int n)
 {
     const drum::Equalizer defaults;frequency.setDoubleClickReturnValue(true,defaults.bands[(size_t)n].frequency);gain.setDoubleClickReturnValue(true,0);q.setDoubleClickReturnValue(true,0.70710678);output.setDoubleClickReturnValue(true,0);
     selected=n;updating=true;const auto& b=equalizer.bands[(size_t)n];
-    enabled.setToggleState(equalizer.enabled,juce::dontSendNotification);bandOn.setToggleState(b.enabled,juce::dontSendNotification);
+    enabled.setToggleState(equalizer.enabled,juce::dontSendNotification);
     for(int i=0;i<16;++i){bands[i].setToggleState(i==n,juce::dontSendNotification);bandEnabled[i].setToggleState(equalizer.bands[i].enabled,juce::dontSendNotification);}
     type.setSelectedId((b.type==1?0:b.type==7?6:b.type)+1,juce::dontSendNotification);slope.setSelectedId(drum::eqSlope(b),juce::dontSendNotification);slope.setEnabled(drum::eqIsCut(b.type));
     auto set=[](juce::Slider& s,double v){if(!s.isMouseButtonDown() && !s.hasKeyboardFocus(true))s.setValue(v,juce::dontSendNotification);};
@@ -67,9 +66,9 @@ void EqualizerEditor::resized()
     const int top=graphBounds().getBottom()+6,w=(getWidth()-16)/16;
     for(int n=0;n<16;++n){bands[n].setBounds(8+n*w,top,w-4,24);bandEnabled[n].setBounds(8+n*w+(w-24)/2,top+26,24,20);}
     const int cell=(getWidth()-24)/4,row=top+52;
-    auto bar=[&](int n,juce::Component& c,int column,int y){const int x=8+column*cell;labels[n].setBounds(x,y,68,26);c.setBounds(x+70,y,cell-78,26);};
+    auto bar=[&](int n,juce::Component& c,int column,int y){const int x=8+column*cell;labels[n].setBounds(x,y,86,26);c.setBounds(x+92,y,cell-100,26);};
     bar(0,frequency,0,row);bar(1,gain,1,row);bar(2,q,2,row);bar(3,output,3,row);
-    bar(4,type,0,row+32);bar(5,slope,1,row+32);enabled.setBounds(8+cell*2,row+32,90,26);bandOn.setBounds(98+cell*2,row+32,90,26);reset.setBounds(getWidth()-106,row+32,96,26);
+    bar(4,type,0,row+32);bar(5,slope,1,row+32);enabled.setBounds(48,18,94,26);reset.setBounds(getWidth()-106,row+32,96,26);
 
 }
 void EqualizerEditor::paint(juce::Graphics& g)
