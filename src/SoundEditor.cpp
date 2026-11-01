@@ -470,7 +470,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     addAndMakeVisible(noteIndicator);noteIndicator.setComponentID("note-indicator");noteIndicator.setFont(juce::FontOptions(11));noteIndicator.setColour(juce::Label::textColourId,mint);
     noteIndicator.setTooltip("MIDI trigger is the pad assignment. Preview pitch/key is estimated from processed audio, before external effects. A single drum note cannot establish major/minor key. Manual key labels are saved per instrument.");
     auto button=[this](juce::TextButton& b,const char* title,const char* id) {addAndMakeVisible(b); b.setButtonText(title); b.setComponentID(id);};
-    button(back,"Back to kit","close-sound-editor"); back.onClick=[this]{if(close)close();};
+    button(back,"Exit","close-sound-editor"); back.onClick=[this]{if(close)close();};
     button(reset,"Reset page","reset-edit-page"); reset.onClick=[this]{
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
         if(!i || kit->id!=kitId) return;

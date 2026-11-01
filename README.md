@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.17.8 asks Replace or Cancel whenever Kit > Save targets an existing kit file, including the current file after renaming. Cancel leaves the saved file untouched. The Edit screen return button is now labelled Exit.
+
 Version 0.17.7 adds Duplicate and Rename to the Kit menu and a non-editable amber kit-name tab. Duplicate activates an independent copy; the original file is retained.
 
 Version 0.17.6 fixes false Library save prompts after upgrades, matches Kit/Library headings, opens Edit on tile double-click, and enlarges tonal labels with Camelot major/minor references. See the 0.17.6 manual update for the limits of drum-hit key estimates.

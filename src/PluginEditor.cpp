@@ -579,7 +579,13 @@ private:
         auto current=processor.documentFile();auto folder=current==juce::File()?drum::PortableFiles::root().getChildFile("Kits"):current.getParentDirectory();
         auto file=folder.getChildFile(name+".drumkit");
         auto save=[this,file]{auto result=processor.saveDocument(file);complete(result);if(result.ok){status="Saved "+file.getFileName();repaint();}};
-        if(file.existsAsFile() && file!=current)confirm("Replace saved kit?",file.getFileName()+" already exists.",save);else save();
+        if(file.existsAsFile()){
+            juce::Component::SafePointer<Workspace> safe(this);
+            juce::AlertWindow::showAsync(juce::MessageBoxOptions().withIconType(juce::MessageBoxIconType::WarningIcon)
+                .withTitle("Replace saved kit?").withMessage(file.getFileName()+" already exists. Replace the saved kit?")
+                .withButton("Replace").withButton("Cancel").withAssociatedComponent(this),
+                [safe,save](int result){if(safe && result==1)save();});
+        }else save();
     }
     void renameKit(){
         auto id=view.activeKit;auto* dialog=new juce::AlertWindow("Rename kit","Enter the kit name.",juce::MessageBoxIconType::NoIcon,this);
