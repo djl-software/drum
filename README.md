@@ -172,3 +172,5 @@ Tests write `drum-layout.png`, `drum-layout-minimum.png`, `drum-layout-compact.p
 0.17.3: Automatic Live note remapping defaults on (explicit saved Off is retained). Tile menus work in Kits and Libraries beside the selected tile. Setup follows Library; redundant top-level instrument actions and tuning are hidden. Edit Sound stays below navigation. See the 0.17.3 PDF manual update.
 
 0.17.4: Right-aligned transport on the navigation row with typed BPM. Setup offers separate active Kit and Library group boundaries: 0 continuous, 0.5 C/F# and 1 C. Boundaries are saved with the collection; overflow beyond MIDI 108 is rejected.
+
+0.17.5: Meter-sized high-quality DJL logo and app title; version in Setup > About Drum. Group boundaries are None, Half octave and Octave. Update is replaced by Setup > Reconnect to Ableton; ordinary edits sync automatically.

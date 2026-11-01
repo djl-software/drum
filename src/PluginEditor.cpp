@@ -290,12 +290,15 @@ public:
         setup(openDocumentButton,processor.isMidiTrack()?"Open kit":"Open library","open-document");openDocumentButton.onClick=[this]{confirm("Open a file?","Save current edits first. Opening a kit replaces it; opening a library replaces a collection with the same identity.",[this]{chooseDocument(false);});};
         setup(liveSetupButton,"Setup","live-setup");liveSetupButton.onClick=[this]{
             juce::PopupMenu menu;menu.addItem(1,"Automatically update Ableton clips",setupProcessor.isMidiTrack(),setupProcessor.autoRemapLiveClips());
-            auto addBoundary=[&](const char* title,DrumAudioProcessor* target,int base){juce::PopupMenu choices;int current=0;if(target){auto state=target->getLibrary().snapshot();if(auto* kit=drum::activeKit(state))current=kit->groupBoundary;}choices.addItem(base,"0 - Continuous",true,current==0);choices.addItem(base+1,"0.5 - Half octave (C / F#)",true,current==6);choices.addItem(base+2,"1 - Octave (C)",true,current==12);menu.addSubMenu(title,choices);};
+            auto addBoundary=[&](const char* title,DrumAudioProcessor* target,int base){juce::PopupMenu choices;int current=0;if(target){auto state=target->getLibrary().snapshot();if(auto* kit=drum::activeKit(state))current=kit->groupBoundary;}choices.addItem(base,"None",true,current==0);choices.addItem(base+1,"Half octave",true,current==6);choices.addItem(base+2,"Octave",true,current==12);menu.addSubMenu(title,choices);};
             addBoundary("Kit group boundary",&setupProcessor,10);
             addBoundary("Library group boundary",setupProcessor.isMidiTrack()?setupProcessor.libraryEditorProcessor():&processor,20);
+            menu.addSeparator();menu.addItem(2,"Reconnect to Ableton",setupProcessor.isMidiTrack() && setupProcessor.hasOpenKit());menu.addItem(3,"About Drum");
             juce::Component::SafePointer<Workspace> safe(this);
             menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&liveSetupButton),[safe](int selected){
                 if(!safe)return;
+                if(selected==2){safe->setupProcessor.useLiveKit();safe->status="Connection requested. If needed, enable Configure in Live, choose Reconnect to Ableton again, then disable Configure.";safe->repaint();}
+                if(selected==3)juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon,"About Drum","DJL Drum\nVersion " DRUM_VERSION_STRING "\nDJL Software\nWindows VST3 / Standalone editing preview", "Close",safe.getComponent());
                 if(selected==1){safe->setupProcessor.setAutoRemapLiveClips(!safe->setupProcessor.autoRemapLiveClips());safe->status="Automatic Live clip updates "+juce::String(safe->setupProcessor.autoRemapLiveClips()?"on.":"off.");safe->repaint();}
                 if(selected>=10 && selected<=22){auto* target=&safe->setupProcessor;int value=selected-10;if(selected>=20){value=selected-20;if(target->isMidiTrack()){auto result=target->openSharedLibrary();if(!result.ok){safe->complete(result);return;}target=target->libraryEditorProcessor();}else target=&safe->processor;}if(value>2 || !target)return;if((target->isMidiTrack() && !target->hasOpenKit()) || (!target->isMidiTrack() && target->librariesEmpty())){safe->status="Open a Kit or Library before setting its group boundary.";safe->repaint();return;}auto state=target->getLibrary().snapshot();safe->complete(target->getLibrary().setGroupBoundary(state.activeKit,value==0?0:value==1?6:12));}
             });
@@ -428,10 +431,14 @@ public:
     void paint(juce::Graphics& g) override
     {
         g.fillAll(background);
-        g.drawImageWithin(logo,24,20,64,38,juce::RectanglePlacement::centred);
-        label(g,"DRUM",{104,17,180,36},29);
-        label(g,processor.isMidiTrack()?"KIT":"LIBRARIES",{106,53,240,24},processor.isMidiTrack()?10:18,processor.isMidiTrack()?muted:text);
-        label(g,"INSTRUMENT PREVIEW / v" DRUM_VERSION_STRING,{getWidth()-440,57,225,18},11,muted,juce::Justification::centredRight);
+        auto logoBounds=juce::Rectangle<int>(24,27,120,39);
+        const float scale=g.getInternalContext().getPhysicalPixelScaleFactor();
+        const int width=juce::jmax(1,juce::roundToInt(120*scale));
+        const int height=juce::jmax(1,juce::roundToInt(width*float(logo.getHeight())/logo.getWidth()));
+        if(scaledLogo.getWidth()!=width || scaledLogo.getHeight()!=height)scaledLogo=logo.rescaled(width,height,juce::Graphics::highResamplingQuality);
+        g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.drawImageWithin(scaledLogo,logoBounds.getX(),logoBounds.getY(),logoBounds.getWidth(),logoBounds.getHeight(),juce::RectanglePlacement::centred);
+        g.setColour(accent);g.setFont(juce::FontOptions(36,juce::Font::bold));g.drawText("Drum",juce::Rectangle<int>{158,24,208,45},juce::Justification::centredLeft);
+        label(g,processor.isMidiTrack()?"KIT":"LIBRARIES",{158,66,240,18},processor.isMidiTrack()?12:18,processor.isMidiTrack()?muted:text);
         if(processor.isMidiTrack())label(g,"KIT NAME",{24,139,86,32},10,accent);
         box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
         label(g,"GROUPS",left.reduced(16,0).withY(left.getY()+12).withHeight(26),18,text);
@@ -533,10 +540,10 @@ public:
         if(processor.isMidiTrack() && !processor.hasOpenKit()){for(auto* c:std::initializer_list<juce::Component*>{&addGroup,&copyGroup,&deleteGroup,&groupUp,&groupDown,&kitName,&groupName})c->setEnabled(false);}else {kitName.setEnabled(true);groupName.setEnabled(true);}
         openLibrary.setVisible(processor.isMidiTrack());saveLibrary.setVisible(bool(processor.saveSharedLibrary));reloadLibrary.setVisible(bool(processor.reloadSharedLibrary));useSound.setVisible(false);useSound.setEnabled(instrument()!=nullptr);if(processor.useLibrarySound)example.setVisible(false);
         for(auto* c:std::initializer_list<juce::Component*>{&openLibrary,&newLibraryButton,&newKitButton,&openDocumentButton,&saveDocumentButton,&saveAsButton,&saveLibrary,&reloadLibrary,&patternButton,&copyKit,&deleteKit,&addKit,&example})c->setVisible(false);
-        useKitButton.setBounds(24,88,100,35);useKitButton.setVisible(processor.isMidiTrack());
-        kitMenu.setBounds(processor.isMidiTrack()?132:160,88,128,35);kitMenu.setButtonText(processor.isMidiTrack()?"Kit":"Close");kitMenu.setVisible(processor.isMidiTrack() || bool(onBackToKit));
-        libraryMenu.setBounds(processor.isMidiTrack()?268:24,88,128,35);
-        liveSetupButton.setBounds(processor.isMidiTrack()?404:296,88,78,35);
+        useKitButton.setBounds(24,88,100,35);useKitButton.setVisible(false);
+        kitMenu.setBounds(processor.isMidiTrack()?24:160,88,128,35);kitMenu.setButtonText(processor.isMidiTrack()?"Kit":"Close");kitMenu.setVisible(processor.isMidiTrack() || bool(onBackToKit));
+        libraryMenu.setBounds(processor.isMidiTrack()?160:24,88,128,35);
+        liveSetupButton.setBounds(296,88,78,35);
         kitName.setVisible(processor.isMidiTrack());tabViewport.setVisible(!processor.isMidiTrack());
         if(!processor.isMidiTrack()){
             tabViewport.setBounds(24,135,w-48,47);int x=0;
@@ -896,7 +903,7 @@ private:
     drum::State view;
     juce::String groupId,instrumentId,status,controlsInstrumentId;
     bool refreshing=false,statusError=false,importStatus=false;
-    juce::Image logo;
+    juce::Image logo,scaledLogo;
     juce::TooltipWindow tooltip;
     std::array<LibraryTabButton,8> kitTabs;
     juce::Component tabStrip;juce::Viewport tabViewport;juce::Label emptyLibraries;
