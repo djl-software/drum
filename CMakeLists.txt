@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DJLDrum VERSION 0.16.24 LANGUAGES C CXX)
+project(DJLDrum VERSION 0.16.25 LANGUAGES C CXX)
 if(APPLE)
   enable_language(OBJC OBJCXX)
 endif()

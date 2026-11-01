@@ -162,7 +162,7 @@ void runPreviewTests()
     check(pixels(editor)==sourcePixels,"Pitch changed Source waveform");view.setSelectedId(2,juce::sendNotificationSync);settle(editor);
     click(editor,"edit-tab-1");control<juce::Slider>(editor,"edit-ampAttack").setValue(200,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Envelope UI did not update waveform");capture(editor,"drum-preview-envelope.png");
-    click(editor,"edit-tab-2");click(editor,"filter-envelope-tab");auto before=pixels(editor);
+    click(editor,"edit-tab-1");click(editor,"filter-envelope-tab");auto before=pixels(editor);
     control<juce::ComboBox>(editor,"edit-filterOn").setSelectedId(2,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-cutoff").setValue(90,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=before,"Filter UI did not update waveform");capture(editor,"drum-preview-filter.png");

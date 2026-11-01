@@ -148,6 +148,8 @@ void runEnvelopeTests()
     p.getSampleEngine().requestLoad(kit,id,file);check(p.getSampleEngine().waitForLoading(10000),"Envelope sample load timed out");
     check(p.getSampleEngine().statusFor(id).ready,"Envelope fixture unavailable");check(p.getSampleEngine().waveformFor(id)->tonal.complete,"Imported sample was not analysed");p.getSampleEngine().prepare(48000);
     DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");
+    check(control<juce::TextButton>(editor,"edit-tab-1").getButtonText()=="Envelopes","Envelope tab name incorrect");
+    int lastTabX=-1;for(int tab:{0,1,2,6,3,8,4,5,7}){const int x=control<juce::TextButton>(editor,("edit-tab-"+juce::String(tab)).toRawUTF8()).getX();check(x>lastTabX,"Edit tabs out of order");lastTabX=x;}
     check(!control<juce::Slider>(editor,"edit-start").isShowing() && !control<juce::Slider>(editor,"edit-end").isShowing(),"Separate trim sliders still visible");
     check(control<juce::Component>(editor,"sample-waveform").getHeight()>340,"Sample waveform did not expand");
     auto sampleField=[&](const char* id){return find(editor,id)->getParentComponent()->getBounds();};
@@ -155,7 +157,7 @@ void runEnvelopeTests()
     const int sampleWaveHeight=control<juce::Component>(editor,"sample-waveform").getHeight();capture(editor,"drum-sample-layout.png");click(editor,"edit-tab-1");settle(editor);check(control<juce::Component>(editor,"sample-waveform").getHeight()==sampleWaveHeight,"Envelope waveform does not match Sample");
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
     auto& soundEditor=control<SoundEditor>(editor,"sound-editor");
-    click(editor,"edit-tab-8");check(!control<juce::Component>(editor,"sample-waveform").isVisible() && control<juce::Component>(editor,"key-spectrum").getBounds()==control<juce::Component>(editor,"sample-waveform").getBounds(),"Tune did not replace full waveform area");check(control<juce::TextButton>(editor,"edit-tab-8").getButtonText()=="Tune","Tune tab name incorrect");check(control<juce::TextButton>(editor,"edit-tab-8").getX()>control<juce::TextButton>(editor,"edit-tab-2").getX() && control<juce::TextButton>(editor,"edit-tab-8").getX()<control<juce::TextButton>(editor,"edit-tab-3").getX(),"Tune tab order incorrect");check(control<juce::Component>(editor,"key-spectrum").isVisible(),"Key spectrum not visible on Key tab");
+    click(editor,"edit-tab-8");check(!control<juce::Component>(editor,"sample-waveform").isVisible() && control<juce::Component>(editor,"key-spectrum").getBounds()==control<juce::Component>(editor,"sample-waveform").getBounds(),"Tune did not replace full waveform area");check(control<juce::TextButton>(editor,"edit-tab-8").getButtonText()=="Tune","Tune tab name incorrect");check(control<juce::TextButton>(editor,"edit-tab-8").getX()>control<juce::TextButton>(editor,"edit-tab-2").getX() && control<juce::TextButton>(editor,"edit-tab-8").getX()>control<juce::TextButton>(editor,"edit-tab-3").getX(),"Tune tab order incorrect");check(control<juce::Component>(editor,"key-spectrum").isVisible(),"Key spectrum not visible on Key tab");
     control<juce::Slider>(editor,"key-coarse").setValue(3,juce::sendNotificationSync);control<juce::Slider>(editor,"key-fine").setValue(17.5,juce::sendNotificationSync);
     near(current().tuning,3,.001,"Key coarse did not affect instrument tuning");near(current().sound.detune,17.5,.001,"Key fine did not affect playback detune");settle(editor);capture(editor,"drum-key-tab.png");
     check(find(editor,"auto-tune")==nullptr && find(editor,"target-key")==nullptr,"Auto Tune controls remain");
@@ -212,11 +214,11 @@ void runEnvelopeTests()
     const auto saved=library.toXml()->toString();click(editor,"envelope-amp-zoom-in");click(editor,"envelope-amp-zoom-out");click(editor,"envelope-amp-fit");
     check(library.toXml()->toString()==saved,"View zoom changes sound");
     settle(editor);capture(editor,"drum-envelopes.png");editor.setSize(800,600);capture(editor,"drum-envelopes-compact.png");editor.setSize(1280,900);
-    click(editor,"edit-tab-2");click(editor,"filter-envelope-tab");check(filter.isVisible() && !amp.isVisible() && !wave.isVisible() && filter.getBounds()==wave.getBounds(),"Filter graph did not replace waveform");
+    click(editor,"edit-tab-1");click(editor,"filter-envelope-tab");check(filter.isVisible() && !amp.isVisible() && wave.isVisible() && filter.getY()==wave.getY(),"Filter overlay missing from Envelopes");
     c=current();c.sound.filterOn=1;c.sound.cutoff=1500;c.sound.filterAmount=3;c.sound.filterAttack=30;check(library.setControls(kit,id,c).ok,"Filter setup failed");refresh();
     drag(control<juce::Component>(editor,"envelope-filter-point-2"),{30,-10});check(current().sound.envelopes[2].count==4,"Filter graph did not save edits");settle(editor);capture(editor,"drum-filter-envelope.png");
     for(int tab:{0,3,4,5,6}){click(editor,("edit-tab-"+juce::String(tab)).toRawUTF8());settle(editor);capture(editor,("drum-manual-tab-"+juce::String(tab)+".png").toRawUTF8());}
-    click(editor,"edit-tab-1");
+    click(editor,"edit-tab-1");click(editor,"overlay-amplitude");
     c=current();c.sound.keyOverride=23;check(library.setControls(kit,id,c).ok,"Legacy label fixture failed");refresh();settle(editor);
     const auto note=control<juce::Label>(editor,"note-indicator").getText();
     std::array<float,drum::numMacros> displayMacros{};for(int n=0;n<drum::numMacros;++n)displayMacros[(size_t)n]=p.macro(n).get();auto displayPreview=drum::SampleEngine::renderPreview(p.getSampleEngine().waveformFor(id),current(),displayMacros,120,48000);check(displayPreview.sample!=nullptr,"Display preview unavailable");auto displayAnalysis=drum::analyseTonal(displayPreview.sample->audio,48000);
@@ -243,7 +245,7 @@ void runEnvelopeTests()
     for(int n=0;n<3;++n)
     {
         const juce::String prefix=n==0?"envelope-amp":n==1?"envelope-pitch":"envelope-filter";
-        click(editor,n==2?"edit-tab-2":"edit-tab-1");if(n==2)click(editor,"filter-envelope-tab");else click(editor,n==0?"overlay-amplitude":"overlay-pitch");
+        click(editor,"edit-tab-1");if(n==2)click(editor,"filter-envelope-tab");else click(editor,n==0?"overlay-amplitude":"overlay-pitch");
         c=current();c.macros={};c.sound.start=0.2;c.sound.end=0.3;c.sound.envelopes[(size_t)n]=drum::adsrShape(100,150,0.4,150);
         check(library.setControls(kit,id,c).ok,"Navigation fixture failed");refresh();
         auto& graph=control<EnvelopeEditor>(editor,prefix.toRawUTF8());
@@ -259,7 +261,7 @@ void runEnvelopeTests()
         graph.mouseDown(event(graph,anchor,anchor,juce::ModifierKeys::middleButtonModifier));
         graph.mouseDrag(event(graph,anchor+juce::Point<float>{20,0},anchor,juce::ModifierKeys::middleButtonModifier));graph.mouseUp(event(graph,anchor,anchor));
         check(handle.getBounds().getCentreX()>panned+10,"Middle drag did not pan envelope");
-        check(current()==before,"Navigation changed sound");if(n==2)click(editor,(prefix+"-fit").toRawUTF8());else {click(editor,"waveform-fit");settle(editor);}
+        check(current()==before,"Navigation changed sound");{click(editor,"waveform-fit");settle(editor);}
         auto downPoint=handle.getLocalBounds().getCentre().toFloat(),startPosition=handle.getPosition().toFloat();
         handle.mouseDown(event(handle,downPoint,downPoint));
         for(int move:{10,20,35})handle.mouseDrag(event(handle,startPosition+downPoint+juce::Point<float>{(float)move,10}-handle.getPosition().toFloat(),downPoint));

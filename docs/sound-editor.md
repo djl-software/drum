@@ -265,3 +265,5 @@ These numeric controls, including Pitch depth, use value boxes with a shaded lev
 Filter and Tune now replace the waveform with their graphs at the same size as the Sample waveform. The Filter EQ response and output spectrum share a +24 to -60 dB display range.
 
 EQ band gain now covers -60 to +24 dB, including chain EQ and saved state. Drum numeric sliders use shaded value bars (drag, scroll or type; double-click resets). Filter envelope changes the separate tone filter cutoff over time, rather than moving the eight EQ bands.
+
+Envelopes contains Amplitude, Pitch and Filter selectors. Filter envelope and its tone-filter controls now live here; the Filter tab contains eight-band EQ. Tab order: Sample, Envelopes, Filter, Attack layer, LFO, Tune, Outputs & sends, Macros, Chain.
