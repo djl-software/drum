@@ -324,7 +324,8 @@ bool DrumAudioProcessor::restoreLibraryWorkspace(const juce::XmlElement& saved)
     for(auto* doc:saved.getChildIterator())if(doc->hasTagName("Document")){
         auto id=doc->getStringAttribute("id"),path=doc->getStringAttribute("file");if(id.isEmpty() || restored.count(id) || (path.isNotEmpty() && !juce::File::isAbsolutePath(path)))return false;
         auto& info=restored[id];if(path.isNotEmpty())info.file=juce::File(path);
-        if(auto* base=doc->getFirstChildElement()){auto test=std::make_unique<juce::XmlElement>(*content);test->deleteAllChildElements();test->addChildElement(new juce::XmlElement(*base));test->setAttribute("activeKit",id);if(base->getStringAttribute("id")!=id || !check.restore(*test))return false;info.baseline=std::make_unique<juce::XmlElement>(*base);}
+        if(auto* base=doc->getFirstChildElement()){auto test=std::make_unique<juce::XmlElement>(*content);test->deleteAllChildElements();test->addChildElement(new juce::XmlElement(*base));test->setAttribute("activeKit",id);if(base->getStringAttribute("id")!=id || !check.restore(*test))return false;// Compare migrated saved content with migrated current content, preserving real edits.
+            auto normalised=check.toXml();info.baseline=std::make_unique<juce::XmlElement>(*normalised->getFirstChildElement());}
     }
     if(!library.restore(*content))return false;libraryDocuments=std::move(restored);closedLibraries=saved.getBoolAttribute("closed");libraryDirtyRevision=~uint64_t(0);if(!closedLibraries)closedLibraries=isDefaultLibraryPlaceholder();librarySelectedGroup=saved.getStringAttribute("selectedGroup");librarySelectedInstrument=saved.getStringAttribute("selectedInstrument");return true;
 }

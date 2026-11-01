@@ -41,7 +41,8 @@ juce::String spectrumKey(const TonalAnalysis& a,double transpose)
 juce::String tileKey(const TonalAnalysis& a,double transpose)
 {
     if(!a.complete)return "Analysing...";
-    return strongestNote(a,transpose)>=0?spectrumKey(a,transpose)+" (est.)":"No signal";
+    const int note=strongestNote(a,transpose);
+    return note>=0?spectrumKey(a,transpose)+"  "+camelotCode(note)+"/"+camelotCode(note+12):"No signal";
 }
 TonalAnalysis analyseTonal(const juce::AudioBuffer<float>& audio,double rate,const std::function<bool()>& cancelled)
 {

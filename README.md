@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.17.6 fixes false Library save prompts after upgrades, matches Kit/Library headings, opens Edit on tile double-click, and enlarges tonal labels with Camelot major/minor references. See the 0.17.6 manual update for the limits of drum-hit key estimates.
+
 Version 0.17.2 matches Kit/Library Groups, shows vertical tile insertion markers, compacts Drum Link and uses key names for unassigned notes. Automatic Live remapping follows newly assigned sounds as well as reordered instruments.
 
 Version 0.17.1 right-aligns larger, brighter control labels beside their value bars, places EQ on inside the graph and removes the duplicate Band on switch.

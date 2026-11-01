@@ -1,17 +1,17 @@
 {
   "product": "Drum",
-  "version": "0.17.3",
+  "version": "0.17.6",
   "date": "1 November 2026",
   "platform": "Windows VST3",
   "scope": "MANUAL UPDATE / KIT WORKFLOW",
-  "cover_caption": "Kit controls and automatic Live note tracking",
-  "footer": "Version 0.17.3 | Manual update",
+  "cover_caption": "Kit workflow, Library saving and instrument key labels",
+  "footer": "Version 0.17.6 | Manual update",
   "logo": "../../assets/DJLLogoWhite.png",
-  "cover_image": "assets/workflow-0.17.3.png",
+  "cover_image": "assets/workflow-0.17.6.png",
   "publisher": "DJL Software",
   "chapters": [
     {
-      "title": "Kit workflow and automatic Live note tracking (0.17.3)",
+      "title": "Kit workflow and automatic Live note tracking",
       "blocks": [
         {
           "type": "p",
@@ -23,7 +23,7 @@
         },
         {
           "type": "p",
-          "text": "How: connect the kit with Update and the DJL Drum Link companion, enable the Setup option, then reorder a tile. Check the clip notes follow their named rows and save the Live Set to retain the option. Drum Link must be connected while the change happens. Changes made while disconnected or switched off cannot be reconstructed automatically. Recording clips wait until recording stops."
+          "text": "How: connect the kit with the DJL Drum Link companion (Setup > Reconnect to Ableton if needed), enable the Setup option, then reorder a tile. Check the clip notes follow their named rows and save the Live Set to retain the option. Drum Link must be connected while the change happens. Changes made while disconnected or switched off cannot be reconstructed automatically. Recording clips wait until recording stops."
         },
         {
           "type": "p",
@@ -31,15 +31,40 @@
         },
         {
           "type": "p",
-          "text": "Right-click or double-click an instrument tile in either a Kit or Library for Duplicate, Remove or Replace sample. The menu appears beside the tile. Remove asks for confirmation and keeps the original audio file. Library tiles additionally offer Add to kit, also available using the tile +."
+          "text": "Right-click an instrument tile in either a Kit or Library for Duplicate, Remove or Replace sample. The menu appears beside the tile. Remove asks for confirmation and keeps the original audio file. Library tiles additionally offer Add to kit, also available using the tile +."
         },
         {
           "type": "p",
-          "text": "Top-level tuning is now in Edit sound > Tune. Duplicate, Remove and Replace have moved to the tile menu. The top-right Library Add button has been removed; drag audio into its instrument area to add sounds. Setup is beside Library. Every Edit Sound tab stays below the main toolbar; Library tabs also remain visible."
+          "text": "Top-level tuning is now in Edit > Tune. Duplicate, Remove and Replace have moved to the tile menu. The top-right Library Add button has been removed; drag audio into its instrument area to add sounds. Setup is beside Library. Every Edit tab stays below the main toolbar; Library tabs also remain visible."
         },
         {
           "type": "p",
           "text": "Kit and Library panels show six tiles across, covering six adjacent keyboard notes per row. The panel size is unchanged. Assigned key labels are larger; narrow tiles keep a minimum height so sound names remain readable."
+        }
+      ]
+    },
+    {
+      "title": "Libraries, Edit and key labels",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Double-click an instrument tile in either Kit or Library to open Edit. Right-click opens its action menu. KIT and LIBRARIES now use matching heading sizes and colours."
+        },
+        {
+          "type": "p",
+          "text": "Close warns only when a Library contains unsaved changes. New libraries and duplicates still need saving. Older saved baselines are upgraded before comparison, so new default settings introduced by an update do not count as edits."
+        },
+        {
+          "type": "p",
+          "text": "The larger tonal label shows the highest-power note in the Tune spectrum, followed by its major/minor Camelot references. For example A 11B/8A means A major is 11B and A minor is 8A. B means major and A means minor in Camelot codes; valid codes run from 1A to 12A and 1B to 12B."
+        },
+        {
+          "type": "why",
+          "text": "A short drum hit usually does not contain enough harmony to establish major or minor. Both codes are references for the displayed note, not a claim that the sample has both keys. The note itself is an estimate, especially for noise, claps and sweeping kicks. The tile omits the old (est.) suffix for readability; use your ears to judge the result."
+        },
+        {
+          "type": "p",
+          "text": "How: open Edit > Tune, inspect the C-to-B spectrum and adjust tuning if needed. The tile follows the strongest spectrum note after tuning. The keyboard assignment at the top of the tile is the MIDI trigger and is separate from this tonal label. Silence shows No signal rather than an invented key."
         }
       ]
     }

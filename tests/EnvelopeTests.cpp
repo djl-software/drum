@@ -109,11 +109,11 @@ void tonalTests()
         for(int n=0;n<48000;++n){double v=0;for(double hz:frequencies)v+=0.2*std::sin(juce::MathConstants<double>::twoPi*hz*n/48000);audio.setSample(0,n,(float)v);audio.setSample(1,n,(float)-v);}
     };
     tones({440});auto a=drum::analyseTonal(audio,48000);near(a.midi,69,0.05,"A4 pitch detection failed");check(a.key==-1 && !a.varying,"Single tone invented major/minor");
-    check(drum::tileKey(a)=="A (est.)","Tile did not show strongest spectrum note");
+    check(drum::tileKey(a)=="A  11B/8A","Tile did not show strongest spectrum note");
     drum::TonalAnalysis minor;minor.complete=true;minor.key=21;minor.noteEnergy[9]=1;
-    check(drum::tileKey(minor)=="A (est.)","Minor key tile label incorrect");
-    check(drum::tileKey(minor,2)=="B (est.)","Transposed tile label incorrect");
-    drum::TonalAnalysis uncertain;uncertain.complete=true;uncertain.noteEnergy[3]=1;uncertain.noteEnergy[9]=.2f;check(drum::tileKey(uncertain)=="D# (est.)","Uncertain tile did not use spectral estimate");check(drum::strongestNote(uncertain,2)==5,"Transposed spectrum estimate incorrect");check(drum::strongestNote(drum::TonalAnalysis{})==-1,"Silence invented a key");
+    check(drum::tileKey(minor)=="A  11B/8A","Minor key tile label incorrect");
+    check(drum::tileKey(minor,2)=="B  1B/10A","Transposed tile label incorrect");
+    drum::TonalAnalysis uncertain;uncertain.complete=true;uncertain.noteEnergy[3]=1;uncertain.noteEnergy[9]=.2f;check(drum::tileKey(uncertain)=="D#  5B/2A","Uncertain tile did not use spectral estimate");check(drum::strongestNote(uncertain,2)==5,"Transposed spectrum estimate incorrect");check(drum::strongestNote(drum::TonalAnalysis{})==-1,"Silence invented a key");
     auto strongest=[](const drum::TonalAnalysis& result){return (int)std::distance(result.noteEnergy.begin(),std::max_element(result.noteEnergy.begin(),result.noteEnergy.end()));};
     check(strongest(a)==9 && a.noteEnergy[9]>.99f,"Key spectrum did not map A4 to A");
     tones({220});check(strongest(drum::analyseTonal(audio,48000))==9,"Key spectrum did not combine octaves");
@@ -126,7 +126,7 @@ void tonalTests()
     tones({261.625565,329.627557,391.995436});a=drum::analyseTonal(audio,48000);std::cout<<"C chord key estimate: "<<a.key<<"\n";check(a.key==0,"C major chord recognition failed");
     tones({233.081881,277.182631,349.228231});a=drum::analyseTonal(audio,48000);check(a.key==22,"Bb minor chord recognition failed");
     juce::Random random(123);for(int c=0;c<2;++c)for(int n=0;n<48000;++n)audio.setSample(c,n,random.nextFloat()*0.5f-0.25f);
-    a=drum::analyseTonal(audio,48000);check(a.midi<0 && a.key<0,"Noise given a definite pitch/key");check(drum::strongestNote(a)>=0 && drum::tileKey(a).endsWith("(est.)"),"Noise tile did not receive a spectrum estimate");
+    a=drum::analyseTonal(audio,48000);check(a.midi<0 && a.key<0,"Noise given a definite pitch/key");check(drum::strongestNote(a)>=0 && drum::tileKey(a).contains("/") && !drum::tileKey(a).contains("est."),"Noise tile did not receive a spectrum estimate");
     audio.clear();a=drum::analyseTonal(audio,48000);check(a.midi<0 && a.key<0 && a.complete,"Silence analysis incorrect");
     check(std::all_of(a.noteEnergy.begin(),a.noteEnergy.end(),[](float v){return v==0;}),"Silence retained a stale Key spectrum");
     check(!drum::analyseTonal(audio,48000,[]{return true;}).complete,"Analysis cancellation ignored");

@@ -71,6 +71,13 @@ void runManagementTests()
         auto copy=documents.duplicateLibraryDocument(id);good(copy);check(documents.getLibrary().snapshot().activeKit==copy.id && documents.libraryDocumentDirty(copy.id) && documents.libraryDocumentFile(copy.id)==juce::File(),"Duplicate did not open an unsaved independent copy");
         check(!documents.saveDocument(second).ok,"Duplicate overwrote another open tab's file");
         auto session=documents.libraryWorkspaceState();DrumAudioProcessor restored;check(restored.restoreLibraryWorkspace(*session),"Library workspace did not restore");check(restored.libraryDocumentDirty(copy.id) && !restored.libraryDocumentDirty(id) && restored.libraryDocumentFile(id)==second,"Workspace lost dirty state or filename");
+        // Older saved baselines lack defaults introduced by later releases.
+        auto legacy=documents.libraryWorkspaceState();
+        for(auto* doc:legacy->getChildIterator())if(doc->hasTagName("Document"))if(auto* base=doc->getFirstChildElement())base->removeAttribute("groupBoundary");
+        DrumAudioProcessor migrated;check(migrated.restoreLibraryWorkspace(*legacy),"Old baseline migration failed");
+        check(!migrated.libraryDocumentDirty(id) && migrated.libraryDocumentDirty(copy.id),"Migration mistook defaults for edits or lost unsaved copy");
+        good(migrated.getLibrary().rename(id,"Actual edit"));check(migrated.libraryDocumentDirty(id),"Migration suppressed a genuine edit");
+        auto edited=migrated.libraryWorkspaceState();DrumAudioProcessor recalled;check(recalled.restoreLibraryWorkspace(*edited) && recalled.libraryDocumentDirty(id),"Genuine edit lost on recall");
         restored.discardLibraryDocuments();check(restored.getLibrary().snapshot().kits.size()==1,"Discard retained unsaved duplicate");
         good(restored.closeLibraryDocument(id));check(restored.librariesEmpty() && second.existsAsFile(),"Close deleted a file or kept last tab open");good(restored.openDocument(second));check(!restored.librariesEmpty() && !restored.libraryDocumentDirty(id),"Reopening last closed library failed");
         for(int n=1;n<8;++n)good(restored.duplicateLibraryDocument(id));check(!restored.duplicateLibraryDocument(id).ok,"More than eight libraries opened");
@@ -238,6 +245,8 @@ void runManagementTests()
         auto moved=track.getLibrary().snapshot().kits[0].groups[0].instruments;
         check(moved[0].id==second && moved[1].id==third && moved[2].id==first,"Pad drag did not insert and shift intervening pads");
         check(moved[0].note==21 && moved[1].note==22 && moved[2].note==23,"Pad drag left gaps in MIDI assignments");
+        pads->mouseDoubleClick(event(start));check(control(main,"sound-editor")->isVisible(),"Double-click did not open Edit for a kit tile");
+        check(dynamic_cast<juce::TextButton*>(control(main,"open-sound-editor"))->getButtonText()=="Edit","Edit button still says Sound");click(main,"close-sound-editor");
         screenshot(main,"drum-toolbar-kit.png");click(main,"library-menu");
         juce::TextButton* back=nullptr;std::function<void(juce::Component&)> findBack=[&](juce::Component& c){if(auto* b=dynamic_cast<juce::TextButton*>(&c);b && b->getComponentID()=="kit-menu" && b->getButtonText()=="Close" && b->isVisible())back=b;for(auto* child:c.getChildren())findBack(*child);};findBack(main);
         check(back!=nullptr,"Library is not a screen in the main editor");
@@ -247,6 +256,7 @@ void runManagementTests()
         auto* libraryPads=control(*libraryScreen,"instrument-grid");int librarySide=(libraryPads->getWidth()-60)/6;
         juce::Point<float> plus{float(librarySide-18),18};auto plusEvent=juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),plus,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,libraryPads,libraryPads,now,plus,now,1,false);
         libraryPads->mouseDown(plusEvent);libraryPads->mouseUp(plusEvent);check(drum::instrumentCount(track.getLibrary().snapshot().kits[0])==countBefore+2,"Tile plus did not add to the one active kit");
+        auto tileEvent=plusEvent.withNewPosition(juce::Point<float>{float(librarySide/2),60.0f});libraryPads->mouseDoubleClick(tileEvent);check(control(*libraryScreen,"sound-editor")->isVisible(),"Library tile double-click did not open Edit");click(*libraryScreen,"close-sound-editor");
         check(libraryPads->keyPressed(juce::KeyPress(juce::KeyPress::deleteKey)),"Selected Library instrument did not handle Delete");
         juce::MessageManager::getInstance()->runDispatchLoopUntil(30);auto* removal=dynamic_cast<juce::AlertWindow*>(juce::Component::getCurrentlyModalComponent());check(removal!=nullptr,"Delete did not request confirmation");removal->exitModalState(0);juce::MessageManager::getInstance()->runDispatchLoopUntil(30);
         check(track.libraryEditorProcessor()->getLibrary().snapshot().kits[0].groups[0].instruments.size()==1,"Cancelling Delete removed the library sound");

@@ -100,7 +100,7 @@ public:
     juce::String selected;
     int colour = 0;
     std::function<void(juce::String)> select;
-    std::function<void(juce::String)> context,addToKit,remove;
+    std::function<void(juce::String)> context,addToKit,remove,edit;
     std::function<void(const juce::StringArray&,juce::String)> drop;
     bool dragging = false;
     bool isInterestedInFileDrag(const juce::StringArray& files) override { return !files.isEmpty(); }
@@ -151,7 +151,7 @@ public:
             if(addToKit){g.setColour(accent);g.setFont(juce::FontOptions(23));g.drawText("+",juce::Rectangle<int>{area.getRight()-32,area.getY()+4,28,28},juce::Justification::centred);}
             g.setColour(text);g.setFont(juce::FontOptions(15.0f));
             g.drawFittedText(i.name,area.reduced(10,0).withTrimmedTop(30).withTrimmedBottom(61),juce::Justification::centred,2);
-            if(keyLabel)label(g,keyLabel(i),area.reduced(10,0).withY(area.getBottom()-59).withHeight(17),11,accent);
+            if(keyLabel)label(g,keyLabel(i),area.reduced(10,0).withY(area.getBottom()-59).withHeight(19),14,accent);
             juce::String flags=i.controls.mute?"MUTE  ":i.controls.solo?"SOLO  ":"";
             if(i.controls.choke>0)flags+="CH "+juce::String(i.controls.choke);
             label(g,flags,area.reduced(10,0).withY(area.getBottom()-40).withHeight(16),10,i.controls.mute?juce::Colour(0xfff2a3a3):text);
@@ -173,7 +173,7 @@ public:
             if(select)select(id);if(play)play(pressedNote,true);break;
         }
     }
-    void mouseDoubleClick(const juce::MouseEvent& e) override {if(!context)return;releaseKey();for(int n=0;n<(int)instruments.size();++n)if(cell(n).contains(e.getPosition())){context(instruments[(size_t)n].id);return;}}
+    void mouseDoubleClick(const juce::MouseEvent& e) override {if(!edit)return;releaseKey();for(int n=0;n<(int)instruments.size();++n)if(cell(n).contains(e.getPosition())){edit(instruments[(size_t)n].id);return;}}
     bool keyPressed(const juce::KeyPress& key) override {if(remove && selected.isNotEmpty() && key.getKeyCode()==juce::KeyPress::deleteKey){remove(selected);return true;}return false;}
     void mouseDrag(const juce::MouseEvent& e) override {
         if(dragId.isEmpty() || e.getPosition().getDistanceFrom(dragStart)<6)return;
@@ -398,6 +398,7 @@ public:
         addAndMakeVisible(viewport); viewport.setViewedComponent(&grid,false); viewport.setScrollBarsShown(true,false);
         grid.drop=[this](const juce::StringArray& files,juce::String id) { handleDrop(files,processor.isMidiTrack()?id:juce::String()); };
         grid.setWantsKeyboardFocus(true);grid.context=[this](juce::String id){showInstrumentMenu(id);};grid.remove=[this](juce::String id){removeLibraryInstrument(id);};if(!processor.isMidiTrack())grid.addToKit=[this](juce::String id){addLibraryInstrument(id);};
+        grid.edit=[this](juce::String id){instrumentId=id;refresh();editSound.onClick();};
         grid.setComponentID("instrument-grid");
         grid.keyLabel=[this](const drum::Instrument& i){auto sample=processor.getSampleEngine().waveformFor(i.id);return sample?drum::tileKey(sample->tonal,i.controls.tuning+i.controls.sound.detune/100):i.samplePath.isEmpty()?juce::String():juce::String("Analysing...");};
         viewport.setScrollBarThickness(8); grid.select = [this](juce::String id) { importStatus=false; instrumentId=id; refresh(); };
@@ -418,7 +419,7 @@ public:
                 complete(r); scrollToSelected();
             }
         };
-        setup(editSound,"Edit sound","open-sound-editor"); editSound.setColour(juce::TextButton::buttonColourId,accent.darker(0.62f));
+        setup(editSound,"Edit","open-sound-editor"); editSound.setColour(juce::TextButton::buttonColourId,accent.darker(0.62f));
         addChildComponent(soundEditor);
         editSound.onClick=[this] { soundEditor.select(view.activeKit,instrument()); soundEditor.setVisible(true); soundEditor.toFront(false); };
         soundEditor.close=[this] { soundEditor.setVisible(false); refresh(); };
@@ -438,7 +439,7 @@ public:
         if(scaledLogo.getWidth()!=width || scaledLogo.getHeight()!=height)scaledLogo=logo.rescaled(width,height,juce::Graphics::highResamplingQuality);
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.drawImageWithin(scaledLogo,logoBounds.getX(),logoBounds.getY(),logoBounds.getWidth(),logoBounds.getHeight(),juce::RectanglePlacement::centred);
         g.setColour(accent);g.setFont(juce::FontOptions(36,juce::Font::bold));g.drawText("Drum",juce::Rectangle<int>{158,24,208,45},juce::Justification::centredLeft);
-        label(g,processor.isMidiTrack()?"KIT":"LIBRARIES",{158,66,240,18},processor.isMidiTrack()?12:18,processor.isMidiTrack()?muted:text);
+        label(g,processor.isMidiTrack()?"KIT":"LIBRARIES",{158,66,240,18},18,text);
         if(processor.isMidiTrack())label(g,"KIT NAME",{24,139,86,32},10,accent);
         box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
         label(g,"GROUPS",left.reduced(16,0).withY(left.getY()+12).withHeight(26),18,text);

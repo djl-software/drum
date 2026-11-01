@@ -1784,6 +1784,31 @@
           "text": "Kit and Library panels show six tiles across, covering six adjacent keyboard notes per row. The panel size is unchanged. Assigned key labels are larger; narrow tiles keep a minimum height so sound names remain readable."
         }
       ]
+    },
+    {
+      "title": "Libraries, Edit and key labels",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Double-click an instrument tile in either Kit or Library to open Edit. Right-click opens its action menu. KIT and LIBRARIES now use matching heading sizes and colours."
+        },
+        {
+          "type": "p",
+          "text": "Close warns only when a Library contains unsaved changes. New libraries and duplicates still need saving. Older saved baselines are upgraded before comparison, so new default settings introduced by an update do not count as edits."
+        },
+        {
+          "type": "p",
+          "text": "The larger tonal label shows the highest-power note in the Tune spectrum, followed by its major/minor Camelot references. For example A 11B/8A means A major is 11B and A minor is 8A. B means major and A means minor in Camelot codes; valid codes run from 1A to 12A and 1B to 12B."
+        },
+        {
+          "type": "why",
+          "text": "A short drum hit usually does not contain enough harmony to establish major or minor. Both codes are references for the displayed note, not a claim that the sample has both keys. The note itself is an estimate, especially for noise, claps and sweeping kicks. The tile omits the old (est.) suffix for readability; use your ears to judge the result."
+        },
+        {
+          "type": "p",
+          "text": "How: open Edit > Tune, inspect the C-to-B spectrum and adjust tuning if needed. The tile follows the strongest spectrum note after tuning. The keyboard assignment at the top of the tile is the MIDI trigger and is separate from this tonal label. Silence shows No signal rather than an invented key."
+        }
+      ]
     }
   ]
 }

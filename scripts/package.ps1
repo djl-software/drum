@@ -31,5 +31,5 @@ Copy-Item -LiteralPath "$PSScriptRoot\..\companion\DJL_Drum_Link" -Destination $
 
 Copy-Item -LiteralPath "$PSScriptRoot\..\companion\DJL Drum Link.adg" -Destination $drumCompanionDestination -Force
 
-$drumUpdate = "$PSScriptRoot\..\output\pdf\DJL-Drum-Manual-Update-0.17.3.pdf"
+$drumUpdate = "$PSScriptRoot\..\output\pdf\DJL-Drum-Manual-Update-0.17.6.pdf"
 if (Test-Path -LiteralPath $drumUpdate) { Copy-Item -LiteralPath $drumUpdate -Destination $OutputDirectory -Force }
