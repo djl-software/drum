@@ -5,7 +5,7 @@ import json
 import os
 import time
 from _Framework.ControlSurface import ControlSurface
-from .protocol import RACK_NAMES, token_for, names_from, update_rack
+from .protocol import RACK_NAMES, token_for, names_from, update_rack, compact_rack
 from .remap import TrackState
 from .autosetup import AutoSetup
 
@@ -22,6 +22,7 @@ class DrumLink(ControlSurface):
         self._last_status = None
         self._last_diagnostic = None
         self._remaps = {}
+        self._compacted = set()
         self._auto_setup = AutoSetup()
         self._requests = {}
         self.log_message("DJL Drum Link started")
@@ -96,6 +97,8 @@ class DrumLink(ControlSurface):
                         else:
                             self._remaps.pop(token, None)
                         update_rack(rack, names)
+                        if rack not in self._compacted and compact_rack(rack):
+                            self._compacted.add(rack)
                         connected += 1
                     except Exception as exc:
                         errors.append(str(exc))

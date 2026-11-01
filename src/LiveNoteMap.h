@@ -50,6 +50,7 @@ public:
         root->setAttribute("Creator","Ableton Live 12.4d1");
         auto* p=root->createNewChildElement("GroupDevicePreset");value(*p,"OverwriteProtectionNumber","3077");
         auto* d=device(*p->createNewChildElement("Device"),"MidiEffectGroupDevice",kit.name+" - Drum note names");
+        if(auto* folded=d->getChildByName("IsFolded"))folded->setAttribute("Value","true");
         for(auto tag:{"Branches","ReturnBranches"})d->createNewChildElement(tag);
         for(auto tag:{"IsBranchesListVisible","ShowsZonesInsteadOfNoteNames"})value(*d,tag,"true");
         for(auto tag:{"IsReturnBranchesListVisible","IsRangesEditorVisible","AreDevicesVisible","AreMacroControlsVisible","AreMacroVariationsControlsVisible","IsAutoSelectEnabled","ShowBranchesInSessionMixer","ChainSelectorFilterMidiCtrl"})value(*d,tag,"false");
@@ -75,7 +76,7 @@ public:
     }
     static Kit linkedKit(const Kit& source){
         Kit result;result.name="DJL Drum Link v1";Group group;
-        for(int note=21;note<=108;++note){Instrument entry;entry.note=note;entry.name="(unused)";
+        for(int note=21;note<=108;++note){Instrument entry;entry.note=note;entry.name=noteName(note);
             for(const auto& g:source.groups)for(const auto& i:g.instruments)if(i.note==note)entry=i;
             group.instruments.push_back(entry);}
         result.groups.push_back(group);return result;

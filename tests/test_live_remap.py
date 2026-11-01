@@ -34,6 +34,16 @@ class RemapTests(unittest.TestCase):
         state.apply(c,{"snare":21});self.assertEqual([(n.pitch,n.mute) for n in c.notes],[(21,True),(21,False)])
         state.apply(c,{"snare":22});self.assertTrue(c.notes[0].mute);self.assertEqual(c.notes[0].pitch,21)
         state.apply(c,{"kick":23,"snare":22});self.assertFalse(c.notes[0].mute);self.assertEqual(c.notes[0].pitch,23)
+    def test_insert_shift_then_reorder_keeps_instruments(self):
+        a,b=Clip([21,22]),Clip([22]);t=track([a],[b]);song=Song();state=r.TrackState(payload());state.sync(t,payload(),song)
+        inserted=dict(kitId="kit",notes=[dict(id="hat",note=21),dict(id="kick",note=22),dict(id="snare",note=23)])
+        state.sync(t,inserted,song);self.assertEqual([n.pitch for n in a.notes],[22,23]);self.assertEqual(b.notes[0].pitch,23)
+        moved=dict(kitId="kit",notes=[dict(id="snare",note=21),dict(id="kick",note=22),dict(id="hat",note=23)])
+        state.sync(t,moved,song);self.assertEqual([n.pitch for n in a.notes],[22,21]);self.assertEqual(b.notes[0].pitch,21)
+        self.assertEqual(a.notes[0].duration,.3);self.assertEqual(a.notes[0].velocity,90)
+    def test_previously_unassigned_notes_follow_new_instrument(self):
+        c=Clip([23]);state=r.ClipState({"kick":21});state.apply(c,{"kick":21,"hat":23})
+        state.apply(c,{"kick":21,"hat":22});self.assertEqual(c.notes[0].pitch,22)
     def test_original_mute_preserved(self):
         c=Clip([21]);c.notes[0].mute=True;state=r.ClipState({"kick":21});state.apply(c,{});state.apply(c,{"kick":22});self.assertTrue(c.notes[0].mute)
     def test_manual_pitch_rebind(self):

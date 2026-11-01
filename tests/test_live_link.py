@@ -10,9 +10,14 @@ class LinkTests(unittest.TestCase):
         return dict(protocol=1, token="0123456789abcdef", timestamp=100, notes=[dict(id="kick", note=21, name="Kick"),dict(id="snare", note=22, name="Snare")])
     def test_names_and_reorder(self):
         data=self.payload(); names=p.names_from(data,data["token"],101)
-        self.assertEqual(names[:3],["Kick","Snare","(unused)"])
+        self.assertEqual(names[:3],["Kick","Snare","B-1"])
         data["notes"][0]["note"]=22; data["notes"][1]["note"]=21
         self.assertEqual(p.names_from(data,data["token"],101)[:2],["Snare","Kick"])
+    def test_empty_keys_and_compact_view(self):
+        data=self.payload();data["notes"]=[];names=p.names_from(data,data["token"],101)
+        self.assertEqual(names[0],"A-1");self.assertEqual(names[3],"C0");self.assertEqual(names[-1],"C7")
+        rack=Item(view=Item(is_collapsed=False));self.assertTrue(p.compact_rack(rack));self.assertTrue(rack.view.is_collapsed)
+        self.assertFalse(p.compact_rack(Item()))
     def test_invalid_and_stale(self):
         for kind in ("stale","foreign","duplicate","outside","identity"):
             data=self.payload()
@@ -40,7 +45,7 @@ class LinkTests(unittest.TestCase):
         self.assertEqual(p.update_rack(rack,names),0)
         data["notes"].pop()
         self.assertEqual(p.update_rack(rack,p.names_from(data,data["token"],101)),1)
-        self.assertEqual(rack.chains[1].name,"(unused)")
+        self.assertEqual(rack.chains[1].name,"A#-1")
         rack.chains[0].devices.append("effect")
         with self.assertRaises(ValueError): p.update_rack(rack,names)
 

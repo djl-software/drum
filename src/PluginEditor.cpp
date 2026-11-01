@@ -145,7 +145,7 @@ public:
             g.fillRoundedRectangle(area.toFloat(), 9.0f);
             g.setColour(playing ? accent : chosen ? groupColour(colour) : border);
             g.drawRoundedRectangle(area.toFloat().reduced(0.7f), 9.0f, chosen ? 1.6f : 1.0f);
-            if(moving && n==dragTarget){g.setColour(accent);g.fillRect(area.getX(),area.getY(),area.getWidth(),4);}
+            if(moving && n==dragTarget){int source=-1;for(int k=0;k<(int)instruments.size();++k)if(instruments[k].id==dragId)source=k;const int x=source<n?area.getRight()+4:area.getX()-8;g.setColour(accent);g.fillRect(juce::jlimit(0,getWidth()-3,x),area.getY()+4,3,area.getHeight()-8);}
             label(g, drum::noteName(i.note), { area.getX()+10, area.getY()+8, 50, 19 }, 12, playing?text:groupColour(colour));
             label(g, juce::String(i.note), { area.getRight()-(addToKit?70:40), area.getY()+8, 30, 19 }, 11, playing?text:muted, juce::Justification::centredRight);
             if(addToKit){g.setColour(accent);g.setFont(juce::FontOptions(23));g.drawText("+",juce::Rectangle<int>{area.getRight()-32,area.getY()+4,28,28},juce::Justification::centred);}
@@ -424,9 +424,8 @@ public:
         label(g,"INSTRUMENT PREVIEW / v" DRUM_VERSION_STRING,{getWidth()-440,57,225,18},11,muted,juce::Justification::centredRight);
         if(processor.isMidiTrack())label(g,"KIT NAME",{24,139,86,32},10,accent);
         box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
-        label(g,"GROUPS",left.reduced(16,0).withY(left.getY()+12).withHeight(26),processor.isMidiTrack()?12:18,processor.isMidiTrack()?muted:text);
-        label(g,juce::String(kit().groups.size())+" / 16",{left.getRight()-76,processor.isMidiTrack()?left.getY()+12:left.getBottom()-36,60,26},14,muted,juce::Justification::centredRight);
-        if(processor.isMidiTrack())label(g,"GROUP NAME",{left.getX()+16,left.getBottom()-130,left.getWidth()-32,20},10,muted);
+        label(g,"GROUPS",left.reduced(16,0).withY(left.getY()+12).withHeight(26),18,text);
+        label(g,juce::String(kit().groups.size())+" / 16",{left.getRight()-76,left.getBottom()-36,60,26},14,muted,juce::Justification::centredRight);
         label(g,group().name,{centre.getX()+18,centre.getY()+16,centre.getWidth()-175,30},22,groupColour(group().colour));
         label(g,juce::String(group().instruments.size())+" instruments  /  "+juce::String(drum::instrumentCount(kit()))+(processor.isMidiTrack()?" of 88 in kit":" of 88 in library"),{centre.getX()+18,centre.getY()+51,centre.getWidth()-36,22},12,muted);
         label(g,"INSTRUMENT",{right.getX()+18,right.getY()+16,right.getWidth()-36,24},12,muted);
@@ -490,9 +489,9 @@ public:
         groupName.setBounds(left.getX()+16,left.getBottom()-107,left.getWidth()-32,31);
         addGroup.setBounds(left.getX()+16,left.getBottom()-65,84,29); copyGroup.setBounds(left.getX()+108,left.getBottom()-65,42,29); deleteGroup.setBounds(left.getX()+156,left.getBottom()-65,48,29);
         groupUp.setBounds(left.getX()+16,left.getBottom()-29,84,23); groupDown.setBounds(left.getX()+108,left.getBottom()-29,96,23);
-        for(auto* c:std::initializer_list<juce::Component*>{&groupName,&copyGroup,&deleteGroup,&groupUp,&groupDown})c->setVisible(processor.isMidiTrack());
-        addGroup.setButtonText(processor.isMidiTrack()?"+ Group":"+");addGroup.setTooltip("Add a group (up to 16)");
-        if(!processor.isMidiTrack()){addGroup.setBounds(left.getRight()-54,left.getY()+8,38,36);groups.setBounds(left.getX()+8,left.getY()+49,left.getWidth()-16,left.getHeight()-92);}
+        for(auto* c:std::initializer_list<juce::Component*>{&groupName,&copyGroup,&deleteGroup,&groupUp,&groupDown})c->setVisible(false);
+        addGroup.setButtonText("+");addGroup.setTooltip("Add a group (up to 16)");
+        {addGroup.setBounds(left.getRight()-54,left.getY()+8,38,36);groups.setBounds(left.getX()+8,left.getY()+49,left.getWidth()-16,left.getHeight()-92);}
         addInstrument.setBounds(centre.getRight()-145,centre.getY()+18,127,32);
         viewport.setBounds(centre.getX()+18,centre.getY()+90,centre.getWidth()-36,centre.getHeight()-166);
         grid.setSize(juce::jmax(100,viewport.getWidth()-10),grid.getHeight()); grid.setSize(grid.getWidth(),juce::jmax(viewport.getHeight(),grid.contentHeight()));
@@ -797,7 +796,7 @@ private:
         g.setColour(groupColour(group.colour)); g.fillRoundedRectangle(12,16,4,28,2);
         label(g,group.name,{25,9,width-60,24},14);
         label(g,juce::String(group.instruments.size())+" instruments",{25,34,width-40,18},11,muted);
-        if(!processor.isMidiTrack()){g.setColour(text);juce::Path arrow;float x=(float)width-23;arrow.addTriangle(x-5,19,x+5,19,x,25);g.fillPath(arrow);}
+        {g.setColour(text);juce::Path arrow;float x=(float)width-23;arrow.addTriangle(x-5,19,x+5,19,x,25);g.fillPath(arrow);}
     }
     void listBoxItemClicked(int row,const juce::MouseEvent& event) override
     {
@@ -807,7 +806,7 @@ private:
     void listBoxItemDoubleClicked(int row,const juce::MouseEvent&) override {showGroupMenu(row);}
     void showGroupMenu(int row)
     {
-        if(processor.isMidiTrack() || row<0 || row>=(int)kit().groups.size())return;
+        if((processor.isMidiTrack() && !processor.hasOpenKit()) || row<0 || row>=(int)kit().groups.size())return;
         const auto selected=kit().groups[(size_t)row];auto kitId=view.activeKit;
         juce::PopupMenu menu;menu.addItem(1,"Rename...");menu.addItem(2,"Duplicate",kit().groups.size()<16 && drum::instrumentCount(kit())+(int)selected.instruments.size()<=88);menu.addSeparator();menu.addItem(3,"Delete...",kit().groups.size()>1);
         juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea(groups.getRowPosition(row,true).translated(groups.getScreenX(),groups.getScreenY())),[safe,kitId,selected](int action){

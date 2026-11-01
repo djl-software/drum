@@ -21,7 +21,7 @@ def names_from(payload, token, now):
     notes = payload.get("notes")
     if not isinstance(notes, list) or len(notes) > 88:
         raise ValueError("Invalid instrument list")
-    names = ["(unused)"] * 88
+    names = [note_name(note) for note in range(21, 109)]
     seen = set()
     ids = set()
     for item in notes:
@@ -47,3 +47,19 @@ def update_rack(rack, names):
             chain.name = name
             changed += 1
     return changed
+
+
+def note_name(note):
+    return ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")[note % 12] + str(note // 12 - 2)
+
+
+def compact_rack(rack):
+    # One-time presentation only; never change MIDI/audio routing.
+    view = getattr(rack, "view", None)
+    if view is None:
+        return False
+    try:
+        view.is_collapsed = True
+        return True
+    except (AttributeError, RuntimeError):
+        return False

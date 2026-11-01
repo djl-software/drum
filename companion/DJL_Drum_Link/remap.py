@@ -32,7 +32,7 @@ class ClipState:
             present.add(key)
             binding = bindings.get(key)
             # A manual pitch edit reassigns the note to its current instrument.
-            if binding is None or note.pitch != binding[1]:
+            if binding is None or note.pitch != binding[1] or (binding[0] is None and note.pitch in reverse):
                 binding = [reverse.get(note.pitch), note.pitch, False, bool(note.mute)]
                 bindings[key] = binding
             identity, last_pitch, orphan, previous_mute = binding

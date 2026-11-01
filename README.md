@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.17.2 matches Kit/Library Groups, shows vertical tile insertion markers, compacts Drum Link and uses key names for unassigned notes. Automatic Live remapping follows newly assigned sounds as well as reordered instruments.
+
 Version 0.17.1 right-aligns larger, brighter control labels beside their value bars, places EQ on inside the graph and removes the duplicate Band on switch.
 
 Version 0.17.0 adds 16-band EQ, cut slopes from 6 to 72 dB/oct, below-graph band controls and clearer value labels.
