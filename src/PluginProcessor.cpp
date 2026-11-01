@@ -202,6 +202,14 @@ drum::Result DrumAudioProcessor::duplicateActiveKit()
     library.removeKit(original);currentDocument=juce::File();triggerAsyncUpdate();return result;
 }
 
+drum::Result DrumAudioProcessor::renameActiveKit(const juce::String& name)
+{
+    if(!trackInstance || !hasOpenKit())return drum::Result::fail("Open a kit first.");
+    auto before=library.snapshot();auto result=library.rename(before.activeKit,name);
+    if(result.ok && library.snapshot().kits[0].name!=before.kits[0].name)currentDocument=juce::File();
+    return result;
+}
+
 drum::Result DrumAudioProcessor::saveDocument(const juce::File& file)
 {
     const juce::ScopedLock documentGuard(libraryDocumentLock);
@@ -215,8 +223,9 @@ drum::Result DrumAudioProcessor::saveDocument(const juce::File& file)
         auto name=file.getFileNameWithoutExtension().substring(0,64);
         document.getChildByName("DrumState")->getFirstChildElement()->setAttribute("name",name);
     }
+    if(trackInstance)document.getChildByName("DrumState")->getFirstChildElement()->setAttribute("name",file.getFileNameWithoutExtension().substring(0,64));
     auto result=drum::PortableFiles::write(document,file);
-    if(result.ok){if(trackInstance)currentDocument=file;else {library.rename(active,file.getFileNameWithoutExtension().substring(0,64));auto& info=libraryDocuments[active];info.file=file;info.baseline=libraryElement(active);libraryDirtyRevision=~uint64_t(0);}triggerAsyncUpdate();}return result;
+    if(result.ok){if(trackInstance){library.rename(active,file.getFileNameWithoutExtension().substring(0,64));currentDocument=file;}else {library.rename(active,file.getFileNameWithoutExtension().substring(0,64));auto& info=libraryDocuments[active];info.file=file;info.baseline=libraryElement(active);libraryDirtyRevision=~uint64_t(0);}triggerAsyncUpdate();}return result;
 }
 drum::Result DrumAudioProcessor::openDocument(const juce::File& file)
 {
@@ -227,7 +236,8 @@ drum::Result DrumAudioProcessor::openDocument(const juce::File& file)
     drum::KitLibrary check;if(!check.restore(*state) || check.snapshot().kits.size()!=1)return drum::Result::fail("Invalid collection data.");
     if(trackInstance){
         std::array<float,drum::numMacros> values;for(int n=0;n<drum::numMacros;++n){auto value=state->getDoubleAttribute("macro"+juce::String(n+1),.5);if(!std::isfinite(value) || value<0 || value>1)return drum::Result::fail("Invalid macro value.");values[(size_t)n]=(float)value;}
-        library.restore(*state);for(int n=0;n<drum::numMacros;++n)macros[(size_t)n]->setValueNotifyingHost(values[(size_t)n]);kitOpened=true;currentDocument=file;
+        state->getFirstChildElement()->setAttribute("name",file.getFileNameWithoutExtension().substring(0,64));
+        if(!library.restore(*state))return drum::Result::fail("Kit could not be loaded.");for(int n=0;n<drum::numMacros;++n)macros[(size_t)n]->setValueNotifyingHost(values[(size_t)n]);kitOpened=true;currentDocument=file;
     }else{
         auto combined=library.toXml();auto id=state->getStringAttribute("activeKit");
         for(const auto& entry:libraryDocuments)if(entry.second.file==file){library.activateKit(entry.first);return drum::Result::success(entry.first);}

@@ -241,11 +241,8 @@ void runManagementTests()
         check(control(main,"live-setup")->getX()>control(main,"library-menu")->getRight(),"Setup must follow Library");check(control(main,"sound-editor")->getY()>=control(main,"library-menu")->getBottom(),"Sound editor overlaps toolbar");check(!control(main,"instrument-tuning")->isVisible(),"Redundant tuning remains visible");check(control(main,"play-sample")->getY()==control(main,"library-menu")->getY(),"Transport is not on toolbar row");auto* tempo=dynamic_cast<juce::TextEditor*>(control(main,"audition-tempo-entry"));check(tempo && tempo->getRight()==main.getWidth()-24,"Tempo is not a right-aligned text box");tempo->setText("137.5");tempo->onReturnKey();check(std::abs(track.getSampleEngine().auditionTempo()-137.5)<.01,"Typed tempo did not apply");
         click(main,"save-document");check(track.documentFile().getFileName()=="Toolbar save test.drumkit" && track.documentFile().existsAsFile(),"Save did not use kit name automatically");
         auto savedKit=track.documentFile();auto savedBytes=savedKit.loadFileAsString();
-        good(track.getLibrary().rename(kitId,"Temporary name"));good(track.getLibrary().rename(kitId,"Toolbar save test"));
         good(track.getLibrary().rename(first,"Unsaved change"));click(main,"save-document");juce::MessageManager::getInstance()->runDispatchLoopUntil(20);
-        auto* overwrite=dynamic_cast<juce::AlertWindow*>(juce::Component::getCurrentlyModalComponent());check(overwrite && overwrite->getName()=="Replace saved kit?","Saving to original filename after rename did not warn");
-        check(savedKit.loadFileAsString()==savedBytes,"Kit overwritten before confirmation");overwrite->exitModalState(0);juce::MessageManager::getInstance()->runDispatchLoopUntil(20);check(savedKit.loadFileAsString()==savedBytes,"Cancel overwrote the kit");
-        click(main,"save-document");juce::MessageManager::getInstance()->runDispatchLoopUntil(20);overwrite=dynamic_cast<juce::AlertWindow*>(juce::Component::getCurrentlyModalComponent());check(overwrite!=nullptr,"Existing kit save did not warn");overwrite->exitModalState(1);juce::MessageManager::getInstance()->runDispatchLoopUntil(20);check(savedKit.loadFileAsString()!=savedBytes,"Replace did not save updated kit");
+        check(juce::Component::getCurrentlyModalComponent()==nullptr && savedKit.loadFileAsString()!=savedBytes,"Save should update current kit without a warning");
         auto* pads=control(main,"instrument-grid");int side=(pads->getWidth()-60)/6;auto now=juce::Time::getCurrentTime();juce::Point<float> start{float(side/2),float(side/2)},finish{float(2*(side+12)+side/2),float(side/2)};
         auto event=[&](juce::Point<float> pos){return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),pos,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,pads,pads,now,start,now,1,false);};
         pads->mouseDown(event(start));pads->mouseDrag(event(finish));pads->mouseUp(event(finish));
@@ -277,6 +274,16 @@ void runManagementTests()
         good(track.getLibrary().rename(kit,"Original"));good(track.getLibrary().addInstrument(kit,group));
         auto result=track.duplicateActiveKit();good(result);auto duplicate=track.getLibrary().snapshot();
         check(duplicate.kits.size()==1 && duplicate.activeKit!=kit && duplicate.kits[0].name=="Original copy" && drum::instrumentCount(duplicate.kits[0])==1 && track.documentFile()==juce::File(),"Duplicate kit did not become an independent single active kit");
+    }
+    {
+        DrumAudioProcessor source(true);source.newKit();auto state=source.getLibrary().snapshot();
+        good(source.getLibrary().addInstrument(state.activeKit,state.kits[0].groups[0].id));
+        auto folder=juce::File::getCurrentWorkingDirectory().getChildFile("kit-load-"+juce::Uuid().toString());auto file=folder.getChildFile("Chosen name.drumkit");
+        good(source.saveDocument(file));check(source.getLibrary().snapshot().kits[0].name=="Chosen name","Save As filename not applied to kit name");
+        auto legacy=juce::parseXML(file);legacy->getChildByName("DrumState")->getFirstChildElement()->setAttribute("name","Kit 1 copy");file.replaceWithText(legacy->toString());
+        DrumAudioProcessor loaded(true);loaded.newKit();good(loaded.openDocument(file));auto result=loaded.getLibrary().snapshot();
+        check(result.kits[0].name=="Chosen name" && drum::instrumentCount(result.kits[0])==1 && loaded.documentFile()==file,"Load did not replace kit data and filename-derived name");
+        good(loaded.renameActiveKit("New name"));check(loaded.documentFile()==juce::File() && file.existsAsFile(),"Rename did not detach from original file");
     }
     if(auto path=juce::SystemStats::getEnvironmentVariable("DJL_DRUM_WORKSPACE_FIXTURE",{});path.isNotEmpty()){
         auto xml=juce::parseXML(juce::File(path));DrumAudioProcessor fixture;check(xml && fixture.restoreLibraryWorkspace(*xml),"Workspace fixture restore failed");check(!fixture.libraryDocumentsDirty(),"Unedited real workspace reported dirty");fixture.getEffects().sync();fixture.getEffects().capture();check(!fixture.libraryDocumentsDirty(),"Loading unchanged effects marked real workspace dirty");DrumAudioProcessorEditor fixtureEditor(fixture);juce::MessageManager::getInstance()->runDispatchLoopUntil(100);juce::Timer::callPendingTimersSynchronously();fixture.getEffects().capture();check(!fixture.libraryDocumentsDirty(),"Opening Library UI marked real workspace dirty");

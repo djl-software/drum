@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.17.9 restores normal Save behaviour: current files save silently; Save As confirms replacement. Kit names follow filenames on Save As and Load, including older files with stale internal names. Rename starts an unsaved copy name and preserves the original file.
+
 Version 0.17.8 asks Replace or Cancel whenever Kit > Save targets an existing kit file, including the current file after renaming. Cancel leaves the saved file untouched. The Edit screen return button is now labelled Exit.
 
 Version 0.17.7 adds Duplicate and Rename to the Kit menu and a non-editable amber kit-name tab. Duplicate activates an independent copy; the original file is retained.

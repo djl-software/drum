@@ -567,32 +567,36 @@ private:
         auto folder=drum::PortableFiles::root().getChildFile(processor.isMidiTrack()?"Kits":"Libraries");
         chooser=std::make_unique<juce::FileChooser>((save?"Save ":"Open ")+kind,folder.getChildFile(save?juce::File::createLegalFileName(kit().name)+extension:juce::String()),"*"+juce::String(extension));
         juce::Component::SafePointer<Workspace> safe(this);
-        chooser->launchAsync(juce::FileBrowserComponent::canSelectFiles|(save?(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::warnAboutOverwriting):juce::FileBrowserComponent::openMode),[safe,save,extension](const juce::FileChooser& dialog){
+        chooser->launchAsync(juce::FileBrowserComponent::canSelectFiles|(save?(juce::FileBrowserComponent::saveMode):juce::FileBrowserComponent::openMode),[safe,save,extension](const juce::FileChooser& dialog){
             if(!safe || dialog.getResult()==juce::File())return;auto file=dialog.getResult();if(save)file=file.withFileExtension(extension);
-            auto finish=[safe,save,file]{if(!safe)return;auto result=save?safe->processor.saveDocument(file):safe->processor.openDocument(file);safe->groupId.clear();safe->instrumentId.clear();safe->complete(result);if(result.ok){safe->status=(save?"Saved ":"Opened ")+file.getFileName();safe->repaint();}};
-            if(save && file!=dialog.getResult() && file.exists())safe->confirm("Replace existing kit/library file?",file.getFileName()+" already exists.",finish);else finish();
+            auto finish=[safe,save,file]{if(!safe)return;auto result=save?safe->processor.saveDocument(file):safe->processor.openDocument(file);safe->groupId.clear();safe->instrumentId.clear();safe->complete(result);if(result.ok){safe->status=(save?"Saved ":"Opened ")+file.getFileName();safe->repaint();}else juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,save?"Could not save kit":"Could not load kit",result.message);};
+            if(save && file.existsAsFile())safe->confirmDocumentReplacement(file,finish);else finish();
         });
     }
     void showLibrary(){auto result=processor.openSharedLibrary();if(!result.ok){complete(result);juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Library",result.message);return;}if(onShowLibrary)onShowLibrary();}
+    void confirmDocumentReplacement(const juce::File& file,std::function<void()> save){
+        juce::Component::SafePointer<Workspace> safe(this);
+        juce::AlertWindow::showAsync(juce::MessageBoxOptions().withIconType(juce::MessageBoxIconType::WarningIcon)
+            .withTitle("Replace saved kit?").withMessage(file.getFileName()+" already exists. Replace it?")
+            .withButton("Replace").withButton("Cancel").withAssociatedComponent(this),
+            [safe,save](int result){if(safe && result==1)save();});
+    }
     void saveNamedKit(){
-        auto name=juce::File::createLegalFileName(kit().name.trim());if(name.isEmpty())name="Kit";
-        auto current=processor.documentFile();auto folder=current==juce::File()?drum::PortableFiles::root().getChildFile("Kits"):current.getParentDirectory();
-        auto file=folder.getChildFile(name+".drumkit");
-        auto save=[this,file]{auto result=processor.saveDocument(file);complete(result);if(result.ok){status="Saved "+file.getFileName();repaint();}};
-        if(file.existsAsFile()){
-            juce::Component::SafePointer<Workspace> safe(this);
-            juce::AlertWindow::showAsync(juce::MessageBoxOptions().withIconType(juce::MessageBoxIconType::WarningIcon)
-                .withTitle("Replace saved kit?").withMessage(file.getFileName()+" already exists. Replace the saved kit?")
-                .withButton("Replace").withButton("Cancel").withAssociatedComponent(this),
-                [safe,save](int result){if(safe && result==1)save();});
-        }else save();
+        auto file=processor.documentFile();
+        if(file==juce::File()){
+            auto name=juce::File::createLegalFileName(kit().name.trim());if(name.isEmpty())name="Kit";
+            file=drum::PortableFiles::root().getChildFile("Kits").getChildFile(name+".drumkit");
+            // A new or renamed kit has no current file; use Save As on a collision.
+            if(file.existsAsFile()){chooseDocument(true);return;}
+        }
+        auto result=processor.saveDocument(file);complete(result);if(result.ok){status="Saved "+file.getFileName();repaint();}
     }
     void renameKit(){
         auto id=view.activeKit;auto* dialog=new juce::AlertWindow("Rename kit","Enter the kit name.",juce::MessageBoxIconType::NoIcon,this);
         dialog->addTextEditor("name",kit().name);dialog->getTextEditor("name")->setInputRestrictions(64);
         dialog->addButton("Rename",1,juce::KeyPress(juce::KeyPress::returnKey));dialog->addButton("Cancel",0,juce::KeyPress(juce::KeyPress::escapeKey));
         juce::Component::SafePointer<Workspace> safe(this);juce::Component::SafePointer<juce::AlertWindow> alert(dialog);
-        dialog->enterModalState(true,juce::ModalCallbackFunction::create([safe,alert,id](int result){if(safe && alert && result==1)safe->complete(safe->library.rename(id,alert->getTextEditorContents("name")));}),true);
+        dialog->enterModalState(true,juce::ModalCallbackFunction::create([safe,alert,id](int result){if(safe && alert && result==1)safe->complete(safe->processor.renameActiveKit(alert->getTextEditorContents("name")));}),true);
     }
     void showKitMenu(){
         juce::PopupMenu menu;menu.addItem(1,"New");menu.addItem(2,"Load...");menu.addSeparator();menu.addItem(3,"Save",processor.hasOpenKit());menu.addItem(4,"Save as...",processor.hasOpenKit());menu.addSeparator();menu.addItem(5,"Duplicate",processor.hasOpenKit());menu.addItem(6,"Rename...",processor.hasOpenKit());

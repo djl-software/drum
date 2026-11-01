@@ -17,6 +17,7 @@ public:
     bool hasOpenKit() const{return !trackInstance || kitOpened.load();}
     void newKit();
     drum::Result duplicateActiveKit();
+    drum::Result renameActiveKit(const juce::String&);
     drum::Result saveDocument(const juce::File&);
     drum::Result openDocument(const juce::File&);
     juce::File documentFile() const{return currentDocument;}
