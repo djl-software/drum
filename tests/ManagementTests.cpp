@@ -234,6 +234,7 @@ void runManagementTests()
         auto second=track.getLibrary().addInstrument(kitId,before.kits[0].groups[0].id).id;
         auto third=track.getLibrary().addInstrument(kitId,before.kits[0].groups[0].id).id;
         DrumAudioProcessorEditor main(track);main.setSize(1280,900);main.setVisible(true);
+        check(!control(main,"kit-name")->isVisible() && control(main,"kit-0")->isVisible(),"Kit name must be a non-editable tab");
         check(control(main,"kit-menu")->isVisible() && control(main,"library-menu")->isVisible(),"File menus not visible");
         check(!control(main,"open-patterns")->isVisible(),"MIDI toolbar button still visible");
         auto* update=dynamic_cast<juce::TextButton*>(control(main,"use-kit-live"));check(update && !update->isVisible(),"Update should be hidden in favour of Setup reconnect");
@@ -264,6 +265,15 @@ void runManagementTests()
         dynamic_cast<juce::FileDragAndDropTarget*>(libraryPads)->filesDropped({sample.getFullPathName()},librarySide/2,librarySide/2);check(track.libraryEditorProcessor()->getSampleEngine().waitForLoading(10000),"Library drop timed out");juce::MessageManager::getInstance()->runDispatchLoopUntil(40);juce::Timer::callPendingTimersSynchronously();auto dropped=track.libraryEditorProcessor()->getLibrary().snapshot().kits[0].groups[0].instruments;check(dropped.size()==2 && dropped[0].samplePath.isEmpty() && dropped[1].samplePath==sample.getFullPathName(),"Drop over a Library pad replaced it instead of adding");
         screenshot(main,"drum-toolbar-library.png");track.libraryEditorProcessor()->discardLibraryDocuments();back->onClick();
         check(track.getLibrary().snapshot().activeKit==kitId && control(main,"kit-menu")->isVisible(),"Library navigation lost the current kit");
+    }
+    {
+        DrumAudioProcessor track(true);track.newKit();auto source=track.getLibrary().snapshot();auto kit=source.activeKit;auto group=source.kits[0].groups[0].id;
+        good(track.getLibrary().rename(kit,"Original"));good(track.getLibrary().addInstrument(kit,group));
+        auto result=track.duplicateActiveKit();good(result);auto duplicate=track.getLibrary().snapshot();
+        check(duplicate.kits.size()==1 && duplicate.activeKit!=kit && duplicate.kits[0].name=="Original copy" && drum::instrumentCount(duplicate.kits[0])==1 && track.documentFile()==juce::File(),"Duplicate kit did not become an independent single active kit");
+    }
+    if(auto path=juce::SystemStats::getEnvironmentVariable("DJL_DRUM_WORKSPACE_FIXTURE",{});path.isNotEmpty()){
+        auto xml=juce::parseXML(juce::File(path));DrumAudioProcessor fixture;check(xml && fixture.restoreLibraryWorkspace(*xml),"Workspace fixture restore failed");check(!fixture.libraryDocumentsDirty(),"Unedited real workspace reported dirty");fixture.getEffects().sync();fixture.getEffects().capture();check(!fixture.libraryDocumentsDirty(),"Loading unchanged effects marked real workspace dirty");DrumAudioProcessorEditor fixtureEditor(fixture);juce::MessageManager::getInstance()->runDispatchLoopUntil(100);juce::Timer::callPendingTimersSynchronously();fixture.getEffects().capture();check(!fixture.libraryDocumentsDirty(),"Opening Library UI marked real workspace dirty");
     }
     std::cout << "Management, persistence and UI wiring tests passed\n";
 }

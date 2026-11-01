@@ -194,6 +194,14 @@ void DrumAudioProcessor::newKit()
 {
     drum::KitLibrary fresh;library.restore(*fresh.toXml());for(auto* parameter:macros)parameter->setValueNotifyingHost(.5f);kitOpened=true;currentDocument=juce::File();triggerAsyncUpdate();
 }
+drum::Result DrumAudioProcessor::duplicateActiveKit()
+{
+    if(!trackInstance || !hasOpenKit())return drum::Result::fail("Open a kit first.");
+    const auto original=library.snapshot().activeKit;
+    auto result=library.duplicateKit(original);if(!result.ok)return result;
+    library.removeKit(original);currentDocument=juce::File();triggerAsyncUpdate();return result;
+}
+
 drum::Result DrumAudioProcessor::saveDocument(const juce::File& file)
 {
     const juce::ScopedLock documentGuard(libraryDocumentLock);
@@ -256,7 +264,7 @@ bool DrumAudioProcessor::libraryDocumentDirty(const juce::String& id) const
     if(closedLibraries)return false;auto revision=library.currentRevision();
     if(revision!=libraryDirtyRevision){
         libraryDirtyCache.clear();auto xml=library.toXml();
-        for(auto* item:xml->getChildIterator()){auto key=item->getStringAttribute("id");auto found=libraryDocuments.find(key);libraryDirtyCache[key]=found==libraryDocuments.end() || !found->second.baseline || !item->isEquivalentTo(found->second.baseline.get(),false);}
+        for(auto* item:xml->getChildIterator()){auto key=item->getStringAttribute("id");auto found=libraryDocuments.find(key);libraryDirtyCache[key]=found==libraryDocuments.end() || !found->second.baseline || !item->isEquivalentTo(found->second.baseline.get(),true);}
         libraryDirtyRevision=revision;
     }
     auto found=libraryDirtyCache.find(id);return found!=libraryDirtyCache.end() && found->second;

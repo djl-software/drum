@@ -50,7 +50,7 @@ public:
     }
     void drawButtonBackground(juce::Graphics& g, juce::Button& b, const juce::Colour& colour, bool hover, bool down) override
     {
-        auto c = b.getToggleState() ? accent : colour;
+        auto c = b.getToggleState() ? (b.isColourSpecified(juce::TextButton::buttonOnColourId)?b.findColour(juce::TextButton::buttonOnColourId):accent) : colour;
         if (hover) c = c.brighter(0.12f);
         if (down) c = c.darker(0.12f);
         g.setColour(c.withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.35f));
@@ -81,7 +81,7 @@ public:
         }
         if(button.getComponentID().startsWith("kit-") && button.getComponentID().substring(4).containsOnly("0123456789"))
         {
-            g.setFont(juce::FontOptions(13.0f));g.setColour(button.getToggleState()?background:text);
+            g.setFont(juce::FontOptions(13.0f));g.setColour(button.getToggleState()?(button.isColourSpecified(juce::TextButton::textColourOnId)?button.findColour(juce::TextButton::textColourOnId):background):text);
             g.drawText(button.getButtonText(),button.getLocalBounds().reduced(10,0),juce::Justification::centred,true);
         }
         else juce::LookAndFeel_V4::drawButtonText(g,button,hover,down);
@@ -440,7 +440,7 @@ public:
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);g.drawImageWithin(scaledLogo,logoBounds.getX(),logoBounds.getY(),logoBounds.getWidth(),logoBounds.getHeight(),juce::RectanglePlacement::centred);
         g.setColour(accent);g.setFont(juce::FontOptions(36,juce::Font::bold));g.drawText("Drum",juce::Rectangle<int>{158,24,208,45},juce::Justification::centredLeft);
         label(g,processor.isMidiTrack()?"KIT":"LIBRARIES",{158,66,240,18},18,text);
-        if(processor.isMidiTrack())label(g,"KIT NAME",{24,139,86,32},10,accent);
+
         box(g,left); box(g,centre); box(g,right); box(g,keyPanel);
         label(g,"GROUPS",left.reduced(16,0).withY(left.getY()+12).withHeight(26),18,text);
         label(g,juce::String(kit().groups.size())+" / 16",{left.getRight()-76,left.getBottom()-36,60,26},14,muted,juce::Justification::centredRight);
@@ -529,7 +529,7 @@ public:
         const int editorTop=processor.isMidiTrack()?132:190;
         soundEditor.setBounds(24,editorTop,w-48,h-editorTop-24);
         if(processor.isMidiTrack()){
-            for(auto& tab:kitTabs)tab.setVisible(false);
+
             for(auto* component:std::initializer_list<juce::Component*>{&addKit,&copyKit,&deleteKit,&example})component->setVisible(false);
             addInstrument.setButtonText("Add from library");
         }
@@ -545,10 +545,10 @@ public:
         kitMenu.setBounds(processor.isMidiTrack()?24:160,88,128,35);kitMenu.setButtonText(processor.isMidiTrack()?"Kit":"Close");kitMenu.setVisible(processor.isMidiTrack() || bool(onBackToKit));
         libraryMenu.setBounds(processor.isMidiTrack()?160:24,88,128,35);
         liveSetupButton.setBounds(296,88,78,35);
-        kitName.setVisible(processor.isMidiTrack());tabViewport.setVisible(!processor.isMidiTrack());
-        if(!processor.isMidiTrack()){
+        kitName.setVisible(false);tabViewport.setVisible(true);
+        {
             tabViewport.setBounds(24,135,w-48,47);int x=0;
-            for(int n=0;n<count;++n){auto& tab=kitTabs[(size_t)n];int width=juce::jmax(80,(int)std::ceil(juce::GlyphArrangement::getStringWidth(tabFont,processor.libraryDocumentName(view.kits[(size_t)n].id)+" *"))+32);tab.setBounds(x,0,width,32);x+=width+6;}
+            for(int n=0;n<count;++n){auto& tab=kitTabs[(size_t)n];int width=juce::jmax(80,(int)std::ceil(juce::GlyphArrangement::getStringWidth(tabFont,processor.isMidiTrack()?view.kits[(size_t)n].name:processor.libraryDocumentName(view.kits[(size_t)n].id)+" *"))+32);tab.setBounds(x,0,width,32);x+=width+6;}
             tabStrip.setSize(juce::jmax(w-48,x),32);
         }
         const bool noLibrary=!processor.isMidiTrack() && processor.librariesEmpty();
@@ -581,9 +581,16 @@ private:
         auto save=[this,file]{auto result=processor.saveDocument(file);complete(result);if(result.ok){status="Saved "+file.getFileName();repaint();}};
         if(file.existsAsFile() && file!=current)confirm("Replace saved kit?",file.getFileName()+" already exists.",save);else save();
     }
+    void renameKit(){
+        auto id=view.activeKit;auto* dialog=new juce::AlertWindow("Rename kit","Enter the kit name.",juce::MessageBoxIconType::NoIcon,this);
+        dialog->addTextEditor("name",kit().name);dialog->getTextEditor("name")->setInputRestrictions(64);
+        dialog->addButton("Rename",1,juce::KeyPress(juce::KeyPress::returnKey));dialog->addButton("Cancel",0,juce::KeyPress(juce::KeyPress::escapeKey));
+        juce::Component::SafePointer<Workspace> safe(this);juce::Component::SafePointer<juce::AlertWindow> alert(dialog);
+        dialog->enterModalState(true,juce::ModalCallbackFunction::create([safe,alert,id](int result){if(safe && alert && result==1)safe->complete(safe->library.rename(id,alert->getTextEditorContents("name")));}),true);
+    }
     void showKitMenu(){
-        juce::PopupMenu menu;menu.addItem(1,"New");menu.addItem(2,"Load...");menu.addSeparator();menu.addItem(3,"Save",processor.hasOpenKit());menu.addItem(4,"Save as...",processor.hasOpenKit());
-        juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&kitMenu),[safe](int n){if(!safe)return;if(n==1)safe->newKitButton.onClick();if(n==2)safe->openDocumentButton.onClick();if(n==3)safe->saveDocumentButton.onClick();if(n==4)safe->saveAsButton.onClick();});
+        juce::PopupMenu menu;menu.addItem(1,"New");menu.addItem(2,"Load...");menu.addSeparator();menu.addItem(3,"Save",processor.hasOpenKit());menu.addItem(4,"Save as...",processor.hasOpenKit());menu.addSeparator();menu.addItem(5,"Duplicate",processor.hasOpenKit());menu.addItem(6,"Rename...",processor.hasOpenKit());
+        juce::Component::SafePointer<Workspace> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&kitMenu),[safe](int n){if(!safe)return;if(n==1)safe->newKitButton.onClick();if(n==2)safe->openDocumentButton.onClick();if(n==3)safe->saveDocumentButton.onClick();if(n==4)safe->saveAsButton.onClick();if(n==5){safe->groupId.clear();safe->instrumentId.clear();safe->complete(safe->processor.duplicateActiveKit());}if(n==6)safe->renameKit();});
     }
     void showLibraryMenu(){
         juce::PopupMenu menu;bool root=processor.isMidiTrack(),open=root || !processor.librariesEmpty();
@@ -607,15 +614,20 @@ private:
     }
     void closeLibraryTab(juce::String id){
         processor.getEffects().capture();auto close=[safe=juce::Component::SafePointer<Workspace>(this),id]{if(safe){safe->soundEditor.setVisible(false);safe->complete(safe->processor.closeLibraryDocument(id));}};
-        if(!processor.libraryDocumentDirty(id)){close();return;}
+        if(!processor.libraryDocumentDirty(id)){close();return;}recordLibraryCloseCheck();
         juce::Component::SafePointer<Workspace> safe(this);juce::AlertWindow::showAsync(juce::MessageBoxOptions().withTitle("Unsaved library").withMessage("Save changes before closing this library?").withButton("Save").withButton("Close without saving").withButton("Cancel").withAssociatedComponent(this),[safe,id,close](int result){if(!safe)return;if(result==1)safe->saveLibraryTab(id,false,[close](bool ok){if(ok)close();});if(result==2)close();});
     }
     void saveLibrariesAndFinish(){
         for(const auto& item:library.snapshot().kits)if(processor.libraryDocumentDirty(item.id)){juce::Component::SafePointer<Workspace> safe(this);saveLibraryTab(item.id,false,[safe](bool ok){if(safe && ok)juce::MessageManager::callAsync([safe]{if(safe)safe->saveLibrariesAndFinish();});});return;}
         if(onBackToKit)onBackToKit();
     }
+    void recordLibraryCloseCheck(){
+        auto file=DrumAudioProcessor::libraryWorkspaceFile().getSiblingFile("library-close-check.xml");
+        auto xml=processor.libraryWorkspaceState();xml->setAttribute("drumVersion",JucePlugin_VersionString);xml->setAttribute("checkedAt",juce::Time::getCurrentTime().toISO8601(true));
+        file.getParentDirectory().createDirectory();file.replaceWithText(xml->toString());
+    }
     void finishLibraries(){
-        processor.getEffects().capture();if(!processor.libraryDocumentsDirty()){if(onBackToKit)onBackToKit();return;}
+        processor.getEffects().capture();if(!processor.libraryDocumentsDirty()){if(onBackToKit)onBackToKit();return;}recordLibraryCloseCheck();
         juce::Component::SafePointer<Workspace> safe(this);juce::AlertWindow::showAsync(juce::MessageBoxOptions().withTitle("Unsaved libraries").withMessage("Save changes to your libraries before returning to the kit?").withButton("Save all").withButton("Quit without saving").withButton("Cancel").withAssociatedComponent(this),[safe](int result){if(!safe)return;if(result==1)safe->saveLibrariesAndFinish();if(result==2){safe->processor.discardLibraryDocuments();safe->refresh();if(safe->onBackToKit)safe->onBackToKit();}});
     }
     void removeLibraryInstrument(juce::String id){
@@ -753,8 +765,8 @@ private:
         if(!processor.isMidiTrack()){processor.librarySelectedGroup=groupId;processor.librarySelectedInstrument=instrumentId;}
         for(int n=0;n<8;++n)
         {
-            auto& b=kitTabs[(size_t)n]; b.setVisible(n<(int)view.kits.size() && !processor.librariesEmpty());
-            if(n<(int)view.kits.size()) { auto& k=view.kits[(size_t)n]; auto title=processor.libraryDocumentName(k.id);b.setButtonText(title+(processor.libraryDocumentDirty(k.id)?" *":"")); b.setTooltip(title); b.setToggleState(k.id==view.activeKit,juce::dontSendNotification); }
+            auto& b=kitTabs[(size_t)n]; b.setVisible(n<(int)view.kits.size() && (processor.isMidiTrack()?processor.hasOpenKit():!processor.librariesEmpty()));
+            if(n<(int)view.kits.size()) { auto& k=view.kits[(size_t)n]; auto title=processor.isMidiTrack()?k.name:processor.libraryDocumentName(k.id);b.setButtonText(title+(!processor.isMidiTrack() && processor.libraryDocumentDirty(k.id)?" *":""));if(processor.isMidiTrack()){b.setColour(juce::TextButton::buttonOnColourId,juce::Colour(0xff795529));b.setColour(juce::TextButton::textColourOnId,juce::Colour(0xffffdb9c));} b.setTooltip(title); b.setToggleState(k.id==view.activeKit,juce::dontSendNotification); }
         }
         addKit.setVisible(view.kits.size()<8); example.setEnabled(view.kits.size()<8); copyKit.setEnabled(view.kits.size()<8); deleteKit.setEnabled(view.kits.size()>1);
         if(forceNames || !kitName.hasKeyboardFocus(true)) kitName.setText(kit().name,false);
