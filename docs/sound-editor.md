@@ -267,3 +267,5 @@ Filter and Tune now replace the waveform with their graphs at the same size as t
 EQ band gain now covers -60 to +24 dB, including chain EQ and saved state. Drum numeric sliders use shaded value bars (drag, scroll or type; double-click resets). Filter envelope changes the separate tone filter cutoff over time, rather than moving the eight EQ bands.
 
 Envelopes contains Amplitude, Pitch and Filter selectors. Filter envelope and its tone-filter controls now live here; the Filter tab contains eight-band EQ. Tab order: Sample, Envelopes, Filter, Attack layer, LFO, Tune, Outputs & sends, Macros, Chain.
+
+EQ now has 16 bands. Select a numbered band below the graph and use its on/off switch; disabled points are hidden. Shape selects low cut, shelf, bell, notch or high cut. Cut shapes offer slopes from 6 to 72 dB/oct in 6 dB steps (higher slopes remove unwanted frequencies more sharply). Frequency, Gain, Q and Output labels sit beside value bars. Reset EQ clears all bands and restores defaults. Existing eight-band kits and chain presets retain their first eight bands; additional bands start off.

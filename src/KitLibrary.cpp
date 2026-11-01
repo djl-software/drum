@@ -429,7 +429,7 @@ Result KitLibrary::setEffects(const juce::String& kitId,const juce::String& inst
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 14); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 15); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
@@ -448,10 +448,10 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
                 for (auto& p : soundParameters) instrument->setAttribute(juce::String("edit_")+p.key,i.controls.sound.*(p.member));
                 const auto& eq=i.controls.sound.equalizer;
                 instrument->setAttribute("eqOn",eq.enabled?1:0);instrument->setAttribute("eqOutput",juce::String(eq.output,17,true));
-                for(int n=0;n<8;++n)
+                for(int n=0;n<16;++n)
                 {
                     const auto prefix="eq"+juce::String(n);const auto& b=eq.bands[(size_t)n];
-                    instrument->setAttribute(prefix+"on",b.enabled?1:0);instrument->setAttribute(prefix+"type",b.type);
+                    instrument->setAttribute(prefix+"slope",b.slope);instrument->setAttribute(prefix+"on",b.enabled?1:0);instrument->setAttribute(prefix+"type",b.type);
                     instrument->setAttribute(prefix+"hz",juce::String(b.frequency,17,true));instrument->setAttribute(prefix+"gain",juce::String(b.gain,17,true));instrument->setAttribute(prefix+"q",juce::String(b.q,17,true));
                 }
                 for(int n=0;n<3;++n)if(const auto& shape=i.controls.sound.envelopes[(size_t)n];shape.count)
@@ -491,7 +491,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
     }
-    if (version < 2 || version > 14) return false;
+    if (version < 2 || version > 15) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -522,10 +522,11 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                         auto& eq=group.instruments.back().controls.sound.equalizer;
                         const auto on=integerAttribute(*i,"eqOn");if(on<0 || on>1)return false;
                         eq.enabled=on!=0;eq.output=numberAttribute(*i,"eqOutput");
-                        for(int n=0;n<8;++n)
+                        for(int n=0;n<(version>=15?16:8);++n)
                         {
                             const auto prefix="eq"+juce::String(n);auto& b=eq.bands[(size_t)n];
                             const auto bandOn=integerAttribute(*i,(prefix+"on").toRawUTF8());if(bandOn<0 || bandOn>1)return false;
+                            b.slope=version>=15?integerAttribute(*i,(prefix+"slope").toRawUTF8()):0;
                             b.enabled=bandOn!=0;b.type=integerAttribute(*i,(prefix+"type").toRawUTF8());
                             b.frequency=numberAttribute(*i,(prefix+"hz").toRawUTF8());b.gain=numberAttribute(*i,(prefix+"gain").toRawUTF8());b.q=numberAttribute(*i,(prefix+"q").toRawUTF8());
                         }

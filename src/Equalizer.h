@@ -13,16 +13,17 @@ struct EqBand
     bool enabled=false;
     int type=(int)EqType::bell;
     double frequency=1000,gain=0,q=0.70710678;
+    int slope=0; // 0 preserves legacy type-specific 12/48 dB slopes.
     bool operator==(const EqBand&) const = default;
 };
 struct Equalizer
 {
     bool enabled=false;
     double output=0;
-    std::array<EqBand,8> bands=[] {
-        std::array<EqBand,8> b{};
-        constexpr double frequencies[]{40,100,250,600,1500,3500,8000,16000};
-        for(int n=0;n<8;++n)b[(size_t)n].frequency=frequencies[n];
+    std::array<EqBand,16> bands=[] {
+        std::array<EqBand,16> b{};
+        constexpr double frequencies[]{40,100,250,600,1500,3500,8000,16000,60,160,400,950,2300,5300,11000,19000};
+        for(int n=0;n<16;++n)b[(size_t)n].frequency=frequencies[n];
         return b;
     }();
     bool operator==(const Equalizer&) const = default;
@@ -31,10 +32,13 @@ inline bool validEqualizer(const Equalizer& e)
 {
     if(!std::isfinite(e.output) || e.output < -24 || e.output > 24)return false;
     for(auto& b:e.bands)if(b.type<0 || b.type>7 || !std::isfinite(b.frequency) || b.frequency<20 || b.frequency>20000
-        || !std::isfinite(b.gain) || b.gain < -60 || b.gain>24 || !std::isfinite(b.q) || b.q<0.1 || b.q>18)return false;
+        || !std::isfinite(b.gain) || b.gain < -60 || b.gain>24 || !std::isfinite(b.q) || b.q<0.1 || b.q>18 || (b.slope!=0 && (b.slope<6 || b.slope>72 || b.slope%6!=0)))return false;
     return true;
 }
 inline bool eqHasGain(int type) {return type==2 || type==3 || type==5;}
+inline bool eqIsCut(int type){return type==0 || type==1 || type==6 || type==7;}
+inline int eqSlope(const EqBand& b){return b.slope?b.slope:(b.type==1 || b.type==7?48:12);}
+inline int eqStages(const EqBand& b){return b.enabled?(eqIsCut(b.type)?(eqSlope(b)/6+1)/2:1):0;}
 struct EqCoefficients
 {
     double b0=1,b1=0,b2=0,a1=0,a2=0;
@@ -48,9 +52,14 @@ inline EqCoefficients eqCoefficients(const EqBand& b,double rate,int stage=0)
 {
     if(!b.enabled)return {};
     const double w=6.283185307179586*std::clamp(b.frequency,10.0,rate*0.45)/rate,c=std::cos(w),s=std::sin(w);
-    constexpr double butterworth[]{0.5097955791,0.6013448869,0.8999762231,2.5629154477};
-    const bool steep=b.type==1 || b.type==7;
-    const double q=steep?butterworth[stage]*(stage==3?b.q/0.70710678:1.0):b.q,alpha=s/(2*q),A=std::pow(10.0,b.gain/40),beta=2*std::sqrt(A)*alpha;
+    const int order=eqSlope(b)/6, pairs=order/2;
+    if(eqIsCut(b.type) && order%2 && stage==pairs){
+        const double k=std::tan(w/2), norm=1/(1+k);
+        if(b.type==0 || b.type==1)return {norm,-norm,0,(k-1)*norm,0};
+        return {k*norm,k*norm,0,(k-1)*norm,0};
+    }
+    const double sectionQ=order==2?b.q:(1/(2*std::cos((2*stage+1+order%2)*3.141592653589793/(2*order))))*(stage==pairs-1?b.q/0.70710678:1.0);
+    const double q=eqIsCut(b.type)?sectionQ:b.q,alpha=s/(2*q),A=std::pow(10.0,b.gain/40),beta=2*std::sqrt(A)*alpha;
     double b0=1,b1=0,b2=0,a0=1,a1=0,a2=0;
     switch((EqType)b.type)
     {
@@ -67,7 +76,6 @@ inline EqCoefficients eqCoefficients(const EqBand& b,double rate,int stage=0)
     }
     return {b0/a0,b1/a0,b2/a0,a1/a0,a2/a0};
 }
-inline int eqStages(const EqBand& b) {return b.enabled?(b.type==1 || b.type==7?4:1):0;}
 inline double eqMagnitude(const Equalizer& e,double frequency,double rate)
 {
     if(!e.enabled)return 1;
@@ -90,7 +98,7 @@ class VoiceEqualizer
     };
     struct Bank
     {
-        std::array<Section,32> sections{};int count=0;double gain=1;
+        std::array<Section,96> sections{};int count=0;double gain=1;
         void configure(const Equalizer& eq,double rate)
         {
             *this={};if(!eq.enabled)return;

@@ -25,7 +25,7 @@ void box(juce::Graphics& g, juce::Rectangle<int> area)
     g.setColour(panel); g.fillRoundedRectangle(area.toFloat(), 12.0f);
     g.setColour(border); g.drawRoundedRectangle(area.toFloat().reduced(0.5f), 12.0f, 1.0f);
 }
-class DrumLook final : public juce::LookAndFeel_V4
+class DrumLook final : public ValueBarLook
 {
 public:
     DrumLook()

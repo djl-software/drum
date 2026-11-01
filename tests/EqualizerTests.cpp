@@ -40,8 +40,16 @@ void runEqualizerTests()
             float l=n==0?1.0f:0.0f,r=l;dsp.process(l,r);check(std::isfinite(l) && std::abs(l)<1e10,"EQ unstable during edits");
         }
     }
+    for(int slope=6;slope<=72;slope+=6)for(int type:{0,6}){
+        drum::Equalizer e;e.enabled=true;e.bands[15]={true,type,1000,0,.70710678,slope};
+        check(drum::validEqualizer(e),"Slope or band 16 rejected");
+        check(std::abs(20*std::log10(drum::eqMagnitude(e,1000,48000))+3.0103)<.01,"Cutoff changed with slope");
+        drum::VoiceEqualizer voice;voice.reset(e,48000);double in=0,out=0;
+        for(int n=0;n<48000;++n){float x=.1f*std::sin(juce::MathConstants<double>::twoPi*1000*n/48000),l=x,r=x;voice.process(l,r);check(std::isfinite(l),"Slope produced nonfinite audio");if(n>24000){in+=x*x;out+=l*l;}}
+        check(std::abs(std::sqrt(out/in)-drum::eqMagnitude(e,1000,48000))<.003,"Slope curve differs from audio");
+    }
     drum::Equalizer bypass;drum::VoiceEqualizer dsp;dsp.reset(bypass,48000);float l=.25f,r=-.2f;dsp.process(l,r);check(l==.25f && r==-.2f,"Default EQ alters old sounds");
-    drum::Equalizer extreme;extreme.enabled=true;extreme.output=24;for(auto& b:extreme.bands)b={true,1,1000,24,18};dsp.reset(extreme,48000);
+    drum::Equalizer extreme;extreme.enabled=true;extreme.output=24;for(auto& b:extreme.bands)b={true,1,1000,24,18,72};dsp.reset(extreme,48000);
     for(int n=0;n<96000;++n){l=r=(float)std::sin(juce::MathConstants<double>::twoPi*1000*n/48000);dsp.process(l,r);check(std::isfinite(l) && std::isfinite(r),"Stacked EQ resonance overflows host audio");}
     DrumAudioProcessor processor;auto& library=processor.getLibrary();auto state=library.snapshot();const auto kit=state.activeKit,group=drum::activeKit(state)->groups[0].id,id=library.addInstrument(kit,group).id;
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
@@ -54,9 +62,10 @@ void runEqualizerTests()
     xml=library.toXml();stripChainEffects(*xml);xml->setAttribute("schemaVersion",7);check(restored.restore(*xml),"Version 7 migration failed");recalled=restored.snapshot();
     check(drum::findInstrument(*drum::activeKit(recalled),id)->controls.sound.equalizer==drum::Equalizer{},"Old state acquired EQ processing");
     processor.getSampleEngine().requestLoad(kit,id,juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav"));check(processor.getSampleEngine().waitForLoading(10000),"EQ sample load failed");processor.getSampleEngine().prepare(48000);
+    auto legacy=library.toXml();legacy->setAttribute("schemaVersion",14);drum::KitLibrary legacyRecall;check(legacyRecall.restore(*legacy),"Legacy eight-band state rejected");auto legacyState=legacyRecall.snapshot();check(!drum::findInstrument(*drum::activeKit(legacyState),id)->controls.sound.equalizer.bands[15].enabled,"Legacy kit acquired extra enabled bands");
     c=current();c.sound.equalizer={};check(library.setControls(kit,id,c).ok,"Reset EQ failed");
     DrumAudioProcessorEditor editor(processor);editor.setVisible(true);editor.setSize(1280,900);click(editor,"open-sound-editor");click(editor,"edit-tab-2");
-    auto& graph=control<EqualizerEditor>(editor,"eight-band-eq");check(graph.isVisible(),"EQ graph hidden");check(!control<juce::Component>(editor,"sample-waveform").isVisible() && graph.getBounds()==control<juce::Component>(editor,"sample-waveform").getBounds(),"EQ did not replace full waveform area");
+    auto& graph=control<EqualizerEditor>(editor,"eight-band-eq");check(graph.isVisible(),"EQ graph hidden");check(!control<juce::Component>(editor,"sample-waveform").isVisible() && graph.graphBounds().translated(graph.getX(),graph.getY())==control<juce::Component>(editor,"sample-waveform").getBounds(),"EQ did not replace full waveform area");
     const juce::Point<float> down{graph.getWidth()*0.5f,graph.getHeight()*0.5f},target=down+juce::Point<float>{40,-20};
     check(editor.getComponentAt(editor.getLocalPoint(&graph,down.roundToInt()))==&graph,"EQ mouse hit intercepted");
     graph.mouseDown(event(graph,down,down));graph.mouseDrag(event(graph,target,down));graph.mouseUp(event(graph,target,down));
@@ -69,11 +78,15 @@ void runEqualizerTests()
     auto deepState=library.toXml();drum::KitLibrary deepRecall;check(deepRecall.restore(*deepState),"Deep EQ cut cannot be restored");
     auto deepSnapshot=deepRecall.snapshot();check(drum::findInstrument(*drum::activeKit(deepSnapshot),id)->controls.sound.equalizer.bands[(size_t)selected].gain==-60,"Deep EQ cut changed on recall");
     control<juce::Slider>(editor,"eq-q").setValue(2,juce::sendNotificationSync);check(current().sound.equalizer.bands[(size_t)selected].q==2,"EQ Q edit failed");
-    control<juce::ComboBox>(editor,"eq-type").setSelectedId(2,juce::sendNotificationSync);check(!control<juce::Slider>(editor,"eq-gain").isEnabled(),"Cut band exposes inactive gain");
+    control<juce::ComboBox>(editor,"eq-type").setSelectedId(1,juce::sendNotificationSync);check(!control<juce::Slider>(editor,"eq-gain").isEnabled(),"Cut band exposes inactive gain");
     auto source=processor.getSampleEngine().waveformFor(id);auto dry=drum::SampleEngine::renderPreview(source,drum::InstrumentControls{},{},120,48000);
     auto wet=drum::SampleEngine::renderPreview(source,current(),{},120,48000);check(wet.sample && dry.sample && std::abs(wet.sample->peak-dry.sample->peak)>0.01,"EQ does not affect edited waveform DSP");
     for(int n=0;n<40;++n){juce::Thread::sleep(10);juce::Timer::callPendingTimersSynchronously();}
-    capture(editor,"drum-eight-band-eq.png");editor.setSize(800,600);capture(editor,"drum-eight-band-eq-compact.png");editor.setSize(1280,900);
+    click(editor,"eq-band-15");control<juce::ToggleButton>(editor,"eq-enable-15").setToggleState(true,juce::dontSendNotification);control<juce::ToggleButton>(editor,"eq-enable-15").onClick();
+    control<juce::ComboBox>(editor,"eq-type").setSelectedId(1,juce::sendNotificationSync);control<juce::ComboBox>(editor,"eq-slope").setSelectedId(72,juce::sendNotificationSync);
+    check(current().sound.equalizer.bands[15].enabled && current().sound.equalizer.bands[15].slope==72,"Band 16 slope edit failed");
+    auto fullState=library.toXml();drum::KitLibrary fullRecall;check(fullRecall.restore(*fullState),"16-band state rejected");auto fullSnapshot=fullRecall.snapshot();check(drum::findInstrument(*drum::activeKit(fullSnapshot),id)->controls.sound.equalizer==current().sound.equalizer,"16-band state changed on recall");
+    capture(editor,"drum-eight-band-eq.png");editor.setSize(800,600);capture(editor,"drum-eight-band-eq-compact.png");editor.setSize(1280,900);click(editor,"eq-reset");check(current().sound.equalizer==drum::Equalizer{},"EQ reset incomplete");
     click(editor,"edit-tab-0");control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);auto& sampleGain=control<juce::Slider>(editor,"edit-sampleGain");sampleGain.setValue(24,juce::sendNotificationSync);
     auto settle=[&] {for(int n=0;n<1000;++n){juce::Thread::sleep(10);juce::Timer::callPendingTimersSynchronously();if(n>20 && control<juce::Label>(editor,"waveform-status").getText().startsWith("One hit"))return;}throw std::runtime_error("Clipping preview timed out");};
     settle();

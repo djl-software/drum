@@ -73,7 +73,7 @@ private:
     juce::ToggleButton adsrValues{"ADSR values"};
     juce::TextButton ampOverlay{"Amplitude"},pitchOverlay{"Pitch"};
     int selectedEnvelope=0;
-    juce::TextButton eqTab{"8-band EQ"},filterTab{"Filter"};
+    juce::TextButton eqTab{"16-band EQ"},filterTab{"Filter"};
     EqualizerEditor equalizer;
     juce::ComboBox sliceCount;
     std::array<juce::TextButton,9> tabs;

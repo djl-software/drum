@@ -65,8 +65,8 @@ struct SoundEditor::Field final : juce::Component
         if(key=="keyOverride")return "Key label";if(key=="mono")return "Channels";
         return parameter.label;
     }
-    void paint(juce::Graphics& g) override { text(g,label(),{0,0,labelWidth(),getHeight()},11,muted); }
-    int labelWidth() const {return parameter.page<=1?juce::jlimit(46,90,getWidth()/3):114;}
+    void paint(juce::Graphics& g) override { text(g,label(),{0,0,labelWidth(),getHeight()},12,ink); }
+    int labelWidth() const {return juce::jlimit(80,145,(int)(getWidth()*.43));}
     void resized() override {const int x=labelWidth()+4;if(parameter.page<=1)slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,juce::jmin(78,getWidth()-x),26);slider.setBounds(x,1,getWidth()-x,26);combo.setBounds(x,1,getWidth()-x,26); }
     void update(double v,bool newSelection)
     {
@@ -499,7 +499,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
         if(!i || kit->id!=kitId)return;auto c=i->controls;c.sound.equalizer=eq;
         auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
         if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
-        waveform->showEdited();message=result.ok?"Eight-band stereo EQ saved. Filter envelope shapes the separate tone filter.":result.message;refresh();
+        waveform->showEdited();message=result.ok?"16-band stereo EQ saved. Filter envelope shapes the separate tone filter.":result.message;refresh();
     };
     envelopes[0]=std::make_unique<EnvelopeEditor>("envelope-amp","Amplitude",waveColour);
     envelopes[1]=std::make_unique<EnvelopeEditor>("envelope-pitch","Pitch (st)",juce::Colour(0xff9bbdff));
@@ -809,7 +809,7 @@ void SoundEditor::setPage(int value)
     adsrValues.setVisible(page==1);
     equalizer.setVisible(page==2);eqTab.setVisible(false);filterTab.setVisible(page==1);
 
-    slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5 && page!=7);chain.setVisible(page==7);viewport.setVisible(page!=7);
+    slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5 && page!=7);chain.setVisible(page==7);viewport.setVisible(page!=7 && page!=2);
     keySpectrum->setVisible(page==8);keyCoarse.setVisible(page==8);keyFine.setVisible(page==8);keyCoarseLabel.setVisible(page==8);keyFineLabel.setVisible(page==8);keyStatus.setVisible(page==8);if(page==8)viewport.setVisible(false);
     waveform->setVisible(page!=2 && page!=8);waveformDivider->setVisible(page!=2 && page!=8);
     resized(); repaint();
@@ -821,7 +821,7 @@ void SoundEditor::paint(juce::Graphics& g)
     static const char* help[]{
         "Choose Source to drag trim markers; Edited previews the sound. Scroll pans; Ctrl + scroll zooms X; Shift + scroll zooms Y.",
         "Click line: add point. Drag point: move. Drag line: curve. Double-click point: remove. Right-click: hold at S.",
-        "Stereo EQ plus a separate envelope-controlled tone filter.",
+        "16-band EQ. Select and enable bands below. Drag a point for frequency/gain; wheel adjusts Q.",
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
         "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
@@ -851,12 +851,12 @@ void SoundEditor::resized()
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
     const int graphTop=waveTop+12+height;
     if(page==1){graphHeight=52;for(int n=0;n<3;++n)envelopes[(size_t)n]->setBounds(18,waveTop,graphWidth,height+64);}
-    if(page==2)equalizer.setBounds(18,waveTop,graphWidth,height);
+    if(page==2)equalizer.setBounds(18,waveTop,graphWidth,height+equalizer.controlsHeight());
     const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
     if(page==8){keySpectrum->setBounds(18,waveTop,graphWidth,height);int row=controlsTop;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,30);}
     chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
-    const int width=juce::jmax(1,viewport.getWidth()-12),columns=page==0?4:page==1?5:width>=1000?3:2,gap=page==1?10:16,cell=(width-gap*(columns-1))/columns;
+    const int width=juce::jmax(1,viewport.getWidth()-12),columns=page==0?4:page==1?4:width>=1000?3:2,gap=page==1?10:16,cell=(width-gap*(columns-1))/columns;
     const int rowHeight=page==1?28:34;
     int top=page==1?2:6;
     int n=0; for(auto& field:fields) if(field->isVisible())

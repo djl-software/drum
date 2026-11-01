@@ -1,6 +1,19 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 
+class ValueBarLook : public juce::LookAndFeel_V4
+{
+public:
+    juce::Label* createSliderTextBox(juce::Slider& slider) override
+    {
+        auto* box=juce::LookAndFeel_V4::createSliderTextBox(slider);
+        box->setJustificationType(juce::Justification::centredRight);
+        box->setFont(juce::FontOptions(12));
+        box->setBorderSize(juce::BorderSize<int>(0,5,0,7));
+        return box;
+    }
+};
+
 inline void useValueBar(juce::Slider& slider)
 {
     slider.setSliderStyle(juce::Slider::LinearBar);

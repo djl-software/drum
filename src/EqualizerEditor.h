@@ -19,6 +19,8 @@ public:
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&,const juce::MouseWheelDetails&) override;
+    int controlsHeight() const {return 144;}
+    juce::Rectangle<int> graphBounds() const {return {0,0,getWidth(),getHeight()-controlsHeight()};}
 private:
     void timerCallback() override;
     drum::SpectrumTap* spectrum=nullptr;
@@ -33,7 +35,10 @@ private:
     bool updating=false;
     juce::Point<float> down;
     juce::ToggleButton enabled{"EQ on"},bandOn{"Band on"};
-    std::array<juce::TextButton,8> bands;
-    juce::ComboBox type;
+    std::array<juce::TextButton,16> bands;
+    std::array<juce::ToggleButton,16> bandEnabled;
+    juce::TextButton reset{"Reset EQ"};
+    std::array<juce::Label,6> labels;
+    juce::ComboBox type,slope;
     ResetSlider frequency,gain,q,output;
 };
