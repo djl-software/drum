@@ -28,18 +28,26 @@ int freeNote(const Kit& kit, int preferred = firstNote)
 }
 // Notes are derived from the flattened group/pad order. Resolve sidechain
 // references through the previous note map before reusing any vacated key.
-void compactKeyboard(Kit& kit)
+bool compactKeyboard(Kit& kit)
 {
-    std::array<int,128> moved;moved.fill(-1);int next=firstNote;
-    for(auto& group:kit.groups)for(auto& instrument:group.instruments)moved[(size_t)instrument.note]=next++;
-    next=firstNote;
+    std::array<int,128> moved;moved.fill(-1);int next=firstNote;bool first=true;
+    for(auto& group:kit.groups){
+        if(group.instruments.empty())continue;
+        if(!first && kit.groupBoundary)next=((next+kit.groupBoundary-1)/kit.groupBoundary)*kit.groupBoundary;
+        first=false;
+        for(auto& instrument:group.instruments){
+            if(next>=firstNote+maxInstruments)return false;
+            moved[(size_t)instrument.note]=next++;
+        }
+    }
     for(auto& group:kit.groups)for(auto& instrument:group.instruments){
-        instrument.note=next++;
+        instrument.note=moved[(size_t)instrument.note];
         for(auto& effect:instrument.effects)if(effect.sidechainNote>=0){
             effect.sidechainNote=moved[(size_t)effect.sidechainNote];
             if(effect.sidechainNote<0)effect.sidechainMute=false;
         }
     }
+    return true;
 }
 std::array<juce::String,128> keyboardLayout(const Kit* kit)
 {
@@ -76,7 +84,7 @@ bool validate(const State& state)
     for (const auto& kit : state.kits)
     {
         if (!validId(kit.id) || !validName(kit.name) || kit.groups.empty() || kit.groups.size() > maxGroups || instrumentCount(kit) > maxInstruments) return false;
-        if(kit.patterns.size()>16)return false;
+        if(kit.patterns.size()>16 || (kit.groupBoundary!=0 && kit.groupBoundary!=6 && kit.groupBoundary!=12))return false;
         for(const auto& pattern:kit.patterns){
             if(!validId(pattern.id) || !validName(pattern.name) || (pattern.steps<1 || pattern.steps>4096) || pattern.hits.size()>8192 || !std::isfinite(pattern.loopStart) || !std::isfinite(pattern.loopEnd) || pattern.loopStart<0 || pattern.loopFinish()<=pattern.loopStart || pattern.loopFinish()>pattern.end() || pattern.numerator<1 || pattern.numerator>32 || (pattern.denominator!=1 && pattern.denominator!=2 && pattern.denominator!=4 && pattern.denominator!=8 && pattern.denominator!=16))return false;
             std::set<juce::String> noteIds;
@@ -138,7 +146,7 @@ Result KitLibrary::edit(const std::function<Result(State&)>& operation)
     if (!result.ok) return result;
     for(auto& kit:candidate.kits)for(auto& pattern:kit.patterns)std::erase_if(pattern.hits,[&](const auto& hit){return findInstrument(kit,hit.instrumentId)==nullptr;});
     if (!validate(candidate)) return Result::fail("This change would exceed a limit or create an invalid assignment.");
-    for(auto& kit:candidate.kits){compactKeyboard(kit);}
+    for(auto& kit:candidate.kits)if(!compactKeyboard(kit))return Result::fail("Group boundaries exceed the 88-key range. Choose a smaller boundary or fewer instruments.");
     candidate.revision = state.revision + 1;
     const bool keyboardChanged=keyboardLayout(activeKit(candidate))!=keyboardLayout(activeKit(state));
     candidate.kitEpoch = state.kitEpoch + (candidate.activeKit != state.activeKit || keyboardChanged ? 1 : 0);
@@ -213,6 +221,7 @@ Result KitLibrary::rename(const juce::String& id, const juce::String& text)
         return Result::fail("Item no longer exists.");
     });
 }
+Result KitLibrary::setGroupBoundary(const juce::String& kitId,int semitones){return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit || (semitones!=0 && semitones!=6 && semitones!=12))return Result::fail("Invalid group boundary.");kit->groupBoundary=semitones;return Result::success();});}
 Result KitLibrary::addGroup(const juce::String& kitId)
 {
     return edit([&](State& s) {
@@ -429,10 +438,10 @@ Result KitLibrary::setEffects(const juce::String& kitId,const juce::String& inst
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 15); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 16); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
-        auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);
+        auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);kit->setAttribute("groupBoundary",k.groupBoundary);
         for(const auto& p:k.patterns){auto* pattern=kit->createNewChildElement("Pattern");pattern->setAttribute("id",p.id);pattern->setAttribute("name",p.name);pattern->setAttribute("steps",p.steps);pattern->setAttribute("loopStart",p.loopStart);pattern->setAttribute("loopEnd",p.loopEnd);pattern->setAttribute("looping",p.looping);pattern->setAttribute("numerator",p.numerator);pattern->setAttribute("denominator",p.denominator);for(const auto& hit:p.hits){auto* note=pattern->createNewChildElement("Hit");note->setAttribute("instrument",hit.instrumentId);note->setAttribute("step",hit.step);note->setAttribute("velocity",hit.velocity);note->setAttribute("id",hit.id);note->setAttribute("start",hit.start);note->setAttribute("duration",hit.duration);note->setAttribute("chance",hit.chance);note->setAttribute("deviation",hit.deviation);note->setAttribute("releaseVelocity",hit.releaseVelocity);note->setAttribute("enabled",hit.enabled);note->setAttribute("chanceGroup",hit.chanceGroup);note->setAttribute("groupMode",hit.groupMode);}}
         for (auto& g : k.groups)
         {
@@ -491,12 +500,12 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
     }
-    if (version < 2 || version > 15) return false;
+    if (version < 2 || version > 16) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
         if (!k->hasTagName("Kit") || candidate.kits.size() == maxKits) return false;
-        Kit kit { k->getStringAttribute("id"), k->getStringAttribute("name"), {} };
+        Kit kit { k->getStringAttribute("id"), k->getStringAttribute("name"), {} };kit.groupBoundary=version>=16?k->getIntAttribute("groupBoundary",0):0;
         int count = 0;
         for (auto* g : k->getChildIterator())
         {
@@ -574,7 +583,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         candidate.kits.push_back(std::move(kit));
     }
     if (!validate(candidate)) return false;
-    for(auto& kit:candidate.kits){compactKeyboard(kit);}
+    for(auto& kit:candidate.kits)if(!compactKeyboard(kit))return false;
     const juce::ScopedLock guard(lock); candidate.revision = state.revision + 1; candidate.kitEpoch = state.kitEpoch + 1; state = std::move(candidate); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
 }
 }

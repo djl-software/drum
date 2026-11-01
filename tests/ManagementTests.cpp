@@ -29,6 +29,19 @@ void screenshot(juce::Component& editor, const char* name)
 }
 void runManagementTests()
 {
+    {
+        drum::KitLibrary layout;auto state=layout.snapshot();auto k=state.activeKit,g=state.kits[0].groups[0].id;
+        auto a=layout.addInstrument(k,g).id;auto empty=layout.addGroup(k).id;auto h=layout.addGroup(k).id;auto b=layout.addInstrument(k,h).id;
+        auto note=[&](const juce::String& id){auto s=layout.snapshot();return drum::findInstrument(s.kits[0],id)->note;};
+        good(layout.setGroupBoundary(k,6));check(note(a)==21 && note(b)==24,"Half octave must align next nonempty group to C, ignoring empty groups");
+        for(int n=0;n<4;++n)good(layout.addInstrument(k,g));check(note(b)==30,"Half octave must advance to F# after crossing C");
+        good(layout.setGroupBoundary(k,12));check(note(b)==36,"Full octave must advance to next C");
+        auto xml=layout.toXml();drum::KitLibrary restored;check(restored.restore(*xml) && restored.snapshot().kits[0].groupBoundary==12,"Boundary lost on recall");
+        xml->setAttribute("schemaVersion",15);check(restored.restore(*xml) && restored.snapshot().kits[0].groupBoundary==0,"Old documents must retain continuous mapping");
+        good(layout.setGroupBoundary(k,0));check(note(b)==26,"Continuous mapping did not close gaps");
+        good(layout.setGroupBoundary(k,12));for(int n=0;n<6;++n){auto group=layout.addGroup(k).id;good(layout.addInstrument(k,group));}
+        auto overflowGroup=layout.addGroup(k).id;auto before=layout.snapshot();check(!layout.addInstrument(k,overflowGroup).ok,"Out-of-range boundary accepted");check(layout.snapshot().revision==before.revision,"Rejected boundary mutated state");
+    }
     struct AlertMode {bool previous=juce::LookAndFeel::getDefaultLookAndFeel().isUsingNativeAlertWindows();AlertMode(){juce::LookAndFeel::getDefaultLookAndFeel().setUsingNativeAlertWindows(false);}~AlertMode(){juce::LookAndFeel::getDefaultLookAndFeel().setUsingNativeAlertWindows(previous);}} alertMode;
     {
         DrumAudioProcessor blank;blank.initialiseLibraryDocuments();check(blank.librariesEmpty(),"Default Kit 1 must not appear as an open library");
@@ -217,7 +230,7 @@ void runManagementTests()
         check(control(main,"kit-menu")->isVisible() && control(main,"library-menu")->isVisible(),"File menus not visible");
         check(!control(main,"open-patterns")->isVisible(),"MIDI toolbar button still visible");
         auto* update=dynamic_cast<juce::TextButton*>(control(main,"use-kit-live"));check(update && update->getButtonText()=="Update","Update is not labelled correctly");
-        check(control(main,"live-setup")->getX()>control(main,"library-menu")->getRight(),"Setup must follow Library");check(control(main,"sound-editor")->getY()>=control(main,"library-menu")->getBottom(),"Sound editor overlaps toolbar");check(!control(main,"instrument-tuning")->isVisible(),"Redundant tuning remains visible");
+        check(control(main,"live-setup")->getX()>control(main,"library-menu")->getRight(),"Setup must follow Library");check(control(main,"sound-editor")->getY()>=control(main,"library-menu")->getBottom(),"Sound editor overlaps toolbar");check(!control(main,"instrument-tuning")->isVisible(),"Redundant tuning remains visible");check(control(main,"play-sample")->getY()==control(main,"library-menu")->getY(),"Transport is not on toolbar row");auto* tempo=dynamic_cast<juce::TextEditor*>(control(main,"audition-tempo-entry"));check(tempo && tempo->getRight()==main.getWidth()-24,"Tempo is not a right-aligned text box");tempo->setText("137.5");tempo->onReturnKey();check(std::abs(track.getSampleEngine().auditionTempo()-137.5)<.01,"Typed tempo did not apply");
         click(main,"save-document");check(track.documentFile().getFileName()=="Toolbar save test.drumkit" && track.documentFile().existsAsFile(),"Save did not use kit name automatically");
         auto* pads=control(main,"instrument-grid");int side=(pads->getWidth()-60)/6;auto now=juce::Time::getCurrentTime();juce::Point<float> start{float(side/2),float(side/2)},finish{float(2*(side+12)+side/2),float(side/2)};
         auto event=[&](juce::Point<float> pos){return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),pos,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,pads,pads,now,start,now,1,false);};

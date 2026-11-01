@@ -32,7 +32,7 @@ struct Instrument { juce::String id, name; int note = firstNote; juce::String sa
 struct Group { juce::String id, name; int colour = 0; std::vector<Instrument> instruments; };
 struct PatternHit { juce::String instrumentId; int step=0, velocity=100; juce::String id=juce::Uuid().toString(); double start=-1,duration=.225,chance=1; int deviation=0,releaseVelocity=64; bool enabled=true; juce::String chanceGroup; int groupMode=0; double beat() const{return start<0?step*.25:start;} bool operator==(const PatternHit&) const = default; };
 struct Pattern { juce::String id,name; int steps=16; std::vector<PatternHit> hits; double loopStart=0,loopEnd=-1; bool looping=true; int numerator=4,denominator=4; double end() const{return steps*.25;} double loopFinish() const{return loopEnd<0?end():loopEnd;} bool operator==(const Pattern&) const = default; };
-struct Kit { juce::String id, name; std::vector<Group> groups; std::vector<Pattern> patterns; };
+struct Kit { juce::String id, name; std::vector<Group> groups; std::vector<Pattern> patterns; int groupBoundary=0; };
 struct State { std::vector<Kit> kits; juce::String activeKit; uint64_t revision = 0, kitEpoch = 0; };
 struct Result
 {
@@ -63,6 +63,7 @@ public:
     Result removeKit(const juce::String&);
     Result activateKit(const juce::String&);
     Result rename(const juce::String&, const juce::String&);
+    Result setGroupBoundary(const juce::String& kitId,int semitones);
     Result addGroup(const juce::String& kitId);
     Result duplicateGroup(const juce::String& kitId, const juce::String& groupId);
     Result removeGroup(const juce::String& kitId, const juce::String& groupId);

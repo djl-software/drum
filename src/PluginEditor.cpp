@@ -274,7 +274,7 @@ public:
     std::function<void()> onShowLibrary,onBackToKit;
     std::function<void(int)> onLibraryAction;
     void performLibraryAction(int n){if(n==2)complete(processor.newLibraryDocument());if(n==3)chooseDocument(false);if(n==4 || n==5)saveLibraryTab(view.activeKit,n==5,{});if(n==7)complete(processor.duplicateLibraryDocument(view.activeKit));if(n==9)closeLibraryTab(view.activeKit);}
-    explicit Workspace(DrumAudioProcessor& p) : processor(p), library(p.getLibrary()), view(library.snapshot()), tooltip(this, 550), soundEditor(p)
+    explicit Workspace(DrumAudioProcessor& p,DrumAudioProcessor* host=nullptr) : setupProcessor(host?*host:p),processor(p), library(p.getLibrary()), view(library.snapshot()), tooltip(this, 550), soundEditor(p)
     {
         setLookAndFeel(&look);
         setup(kitMenu,"Kit","kit-menu");kitMenu.onClick=[this]{if(!processor.isMidiTrack() && onBackToKit){finishLibraries();return;}showKitMenu();};
@@ -289,9 +289,16 @@ public:
         setup(newKitButton,"New kit","new-kit");newKitButton.onClick=[this]{confirm("Create a new kit?","Save the current kit first if you want to keep it.",[this]{processor.newKit();groupId.clear();instrumentId.clear();refresh();});};
         setup(openDocumentButton,processor.isMidiTrack()?"Open kit":"Open library","open-document");openDocumentButton.onClick=[this]{confirm("Open a file?","Save current edits first. Opening a kit replaces it; opening a library replaces a collection with the same identity.",[this]{chooseDocument(false);});};
         setup(liveSetupButton,"Setup","live-setup");liveSetupButton.onClick=[this]{
-            juce::PopupMenu menu;menu.addItem(1,"Automatically update Ableton clips",true,processor.autoRemapLiveClips());
+            juce::PopupMenu menu;menu.addItem(1,"Automatically update Ableton clips",setupProcessor.isMidiTrack(),setupProcessor.autoRemapLiveClips());
+            auto addBoundary=[&](const char* title,DrumAudioProcessor* target,int base){juce::PopupMenu choices;int current=0;if(target){auto state=target->getLibrary().snapshot();if(auto* kit=drum::activeKit(state))current=kit->groupBoundary;}choices.addItem(base,"0 - Continuous",true,current==0);choices.addItem(base+1,"0.5 - Half octave (C / F#)",true,current==6);choices.addItem(base+2,"1 - Octave (C)",true,current==12);menu.addSubMenu(title,choices);};
+            addBoundary("Kit group boundary",&setupProcessor,10);
+            addBoundary("Library group boundary",setupProcessor.isMidiTrack()?setupProcessor.libraryEditorProcessor():&processor,20);
             juce::Component::SafePointer<Workspace> safe(this);
-            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&liveSetupButton),[safe](int selected){if(safe && selected==1){safe->processor.setAutoRemapLiveClips(!safe->processor.autoRemapLiveClips());safe->status=safe->processor.autoRemapLiveClips()?"Auto-remap enabled: future kit moves update linked Live clips. Deleted instruments' notes are muted.":"Automatic Live clip updates off.";safe->repaint();}});
+            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&liveSetupButton),[safe](int selected){
+                if(!safe)return;
+                if(selected==1){safe->setupProcessor.setAutoRemapLiveClips(!safe->setupProcessor.autoRemapLiveClips());safe->status="Automatic Live clip updates "+juce::String(safe->setupProcessor.autoRemapLiveClips()?"on.":"off.");safe->repaint();}
+                if(selected>=10 && selected<=22){auto* target=&safe->setupProcessor;int value=selected-10;if(selected>=20){value=selected-20;if(target->isMidiTrack()){auto result=target->openSharedLibrary();if(!result.ok){safe->complete(result);return;}target=target->libraryEditorProcessor();}else target=&safe->processor;}if(value>2 || !target)return;if((target->isMidiTrack() && !target->hasOpenKit()) || (!target->isMidiTrack() && target->librariesEmpty())){safe->status="Open a Kit or Library before setting its group boundary.";safe->repaint();return;}auto state=target->getLibrary().snapshot();safe->complete(target->getLibrary().setGroupBoundary(state.activeKit,value==0?0:value==1?6:12));}
+            });
         };
         setup(useKitButton,"Update","use-kit-live");useKitButton.setTooltip("Connect this kit using the saved DJL Drum Link rack in Live. The companion inserts it if needed when playback is stopped.");useKitButton.onClick=[this]{
             processor.useLiveKit();status="Connection requested. If unlinked: enable Configure on Live's Drum device, click Update here, then disable Configure.";statusError=false;repaint();
@@ -358,6 +365,9 @@ public:
         processor.getSampleEngine().followHostAuditionTempo();
         auditionTempo.setValue(processor.getSampleEngine().auditionTempo(),juce::dontSendNotification);
         auditionTempo.onValueChange=[this]{processor.getSampleEngine().setAuditionBpm(auditionTempo.getValue());};
+        addAndMakeVisible(tempoBox);tempoBox.setComponentID("audition-tempo-entry");tempoBox.setJustification(juce::Justification::centredRight);tempoBox.setTooltip("Preview tempo in BPM. Type a value from 20 to 999, then press Enter.");
+        auto commitTempo=[this]{auto value=tempoBox.getText().getDoubleValue();if(std::isfinite(value) && value>=20 && value<=999)processor.getSampleEngine().setAuditionBpm(value);tempoBox.setText(juce::String(processor.getSampleEngine().auditionTempo(),2)+" BPM",false);};tempoBox.onReturnKey=commitTempo;tempoBox.onFocusLost=commitTempo;
+
         setupSlider(volume,"instrument-volume",-60,12,0.1," dB");
         volume.textFromValueFunction=[](double v) { return v<=-60 ? juce::String("-inf") : juce::String(v,1); };
         volume.valueFromTextFunction=[](const juce::String& t) { return t.containsIgnoreCase("inf")?-60.0:t.getDoubleValue(); };
@@ -465,8 +475,8 @@ public:
         if(w<=0 || h<=0) return;
         example.setBounds(w-194,23,170,31);
         openLibrary.setBounds(24,88,170,35);saveLibrary.setBounds(310,23,140,31);reloadLibrary.setBounds(458,23,140,31);useSound.setBounds(w-194,23,170,31);
-        liveSetupButton.setBounds(w-574,23,78,31);liveSetupButton.setVisible(processor.isMidiTrack());
-        playSample.setBounds(w-488,23,68,31);loopSample.setBounds(w-412,23,65,31);auditionTempo.setBounds(w-339,23,135,31);
+        liveSetupButton.setBounds(w-574,23,78,31);liveSetupButton.setVisible(true);
+        playSample.setBounds(w-260,88,60,35);loopSample.setBounds(w-192,88,60,35);auditionTempo.setVisible(false);tempoBox.setBounds(w-124,88,100,35);
         const int count=(int)view.kits.size(),gap=6,reserved=count<8?142:0;
         const int available=w-48-reserved-gap*juce::jmax(0,count-1);
         std::array<int,8> widths {};int total=0;
@@ -526,7 +536,7 @@ public:
         useKitButton.setBounds(24,88,100,35);useKitButton.setVisible(processor.isMidiTrack());
         kitMenu.setBounds(processor.isMidiTrack()?132:160,88,128,35);kitMenu.setButtonText(processor.isMidiTrack()?"Kit":"Close");kitMenu.setVisible(processor.isMidiTrack() || bool(onBackToKit));
         libraryMenu.setBounds(processor.isMidiTrack()?268:24,88,128,35);
-        liveSetupButton.setBounds(404,88,78,35);
+        liveSetupButton.setBounds(processor.isMidiTrack()?404:296,88,78,35);
         kitName.setVisible(processor.isMidiTrack());tabViewport.setVisible(!processor.isMidiTrack());
         if(!processor.isMidiTrack()){
             tabViewport.setBounds(24,135,w-48,47);int x=0;
@@ -880,6 +890,7 @@ private:
         }
     }
     DrumLook look;
+    DrumAudioProcessor& setupProcessor;
     DrumAudioProcessor& processor;
     drum::KitLibrary& library;
     drum::State view;
@@ -894,7 +905,7 @@ private:
     void updateTransport()
     {
         auto* selected=instrument();auto& engine=processor.getSampleEngine();
-        if(!auditionTempo.isMouseButtonDown())auditionTempo.setValue(engine.auditionTempo(),juce::dontSendNotification);
+        if(!auditionTempo.isMouseButtonDown())auditionTempo.setValue(engine.auditionTempo(),juce::dontSendNotification);if(!tempoBox.hasKeyboardFocus(true))tempoBox.setText(juce::String(engine.auditionTempo(),2)+" BPM",false);
         auto identity=view.activeKit+"/"+(selected?selected->id:juce::String());
         if(identity!=auditionSelection){engine.pauseAudition();auditionSelection=identity;}
         playSample.setEnabled(selected && engine.statusFor(selected->id).ready);
@@ -902,7 +913,7 @@ private:
         playSample.setTooltip(playSample.getButtonText());
     }
     juce::String auditionSelection;
-    juce::Slider auditionTempo;
+    juce::Slider auditionTempo;juce::TextEditor tempoBox;
     juce::TextButton loadSample,playSample,loopSample;
     juce::TextButton mute,solo;
     ResetSlider volume,pan,tuning;
@@ -944,7 +955,7 @@ DrumAudioProcessorEditor::DrumAudioProcessorEditor(DrumAudioProcessor& p)
 }
 DrumAudioProcessorEditor::~DrumAudioProcessorEditor(){libraryWorkspace.reset();processor.closeSharedLibrary();}
 void DrumAudioProcessorEditor::showLibraryScreen(bool show){
-    if(show && !libraryWorkspace){libraryWorkspace=std::make_unique<Workspace>(*processor.libraryEditorProcessor());libraryWorkspace->onBackToKit=[this]{showLibraryScreen(false);};addChildComponent(*libraryWorkspace);}
+    if(show && !libraryWorkspace){libraryWorkspace=std::make_unique<Workspace>(*processor.libraryEditorProcessor(),&processor);libraryWorkspace->onBackToKit=[this]{showLibraryScreen(false);};addChildComponent(*libraryWorkspace);}
     if(!show)processor.closeSharedLibrary();
     showingLibrary=show;workspace->setVisible(!show);if(libraryWorkspace)libraryWorkspace->setVisible(show);resized();
 }
