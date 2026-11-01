@@ -147,7 +147,7 @@ void DrumAudioProcessor::setStateInformation(const void* data, int size)
         }
         if(library.restore(*state))
         {
-          if(trackInstance){if(liveKitLink)liveKitLink->autoRemap=saved->getBoolAttribute("autoRemapLiveClips",false);kitOpened=saved->getBoolAttribute("kitOpen",true);auto path=saved->getStringAttribute("document");currentDocument=juce::File::isAbsolutePath(path)?juce::File(path):juce::File();const juce::ScopedLock lock(migrationLock);legacyKits=std::move(pending);migrationAttempted=false;triggerAsyncUpdate();}
+          if(trackInstance){if(liveKitLink)liveKitLink->autoRemap=saved->getBoolAttribute("autoRemapLiveClips",true);kitOpened=saved->getBoolAttribute("kitOpen",true);auto path=saved->getStringAttribute("document");currentDocument=juce::File::isAbsolutePath(path)?juce::File(path):juce::File();const juce::ScopedLock lock(migrationLock);legacyKits=std::move(pending);migrationAttempted=false;triggerAsyncUpdate();}
 
           for(int n=0;n<drum::numMacros;++n)
           {

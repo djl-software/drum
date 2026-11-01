@@ -10,7 +10,7 @@ public:
     ~LiveKitLink() override {stopTimer();file().deleteFile();}
     juce::String parameterName() const{return "DJL Link "+token;}
     juce::File file() const{return folder().getChildFile(token+".json");}
-    std::atomic<bool> autoRemap{false};
+    std::atomic<bool> autoRemap{true};
     int setupRequest=0;
     void requestSetup(){++setupRequest;publish();}
     void publish(){

@@ -33,18 +33,18 @@ void runPadTests()
     auto* name=dynamic_cast<juce::TextEditor*>(&find(editor,"instrument-name"));check(name!=nullptr,"Pad name missing");
     for(auto size:{juce::Point<int>{1280,900},juce::Point<int>{1080,860},juce::Point<int>{800,600}})
     {
-        editor.setSize(size.x,size.y);const int side=(grid.getWidth()-36)/4;
+        editor.setSize(size.x,size.y);const int side=(grid.getWidth()-60)/6;
         for(int n:{0,3,4,7})
         {
-            const juce::Point<float> point{float((n%4)*(side+12)+side/2),float((n/4)*(side+12)+side/2)};
+            const juce::Point<float> point{float((n%6)*(side+12)+side/2),float((n/6)*(juce::jmax(140,side)+12)+juce::jmax(140,side)/2)};
             grid.mouseDown(mouse(grid,point));processor.processBlock(output,midi);
-            check(name->getText()==names[n],"Four-across pad hit testing selected wrong instrument");
+            check(name->getText()==names[n],"Six-across pad hit testing selected wrong instrument");
             check(output.getMagnitude(0,256)>0.15f,"Pad press did not play sample");check((engine.noteActivity(21+n)&0x10000)!=0,"Pad press missing from piano activity");
             grid.mouseUp(mouse(grid,point,false));processor.processBlock(output,midi);check((engine.noteActivity(21+n)&0x10000)==0,"Pad release stuck");
             engine.stop();processor.processBlock(output,midi);
         }
     }
-    editor.setSize(1280,900);const int side=(grid.getWidth()-36)/4;juce::Point<float> point{float(side/2),float(side/2)};
+    editor.setSize(1280,900);const int side=(grid.getWidth()-60)/6;juce::Point<float> point{float(side/2),float(side/2)};
     // Select before taking a baseline: activity must visibly differ from selection alone.
     // Allow the five-frame flash plus the three-frame key return to finish before recording the idle image.
     grid.mouseDown(mouse(grid,point));grid.mouseUp(mouse(grid,point,false));engine.stop();processor.processBlock(output,midi);for(int n=0;n<10;++n)tick();
@@ -103,5 +103,5 @@ void runPadTests()
         check(find(editor,"kit-2").getWidth()<find(editor,"kit-0").getWidth(),"Short kit name wastes tab width");
         capture(editor,size.x==1280?"drum-kit-names.png":"drum-kit-names-compact.png");
     }
-    std::cout<<"Four-across pads, mouse/piano playback, MIDI hold/flash, channel isolation and Stop passed\n";
+    std::cout<<"Six-across pads, mouse/piano playback, MIDI hold/flash, channel isolation and Stop passed\n";
 }

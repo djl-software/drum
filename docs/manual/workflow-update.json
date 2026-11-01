@@ -1,0 +1,48 @@
+{
+  "product": "Drum",
+  "version": "0.17.3",
+  "date": "1 November 2026",
+  "platform": "Windows VST3",
+  "scope": "MANUAL UPDATE / KIT WORKFLOW",
+  "cover_caption": "Kit controls and automatic Live note tracking",
+  "footer": "Version 0.17.3 | Manual update",
+  "logo": "../../assets/DJLLogoWhite.png",
+  "cover_image": "assets/workflow-0.17.3.png",
+  "publisher": "DJL Software",
+  "chapters": [
+    {
+      "title": "Kit workflow and automatic Live note tracking (0.17.3)",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Automatic note remapping defaults to On for new Drum instances. Older saves with no stored choice also use On. A Set that explicitly saved Off keeps that choice: open Setup beside Library and enable Automatically update Ableton clips before rearranging instruments."
+        },
+        {
+          "type": "why",
+          "text": "Moving a tile changes its keyboard assignment. Without note remapping, the same clip note can trigger a different drum. With DJL Drum Link connected and this option enabled, Session and Arrangement clip notes follow the instrument identity, preserving their timing, duration and velocity."
+        },
+        {
+          "type": "p",
+          "text": "How: connect the kit with Update and the DJL Drum Link companion, enable the Setup option, then reorder a tile. Check the clip notes follow their named rows and save the Live Set to retain the option. Drum Link must be connected while the change happens. Changes made while disconnected or switched off cannot be reconstructed automatically. Recording clips wait until recording stops."
+        },
+        {
+          "type": "p",
+          "text": "Adding an instrument shifts existing notes with their instruments. Removing an instrument retains its notes but mutes them to avoid triggering its replacement. Unassigned rows display key names. Opening a different kit establishes a new mapping baseline."
+        },
+        {
+          "type": "p",
+          "text": "Right-click or double-click an instrument tile in either a Kit or Library for Duplicate, Remove or Replace sample. The menu appears beside the tile. Remove asks for confirmation and keeps the original audio file. Library tiles additionally offer Add to kit, also available using the tile +."
+        },
+        {
+          "type": "p",
+          "text": "Top-level tuning is now in Edit sound > Tune. Duplicate, Remove and Replace have moved to the tile menu. The top-right Library Add button has been removed; drag audio into its instrument area to add sounds. Setup is beside Library. Every Edit Sound tab stays below the main toolbar; Library tabs also remain visible."
+        },
+        {
+          "type": "p",
+          "text": "Kit and Library panels show six tiles across, covering six adjacent keyboard notes per row. The panel size is unchanged. Assigned key labels are larger; narrow tiles keep a minimum height so sound names remain readable."
+        }
+      ]
+    }
+  ],
+  "manual_title": "User manual update"
+}

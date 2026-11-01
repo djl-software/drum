@@ -62,7 +62,7 @@ def render(manuscript,output,font_dir):
                 with PILImage.open(logo) as im:lw,lh=im.size
                 c.drawImage(str(logo),0,665,width=105,height=105*lh/lw,mask="auto")
             c.setFillColor(MINT);c.setFont("SegoeBold",44);c.drawString(0,594,data["product"].upper())
-            c.setFillColor(colors.white);c.setFont("Segoe",25);c.drawString(0,556,"The complete user manual")
+            c.setFillColor(colors.white);c.setFont("Segoe",25);c.drawString(0,556,data.get("manual_title","The complete user manual"))
             c.setFillColor(MINT);c.setFont("Segoe",12);c.drawString(0,526,data["scope"])
             c.setFont("SegoeBold",25);c.drawString(0,470,data["platform"].upper())
             if data.get("cover_image"):
@@ -81,7 +81,7 @@ def render(manuscript,output,font_dir):
                 self.canv.bookmarkPage(f.chapter_id);self.canv.addOutlineEntry(f.chapter_title,f.chapter_id,0)
                 self.found.append((f.chapter_id,f.chapter_title,self.page))
     def build(toc):
-        d=Doc(str(output),pagesize=(W,H),leftMargin=46,rightMargin=46,topMargin=58,bottomMargin=48,title=data["product"]+" - Complete User Manual",author=data.get("publisher","DJL Software"),subject="Version "+data["version"])
+        d=Doc(str(output),pagesize=(W,H),leftMargin=46,rightMargin=46,topMargin=58,bottomMargin=48,title=data["product"]+" - "+data.get("manual_title","Complete User Manual"),author=data.get("publisher","DJL Software"),subject="Version "+data["version"])
         d.found=[];story=[Cover(),PageBreak(),p("Contents","h")]
         for i,ch in enumerate(data["chapters"],1):
             page_no=toc[i-1][2] if toc else ""

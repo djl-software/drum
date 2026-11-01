@@ -76,7 +76,8 @@ void runManagementTests()
         link->addListener(&probe);track.useLiveKit();track.useLiveKit();link->removeListener(&probe);
         check(probe.values==2 && probe.starts==2 && probe.ends==2,"Update does not expose a complete Configure gesture");
         for(int n=0;n<drum::numMacros;++n)check(track.macro(n).get()==.5f,"Connection repair modified musical macros");
-        check(!track.autoRemapLiveClips(),"Connection repair enabled clip modifications without selecting the option");
+        check(track.autoRemapLiveClips(),"New instances must default to automatic clip remapping");
+        track.setAutoRemapLiveClips(false);juce::MemoryBlock saved;track.getStateInformation(saved);DrumAudioProcessor recalled(true);recalled.setStateInformation(saved.getData(),(int)saved.getSize());check(!recalled.autoRemapLiveClips(),"Explicit Off choice must survive recall");
     }
     {
         drum::KitLibrary ordered;auto initial=ordered.snapshot();auto k=initial.activeKit,g=drum::activeKit(initial)->groups[0].id;
@@ -216,8 +217,9 @@ void runManagementTests()
         check(control(main,"kit-menu")->isVisible() && control(main,"library-menu")->isVisible(),"File menus not visible");
         check(!control(main,"open-patterns")->isVisible(),"MIDI toolbar button still visible");
         auto* update=dynamic_cast<juce::TextButton*>(control(main,"use-kit-live"));check(update && update->getButtonText()=="Update","Update is not labelled correctly");
+        check(control(main,"live-setup")->getX()>control(main,"library-menu")->getRight(),"Setup must follow Library");check(control(main,"sound-editor")->getY()>=control(main,"library-menu")->getBottom(),"Sound editor overlaps toolbar");check(!control(main,"instrument-tuning")->isVisible(),"Redundant tuning remains visible");
         click(main,"save-document");check(track.documentFile().getFileName()=="Toolbar save test.drumkit" && track.documentFile().existsAsFile(),"Save did not use kit name automatically");
-        auto* pads=control(main,"instrument-grid");int side=(pads->getWidth()-36)/4;auto now=juce::Time::getCurrentTime();juce::Point<float> start{float(side/2),float(side/2)},finish{float(2*(side+12)+side/2),float(side/2)};
+        auto* pads=control(main,"instrument-grid");int side=(pads->getWidth()-60)/6;auto now=juce::Time::getCurrentTime();juce::Point<float> start{float(side/2),float(side/2)},finish{float(2*(side+12)+side/2),float(side/2)};
         auto event=[&](juce::Point<float> pos){return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),pos,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,pads,pads,now,start,now,1,false);};
         pads->mouseDown(event(start));pads->mouseDrag(event(finish));pads->mouseUp(event(finish));
         auto moved=track.getLibrary().snapshot().kits[0].groups[0].instruments;
@@ -229,7 +231,7 @@ void runManagementTests()
         auto* libraryScreen=back->getParentComponent();check(!control(*libraryScreen,"group-name")->isVisible() && !control(*libraryScreen,"copy-group")->isVisible() && !control(*libraryScreen,"delete-group")->isVisible(),"Old Library group controls remain visible");check(dynamic_cast<juce::TextButton*>(control(*libraryScreen,"add-group"))->getButtonText()=="+","Library group add is not a plus");auto countBefore=drum::instrumentCount(track.getLibrary().snapshot().kits[0]);
         click(*libraryScreen,"add-instrument");click(*libraryScreen,"use-library-sound");
         check(drum::instrumentCount(track.getLibrary().snapshot().kits[0])==countBefore+1,"Library screen could not add its instrument to the kit");
-        auto* libraryPads=control(*libraryScreen,"instrument-grid");int librarySide=(libraryPads->getWidth()-36)/4;
+        auto* libraryPads=control(*libraryScreen,"instrument-grid");int librarySide=(libraryPads->getWidth()-60)/6;
         juce::Point<float> plus{float(librarySide-18),18};auto plusEvent=juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),plus,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,libraryPads,libraryPads,now,plus,now,1,false);
         libraryPads->mouseDown(plusEvent);libraryPads->mouseUp(plusEvent);check(drum::instrumentCount(track.getLibrary().snapshot().kits[0])==countBefore+2,"Tile plus did not add to the one active kit");
         check(libraryPads->keyPressed(juce::KeyPress(juce::KeyPress::deleteKey)),"Selected Library instrument did not handle Delete");

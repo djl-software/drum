@@ -30,3 +30,6 @@ New-Item -ItemType Directory -Force -Path $drumCompanionDestination | Out-Null
 Copy-Item -LiteralPath "$PSScriptRoot\..\companion\DJL_Drum_Link" -Destination $drumCompanionDestination -Recurse -Force
 
 Copy-Item -LiteralPath "$PSScriptRoot\..\companion\DJL Drum Link.adg" -Destination $drumCompanionDestination -Force
+
+$drumUpdate = "$PSScriptRoot\..\output\pdf\DJL-Drum-Manual-Update-0.17.3.pdf"
+if (Test-Path -LiteralPath $drumUpdate) { Copy-Item -LiteralPath $drumUpdate -Destination $OutputDirectory -Force }

@@ -168,3 +168,5 @@ The editor shows kit tabs, a group list, instrument cards, an instrument details
 Build the optional review app with `./scripts/build.ps1 -Standalone`, then open `build/DJLDrum_artefacts/Release/Standalone/DJL Drum.exe`. This is a development harness for interface review. The VST3 remains the product target.
 
 Tests write `drum-layout.png`, `drum-layout-minimum.png`, `drum-layout-compact.png`, `drum-layout-dense.png`, `drum-layout-empty.png`, `drum-playback.png` and `drum-controls.png` into the build directory, rendering the actual editor. CTest also loads the compiled VST3, verifies MIDI-triggered sample output, and checks saved-state recall in a fresh instance.
+
+0.17.3: Automatic Live note remapping defaults on (explicit saved Off is retained). Tile menus work in Kits and Libraries beside the selected tile. Setup follows Library; redundant top-level instrument actions and tuning are hidden. Edit Sound stays below navigation. See the 0.17.3 PDF manual update.

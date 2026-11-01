@@ -151,7 +151,7 @@ void runEnvelopeTests()
     check(control<juce::TextButton>(editor,"edit-tab-1").getButtonText()=="Envelopes","Envelope tab name incorrect");
     int lastTabX=-1;for(int tab:{0,1,2,6,3,8,4,5,7}){const int x=control<juce::TextButton>(editor,("edit-tab-"+juce::String(tab)).toRawUTF8()).getX();check(x>lastTabX,"Edit tabs out of order");lastTabX=x;}
     check(!control<juce::Slider>(editor,"edit-start").isShowing() && !control<juce::Slider>(editor,"edit-end").isShowing(),"Separate trim sliders still visible");
-    check(control<juce::Component>(editor,"sample-waveform").getHeight()>340,"Sample waveform did not expand");
+    check(control<juce::Component>(editor,"sample-waveform").getHeight()>240,"Sample waveform lost its usable height");check(control<SoundEditor>(editor,"sound-editor").getY()>=control<juce::Component>(editor,"library-menu").getBottom(),"Sound editor overlaps navigation");
     auto sampleField=[&](const char* id){return find(editor,id)->getParentComponent()->getBounds();};
     check(sampleField("edit-sampleGain").getY()==sampleField("edit-normalise").getY() && sampleField("edit-normalise").getX()>sampleField("edit-reverse").getX() && sampleField("edit-snap").getY()>sampleField("edit-normalise").getY(),"Sample controls not four per row");
     const int sampleWaveHeight=control<juce::Component>(editor,"sample-waveform").getHeight();capture(editor,"drum-sample-layout.png");click(editor,"edit-tab-1");settle(editor);check(control<juce::Component>(editor,"sample-waveform").getHeight()==sampleWaveHeight,"Envelope waveform does not match Sample");
