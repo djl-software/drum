@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.16.24 enables EQ band cuts down to -60 dB and standardises Drum controls on value bars.
+
 Version 0.16.23 expands Filter and Tune graphs into the waveform area. Filter displays +24 to -60 dB.
 
 Version 0.16.22 shows envelope controls only for the selected Amplitude/Pitch mode, keeps Random pan common, removes duplicate fine tuning, and uses compact value-bar boxes.

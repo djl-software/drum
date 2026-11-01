@@ -354,7 +354,7 @@ public:
         loopSample.onClick=[this]{if(!loopSample.getToggleState())processor.getSampleEngine().pauseAudition();updateTransport();};
         loopSample.setTooltip("Repeat the selected drum once per beat. Separate from sample-region looping.");
         setupSlider(auditionTempo,"audition-bpm",20,999,0.01," BPM");
-        auditionTempo.setSliderStyle(juce::Slider::IncDecButtons);auditionTempo.setTextBoxStyle(juce::Slider::TextBoxLeft,false,78,28);
+        useValueBar(auditionTempo);auditionTempo.setTextBoxStyle(juce::Slider::TextBoxLeft,false,78,28);
         processor.getSampleEngine().followHostAuditionTempo();
         auditionTempo.setValue(processor.getSampleEngine().auditionTempo(),juce::dontSendNotification);
         auditionTempo.onValueChange=[this]{processor.getSampleEngine().setAuditionBpm(auditionTempo.getValue());};
@@ -665,10 +665,10 @@ private:
     void setupSlider(juce::Slider& slider,const char* id,double minimum,double maximum,double step,const char* suffix)
     {
         addAndMakeVisible(slider); slider.setComponentID(id); slider.setName(juce::String(id).replaceCharacter('-',' ')); slider.setTitle(slider.getName());
-        slider.setSliderStyle(juce::Slider::LinearHorizontal); slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,72,26);
+        useValueBar(slider); slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,72,26);
         slider.setRange(minimum,maximum,step); slider.setTextValueSuffix(suffix); slider.setDoubleClickReturnValue(true,0);
-        slider.setColour(juce::Slider::trackColourId,accent); slider.setColour(juce::Slider::thumbColourId,accent);
-        slider.setColour(juce::Slider::textBoxTextColourId,text); slider.setColour(juce::Slider::textBoxBackgroundColourId,background);
+        slider.setColour(juce::Slider::trackColourId,accent.withAlpha(.3f)); slider.setColour(juce::Slider::thumbColourId,accent);
+        slider.setColour(juce::Slider::textBoxTextColourId,text); slider.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);
         slider.setColour(juce::Slider::textBoxOutlineColourId,border);
     }
     void editControls(const std::function<void(drum::InstrumentControls&)>& edit)

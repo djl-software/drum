@@ -65,9 +65,9 @@ EnvelopeEditor::EnvelopeEditor(juce::String id,juce::String heading,juce::Colour
     activate.onClick=[this]{finish();if(onActivate)onActivate();};reset.onClick=[this]{finish();if(onReset)onReset();};activate.setVisible(false);
     adsr.onClick=[this]{finish();if(onUseAdsr)onUseAdsr();};undo.onClick=[this]{finish();if(onUndo)onUndo();};redo.onClick=[this]{finish();if(onRedo)onRedo();};
     addAndMakeVisible(depth);depth.setComponentID(getComponentID()+"-amount");depth.setName("Envelope amount");
-    depth.setSliderStyle(juce::Slider::LinearHorizontal);depth.setTextBoxStyle(juce::Slider::TextBoxRight,false,70,22);
+    useValueBar(depth);depth.setTextBoxStyle(juce::Slider::TextBoxRight,false,70,22);
     depth.setColour(juce::Slider::trackColourId,juce::Colour(0xff67dfc5));depth.setColour(juce::Slider::thumbColourId,juce::Colour(0xff67dfc5));
-    if(getComponentID()=="envelope-pitch"){depth.setSliderStyle(juce::Slider::LinearBar);depth.setSliderSnapsToMousePosition(false);depth.setColour(juce::Slider::trackColourId,juce::Colour(0xff67dfc5).withAlpha(.3f));depth.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);}
+    useValueBar(depth);
     depth.onValueChange=[this]{if(!updating && onAmount)onAmount(depth.getValue());};
     depth.setDoubleClickReturnValue(true,0);
     depth.onDragStart=[this]{if(onBeginGesture)onBeginGesture();};depth.onDragEnd=[this]{if(onEndGesture)onEndGesture();};

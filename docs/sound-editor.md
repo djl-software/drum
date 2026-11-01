@@ -262,4 +262,6 @@ Amplitude shows Velocity to volume; Pitch shows Velocity to pitch and Pitch bend
 
 These numeric controls, including Pitch depth, use value boxes with a shaded level bar. Drag to adjust without jumping to the clicked position, scroll for increments, or click the number to type. Double-click resets the value to its default. Existing macro locks and custom-envelope ADSR protection still apply.
 
-Filter and Tune now replace the waveform with their graphs at the same size as the Sample waveform. The Filter EQ response and output spectrum share a +24 to -60 dB display range; band gain limits remain unchanged.
+Filter and Tune now replace the waveform with their graphs at the same size as the Sample waveform. The Filter EQ response and output spectrum share a +24 to -60 dB display range.
+
+EQ band gain now covers -60 to +24 dB, including chain EQ and saved state. Drum numeric sliders use shaded value bars (drag, scroll or type; double-click resets). Filter envelope changes the separate tone filter cutoff over time, rather than moving the eight EQ bands.

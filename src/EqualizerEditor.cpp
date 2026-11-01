@@ -19,11 +19,11 @@ EqualizerEditor::EqualizerEditor()
     type.onChange=[this]{if(!updating){equalizer.bands[(size_t)selected].type=type.getSelectedId()-1;save();}};
     for(auto* s:{&frequency,&gain,&q,&output})
     {
-        addAndMakeVisible(*s);s->setSliderStyle(juce::Slider::LinearHorizontal);s->setTextBoxStyle(juce::Slider::TextBoxRight,false,78,24);
-        s->setColour(juce::Slider::trackColourId,mint);s->setColour(juce::Slider::thumbColourId,mint);s->setColour(juce::Slider::textBoxTextColourId,ink);
+        addAndMakeVisible(*s);useValueBar(*s);s->setTextBoxStyle(juce::Slider::TextBoxRight,false,78,24);
+        s->setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));s->setColour(juce::Slider::thumbColourId,mint);s->setColour(juce::Slider::textBoxTextColourId,ink);
     }
     frequency.setComponentID("eq-frequency");frequency.setName("EQ frequency");frequency.setRange(20,20000,1);frequency.setSkewFactorFromMidPoint(1000);frequency.setTextValueSuffix(" Hz");
-    gain.setComponentID("eq-gain");gain.setName("EQ gain");gain.setRange(-24,24,0.1);gain.setTextValueSuffix(" dB");
+    gain.setComponentID("eq-gain");gain.setName("EQ gain");gain.setRange(-60,24,0.1);gain.setTextValueSuffix(" dB");
     q.setComponentID("eq-q");q.setName("EQ Q");q.setRange(0.1,18,0.00000001);q.setNumDecimalPlacesToDisplay(2);q.setSkewFactorFromMidPoint(1);q.setTextValueSuffix(" Q");
     output.setComponentID("eq-output");output.setName("EQ output gain");output.setRange(-24,24,0.1);output.setTextValueSuffix(" dB out");output.setTooltip("EQ output gain. Reduce after boosting to keep headroom.");
     frequency.onValueChange=[this]{if(!updating){equalizer.bands[(size_t)selected].frequency=frequency.getValue();save();}};
@@ -117,7 +117,7 @@ void EqualizerEditor::mouseDrag(const juce::MouseEvent& e)
     else
     {
         b.frequency=std::clamp(20*std::pow(1000.0,(e.position.x-a.getX())/a.getWidth()),20.0,20000.0);
-        const double value=std::clamp(24.0-(e.position.y-a.getY())/a.getHeight()*84.0,-24.0,24.0);
+        const double value=std::clamp(24.0-(e.position.y-a.getY())/a.getHeight()*84.0,-60.0,24.0);
         if(drum::eqHasGain(b.type))b.gain=value;else b.q=std::clamp(0.70710678*std::pow(2.0,value/6),0.1,18.0);
     }
     save();

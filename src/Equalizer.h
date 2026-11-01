@@ -31,7 +31,7 @@ inline bool validEqualizer(const Equalizer& e)
 {
     if(!std::isfinite(e.output) || e.output < -24 || e.output > 24)return false;
     for(auto& b:e.bands)if(b.type<0 || b.type>7 || !std::isfinite(b.frequency) || b.frequency<20 || b.frequency>20000
-        || !std::isfinite(b.gain) || b.gain < -24 || b.gain>24 || !std::isfinite(b.q) || b.q<0.1 || b.q>18)return false;
+        || !std::isfinite(b.gain) || b.gain < -60 || b.gain>24 || !std::isfinite(b.q) || b.q<0.1 || b.q>18)return false;
     return true;
 }
 inline bool eqHasGain(int type) {return type==2 || type==3 || type==5;}

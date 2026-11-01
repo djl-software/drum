@@ -43,16 +43,16 @@ struct SoundEditor::Field final : juce::Component
         else
         {
             addAndMakeVisible(slider); slider.setComponentID(id); slider.setName(p.label);
-            slider.setSliderStyle(juce::Slider::LinearHorizontal); slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,92,26);
+            useValueBar(slider); slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,92,26);
             slider.setRange(p.minimum*p.scale,p.maximum*p.scale,p.step*p.scale);
             slider.setTextValueSuffix(p.unit); slider.setDoubleClickReturnValue(true,p.initial*p.scale);
             if(p.maximum>=1000 && p.scale==1) slider.setSkewFactorFromMidPoint(p.minimum==20?1000:juce::jmin(500.0,p.maximum*0.1));
-            slider.setColour(juce::Slider::trackColourId,mint); slider.setColour(juce::Slider::thumbColourId,mint);
-            slider.setColour(juce::Slider::textBoxTextColourId,ink); slider.setColour(juce::Slider::textBoxBackgroundColourId,bg);
+            slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f)); slider.setColour(juce::Slider::thumbColourId,mint);
+            slider.setColour(juce::Slider::textBoxTextColourId,ink); slider.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);
             slider.setColour(juce::Slider::textBoxOutlineColourId,juce::Colour(0xff2b3648));
             if(p.member==&drum::SoundParameters::attackLevel)
                 slider.setTooltip("0 dB = full-scale peak for the generated burst before EQ, velocity, LFO and mixer; -6 dB is about half amplitude. -60 dB is silent.");
-            if(p.page==1){slider.setSliderStyle(juce::Slider::LinearBar);slider.setSliderSnapsToMousePosition(false);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);}
+            useValueBar(slider);
             slider.onValueChange=[this,&editor] { editor.change(parameter,slider.getValue()/parameter.scale); };
             for(int n=0;n<3;++n)if(std::find(envelopeMembers[n].begin(),envelopeMembers[n].end(),p.member)!=envelopeMembers[n].end())
             {slider.onDragStart=[&editor,n]{editor.beginEnvelopeGesture(n);};slider.onDragEnd=[&editor,n]{editor.endEnvelopeGesture(n);};}
@@ -87,8 +87,8 @@ struct SoundEditor::MacroField final : juce::Component
         for(int t=0;t<(int)std::size(drum::macroTargets);++t) target.addItem(drum::macroTargets[(size_t)t].name,t+1);
         for(auto* slider:{&value,&minimum,&maximum})
         {
-            addAndMakeVisible(*slider); slider->setSliderStyle(juce::Slider::LinearHorizontal);slider->setTextBoxStyle(juce::Slider::TextBoxRight,false,74,23);
-            slider->setColour(juce::Slider::trackColourId,mint);slider->setColour(juce::Slider::thumbColourId,mint);slider->setColour(juce::Slider::textBoxTextColourId,ink);slider->setColour(juce::Slider::textBoxBackgroundColourId,bg);
+            addAndMakeVisible(*slider); useValueBar(*slider);slider->setTextBoxStyle(juce::Slider::TextBoxRight,false,74,23);
+            slider->setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider->setColour(juce::Slider::thumbColourId,mint);slider->setColour(juce::Slider::textBoxTextColourId,ink);slider->setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);
         }
         value.setDoubleClickReturnValue(true,50);value.setRange(0,100,0.1);value.setTextValueSuffix(" %");value.setName("Macro "+juce::String(n+1));value.setComponentID("macro-value-"+juce::String(n));
         minimum.setName("Mapping minimum");maximum.setName("Mapping maximum");minimum.setComponentID("macro-min-"+juce::String(n));maximum.setComponentID("macro-max-"+juce::String(n));
@@ -483,7 +483,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     };
     const char* names[]{"Sample","Envelopes & pitch","Filter","LFO","Outputs & sends","Macros","Attack layer","Chain","Tune"};
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
-    auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);slider.setSliderStyle(juce::Slider::LinearHorizontal);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint);slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,ink);slider.onValueChange=[this]{changeKeyTuning();};};
+    auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);useValueBar(slider);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,ink);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
     keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Applies to the instrument across all tabs.");addAndMakeVisible(keyStatus);keyStatus.setColour(juce::Label::textColourId,muted);keyStatus.setFont(juce::FontOptions(12));
     for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
@@ -734,7 +734,7 @@ void SoundEditor::refreshPreview()
     for(auto& field:fields)if(field->parameter.member==&drum::SoundParameters::sampleGain)
     {
         const bool clips=!busy && result.sample && result.sample->peak>1.0f;
-        field->slider.setColour(juce::Slider::textBoxBackgroundColourId,clips?juce::Colour(0xff8f2638):bg);
+        field->slider.setColour(juce::Slider::textBoxBackgroundColourId,clips?juce::Colour(0xff8f2638):juce::Colours::transparentBlack);
         field->slider.setTooltip("Red only when the processed preview exceeds 0 dBFS (80% velocity, 1 s gate). Gain and display zoom alone do not indicate clipping.");
     }
     juce::String description="Trigger: "+drum::noteName(note)+" / MIDI "+juce::String(note)+"     Preview: ";

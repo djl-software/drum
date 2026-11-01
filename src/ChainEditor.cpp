@@ -1,4 +1,5 @@
 #include "ChainEditor.h"
+#include "ResetSlider.h"
 #include "BuiltinEffects.h"
 
 namespace
@@ -27,7 +28,7 @@ public:
         for(const auto& group:kit->groups)for(const auto& i:group.instruments)source.addItem(i.name+" ("+drum::noteName(i.note)+")",i.note+2);
         source.setSelectedId(slot.sidechainNote<0?1:slot.sidechainNote+2,juce::dontSendNotification);
         source.setTooltip("Sidechain source: another instrument, before its effects. No Input supplies silence to the external sidechain.");
-        for(auto* slider:{&gain,&mix}){addAndMakeVisible(*slider);slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,64,20);}
+        for(auto* slider:{&gain,&mix}){addAndMakeVisible(*slider);useValueBar(*slider);slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,64,20);}
         gain.setRange(-60,24,0.1);gain.setTextValueSuffix(" dB");gain.setValue(slot.sidechainGain);gain.setDoubleClickReturnValue(true,0);
         mix.setRange(0,100,0.1);mix.setTextValueSuffix(" %");mix.setValue(slot.sidechainMix*100);mix.setDoubleClickReturnValue(true,100);
         gain.setComponentID("chain-sidechain-gain-"+juce::String(position));mix.setComponentID("chain-sidechain-mix-"+juce::String(position));
@@ -68,7 +69,7 @@ public:
     void resized() override
     {
         edit.setBounds(8,29,64,21);bypass.setBounds(78,29,76,21);source.setBounds(8,53,146,21);
-        gain.setBounds(8,89,64,48);mix.setBounds(86,89,64,48);mute.setBounds(8,140,146,20);
+        gain.setBounds(8,96,64,26);mix.setBounds(86,96,64,26);mute.setBounds(8,140,146,20);
         earlier.setBounds(8,164,24,20);later.setBounds(36,164,24,20);remove.setBounds(66,164,88,20);retry.setBounds(8,54,146,22);
     }
     void mouseDrag(const juce::MouseEvent& e) override {if(e.getDistanceFromDragStart()>5 && e.getMouseDownY()<33 && !owner.isDragAndDropActive())owner.startDragging("slot:"+slot.id,this);}

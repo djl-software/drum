@@ -18,9 +18,9 @@ void capture(juce::Component& c,const char* name)
 }
 void runEqualizerTests()
 {
-    for(double rate:{44100.0,48000.0,96000.0})for(int type=0;type<8;++type)
+    for(double rate:{44100.0,48000.0,96000.0})for(int type=0;type<8;++type)for(double bandGain:{9.0,-60.0})
     {
-        drum::Equalizer eq;eq.enabled=true;eq.bands[0]={true,type,1000,9,0.70710678};
+        drum::Equalizer eq;eq.enabled=true;eq.bands[0]={true,type,1000,bandGain,0.70710678};
         for(double frequency:{100.0,1000.0,10000.0})
         {
             drum::VoiceEqualizer dsp;dsp.reset(eq,rate);double inputEnergy=0,outputEnergy=0;
@@ -62,6 +62,12 @@ void runEqualizerTests()
     graph.mouseDown(event(graph,down,down));graph.mouseDrag(event(graph,target,down));graph.mouseUp(event(graph,target,down));
     auto changed=current().sound.equalizer;check(changed.enabled,"EQ drag did not enable processing");int selected=-1;for(int n=0;n<8;++n)if(changed.bands[(size_t)n].enabled)selected=n;
     check(selected>=0 && changed.bands[(size_t)selected].gain!=0,"EQ drag did not change band gain");
+    control<juce::ComboBox>(editor,"eq-type").setSelectedId(4,juce::sendNotificationSync);
+    const juce::Point<float> bottom{target.x,(float)graph.getHeight()-53};
+    graph.mouseDown(event(graph,target,target));graph.mouseDrag(event(graph,bottom,target));graph.mouseUp(event(graph,bottom,target));
+    check(current().sound.equalizer.bands[(size_t)selected].gain==-60,"EQ drag cannot reach -60 dB");
+    auto deepState=library.toXml();drum::KitLibrary deepRecall;check(deepRecall.restore(*deepState),"Deep EQ cut cannot be restored");
+    auto deepSnapshot=deepRecall.snapshot();check(drum::findInstrument(*drum::activeKit(deepSnapshot),id)->controls.sound.equalizer.bands[(size_t)selected].gain==-60,"Deep EQ cut changed on recall");
     control<juce::Slider>(editor,"eq-q").setValue(2,juce::sendNotificationSync);check(current().sound.equalizer.bands[(size_t)selected].q==2,"EQ Q edit failed");
     control<juce::ComboBox>(editor,"eq-type").setSelectedId(2,juce::sendNotificationSync);check(!control<juce::Slider>(editor,"eq-gain").isEnabled(),"Cut band exposes inactive gain");
     auto source=processor.getSampleEngine().waveformFor(id);auto dry=drum::SampleEngine::renderPreview(source,drum::InstrumentControls{},{},120,48000);
