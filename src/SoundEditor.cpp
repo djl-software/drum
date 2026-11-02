@@ -727,10 +727,10 @@ void SoundEditor::refreshPreview()
 {
     drum::PreviewInput input;
     if(isVisible())input.source=selectedSample;
-    input.controls=selectedControls;input.send=waveform->send();
+    input.controls=selectedControls;input.send=page==8?-1:waveform->send();
     for(int n=0;n<drum::numMacros;++n)input.macros[(size_t)n]=processor.macro(n).get();
     input.bpm=processor.getSampleEngine().previewTempo();input.rate=processor.getSampleEngine().previewSampleRate();
-    preview.request(std::move(input));const auto result=preview.latest();const bool busy=preview.pending();waveform->setPreview(result,busy);
+    preview.request(input);const auto result=preview.latest();const bool busy=preview.pending();waveform->setPreview(result,busy);
     for(auto& field:fields)if(field->parameter.member==&drum::SoundParameters::sampleGain)
     {
         const bool clips=!busy && result.sample && result.sample->peak>1.0f;
@@ -747,8 +747,8 @@ void SoundEditor::refreshPreview()
     description+=busy?"     Key: analysing...":"     Key: "+drum::spectrumKey(analysis);
     noteIndicator.setText(description,juce::dontSendNotification);
     keySpectrum->update(analysis,busy,selectedSample!=nullptr);
-    const auto& keyAnalysis=busy && selectedSample?selectedSample->tonal:analysis;
-    const double keyTranspose=busy?selectedControls.tuning+selectedControls.sound.detune/100.0:0.0;
+    if(!busy && input.send==-1)processor.getSampleEngine().rememberKey(instrumentId,selectedSample,selectedControls,input.macros,input.bpm,input.rate,analysis);
+    const auto [keyAnalysis,keyTranspose]=processor.getSampleEngine().displayKey(instrumentId,selectedControls,input.macros);
     const int keyNote=drum::strongestNote(keyAnalysis,keyTranspose);
     juce::String detail=!selectedSample?"Key: load a sample":keyNote<0?"Key: no signal":
         "Key: "+drum::spectrumKey(keyAnalysis,keyTranspose)+"     Camelot: "+drum::camelotCode(keyNote)+" (major) / "+drum::camelotCode(keyNote+12)+" (minor)";

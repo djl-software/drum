@@ -404,7 +404,7 @@ public:
         grid.setWantsKeyboardFocus(true);grid.context=[this](juce::String id){showInstrumentMenu(id);};grid.remove=[this](juce::String id){removeLibraryInstrument(id);};if(!processor.isMidiTrack())grid.addToKit=[this](juce::String id){addLibraryInstrument(id);};
         grid.edit=[this](juce::String id){instrumentId=id;refresh();editSound.onClick();};
         grid.setComponentID("instrument-grid");
-        grid.keyLabel=[this](const drum::Instrument& i){auto sample=processor.getSampleEngine().waveformFor(i.id);return sample?drum::tileKey(sample->tonal,i.controls.tuning+i.controls.sound.detune/100):i.samplePath.isEmpty()?juce::String():juce::String("Analysing...");};
+        grid.keyLabel=[this](const drum::Instrument& i){auto sample=processor.getSampleEngine().waveformFor(i.id);if(!sample)return i.samplePath.isEmpty()?juce::String():juce::String("Analysing...");std::array<float,drum::numMacros> macros{};for(int n=0;n<drum::numMacros;++n)macros[(size_t)n]=processor.macro(n).get();auto [analysis,transpose]=processor.getSampleEngine().displayKey(i.id,i.controls,macros);return drum::tileKey(analysis,transpose);};
         viewport.setScrollBarThickness(8); grid.select = [this](juce::String id) { importStatus=false; instrumentId=id; refresh(); };
         grid.groupDrag=[this](juce::String id,juce::Point<int> screen,bool commit){
             auto point=groups.getLocalPoint(nullptr,screen);int row=groups.getLocalBounds().contains(point)?groups.getRowContainingPosition(point.x,point.y):-1;

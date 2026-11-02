@@ -52,6 +52,24 @@ public:
     SampleStatus statusFor(const juce::String& instrument) const;
     // UI-only: retain the immutable source while drawing; never called by the audio thread.
     std::shared_ptr<const Sample> waveformFor(const juce::String& instrument) const;
+    // Message-thread display cache; no analysis or allocation in audio callbacks.
+    void rememberKey(const juce::String& id,std::shared_ptr<const Sample> source,const InstrumentControls& controls,
+        const std::array<float,numMacros>& macros,double bpm,double rate,const TonalAnalysis& analysis)
+    {
+        if(!source || !analysis.complete)return;
+        if(keyAnalyses.size()>128)for(auto it=keyAnalyses.begin();it!=keyAnalyses.end();) {if(it->second.source.expired())it=keyAnalyses.erase(it);else ++it;}
+        keyAnalyses[id]={source,controls,macros,bpm,rate,analysis};
+    }
+    std::pair<TonalAnalysis,double> displayKey(const juce::String& id,const InstrumentControls& controls,
+        const std::array<float,numMacros>& macros) const
+    {
+        auto source=waveformFor(id);if(!source)return {};
+        auto found=keyAnalyses.find(id);
+        if(found!=keyAnalyses.end()) {const auto& cached=found->second;
+            if(cached.source.lock()==source && cached.controls==controls && cached.macros==macros &&
+                cached.bpm==previewTempo() && cached.rate==previewSampleRate())return {cached.analysis,0};}
+        return {source->tonal,controls.tuning+controls.sound.detune/100.0};
+    }
     // Worker-only isolated render, using the same voice DSP as audible playback.
     static PreviewResult renderPreview(std::shared_ptr<const Sample>, InstrumentControls,
         const std::array<float,numMacros>&, double bpm, double rate, int send = -1,
@@ -161,6 +179,8 @@ private:
     void renderVoices(juce::AudioBuffer<float>&, int start, int end) noexcept;
     void startAuditionVoice(int note) noexcept;
     void mixEffects(juce::AudioBuffer<float>& output,int offset,int frames) noexcept;
+    struct KeyAnalysis {std::weak_ptr<const Sample> source;InstrumentControls controls;std::array<float,numMacros> macros{};double bpm=120,rate=44100;TonalAnalysis analysis;};
+    std::map<juce::String,KeyAnalysis> keyAnalyses;
     EffectRack* effects=nullptr;
     juce::AudioPlayHead* playHead=nullptr;
     bool nonRealtime=false,renderingInstruments=false;
