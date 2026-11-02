@@ -174,7 +174,7 @@ public:
             if(select)select(id);if(play)play(pressedNote,true);break;
         }
     }
-    void mouseDoubleClick(const juce::MouseEvent& e) override {if(!edit)return;releaseKey();for(int n=0;n<(int)instruments.size();++n)if(cell(n).contains(e.getPosition())){edit(instruments[(size_t)n].id);return;}}
+    void mouseDoubleClick(const juce::MouseEvent&) override {}
     bool keyPressed(const juce::KeyPress& key) override {if(remove && selected.isNotEmpty() && key.getKeyCode()==juce::KeyPress::deleteKey){remove(selected);return true;}return false;}
     void mouseDrag(const juce::MouseEvent& e) override {
         if(dragId.isEmpty() || e.getPosition().getDistanceFrom(dragStart)<6)return;

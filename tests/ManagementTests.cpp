@@ -249,7 +249,7 @@ void runManagementTests()
         auto moved=track.getLibrary().snapshot().kits[0].groups[0].instruments;
         check(moved[0].id==second && moved[1].id==third && moved[2].id==first,"Pad drag did not insert and shift intervening pads");
         check(moved[0].note==21 && moved[1].note==22 && moved[2].note==23,"Pad drag left gaps in MIDI assignments");
-        pads->mouseDoubleClick(event(start));check(control(main,"sound-editor")->isVisible(),"Double-click did not open Edit for a kit tile");check(dynamic_cast<juce::TextButton*>(control(main,"close-sound-editor"))->getButtonText()=="Exit","Edit close button must say Exit");
+        pads->mouseDoubleClick(event(start));check(!control(main,"sound-editor")->isVisible(),"Double-click opened Edit for a kit tile");click(main,"open-sound-editor");check(dynamic_cast<juce::TextButton*>(control(main,"close-sound-editor"))->getButtonText()=="Exit","Edit close button must say Exit");
         check(dynamic_cast<juce::TextButton*>(control(main,"open-sound-editor"))->getButtonText()=="Edit","Edit button still says Sound");click(main,"close-sound-editor");
         screenshot(main,"drum-toolbar-kit.png");click(main,"library-menu");
         juce::TextButton* back=nullptr;std::function<void(juce::Component&)> findBack=[&](juce::Component& c){if(auto* b=dynamic_cast<juce::TextButton*>(&c);b && b->getComponentID()=="kit-menu" && b->getButtonText()=="Close" && b->isVisible())back=b;for(auto* child:c.getChildren())findBack(*child);};findBack(main);
@@ -260,7 +260,7 @@ void runManagementTests()
         auto* libraryPads=control(*libraryScreen,"instrument-grid");int librarySide=(libraryPads->getWidth()-60)/6;
         juce::Point<float> plus{float(librarySide-18),18};auto plusEvent=juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),plus,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,libraryPads,libraryPads,now,plus,now,1,false);
         libraryPads->mouseDown(plusEvent);libraryPads->mouseUp(plusEvent);check(drum::instrumentCount(track.getLibrary().snapshot().kits[0])==countBefore+2,"Tile plus did not add to the one active kit");
-        auto tileEvent=plusEvent.withNewPosition(juce::Point<float>{float(librarySide/2),60.0f});libraryPads->mouseDoubleClick(tileEvent);check(control(*libraryScreen,"sound-editor")->isVisible(),"Library tile double-click did not open Edit");click(*libraryScreen,"close-sound-editor");
+        auto tileEvent=plusEvent.withNewPosition(juce::Point<float>{float(librarySide/2),60.0f});libraryPads->mouseDoubleClick(tileEvent);check(!control(*libraryScreen,"sound-editor")->isVisible(),"Library tile double-click opened Edit");
         check(libraryPads->keyPressed(juce::KeyPress(juce::KeyPress::deleteKey)),"Selected Library instrument did not handle Delete");
         juce::MessageManager::getInstance()->runDispatchLoopUntil(30);auto* removal=dynamic_cast<juce::AlertWindow*>(juce::Component::getCurrentlyModalComponent());check(removal!=nullptr,"Delete did not request confirmation");removal->exitModalState(0);juce::MessageManager::getInstance()->runDispatchLoopUntil(30);
         check(track.libraryEditorProcessor()->getLibrary().snapshot().kits[0].groups[0].instruments.size()==1,"Cancelling Delete removed the library sound");

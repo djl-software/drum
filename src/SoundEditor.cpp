@@ -468,7 +468,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
 {
     setComponentID("sound-editor"); setOpaque(true);addAndMakeVisible(chain);
     addAndMakeVisible(noteIndicator);noteIndicator.setComponentID("note-indicator");noteIndicator.setFont(juce::FontOptions(11));noteIndicator.setColour(juce::Label::textColourId,mint);
-    noteIndicator.setTooltip("MIDI trigger is the pad assignment. Preview pitch/key is estimated from processed audio, before external effects. A single drum note cannot establish major/minor key. Manual key labels are saved per instrument.");
+    noteIndicator.setTooltip("MIDI trigger is the pad assignment. Preview pitch/key is calculated from processed audio, before external effects. A single drum note cannot establish major/minor key. Manual key labels are saved per instrument.");
     auto button=[this](juce::TextButton& b,const char* title,const char* id) {addAndMakeVisible(b); b.setButtonText(title); b.setComponentID(id);};
     button(back,"Exit","close-sound-editor"); back.onClick=[this]{if(close)close();};
     button(reset,"Reset page","reset-edit-page"); reset.onClick=[this]{
@@ -485,7 +485,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
     auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);useValueBar(slider);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,juce::Colours::white);label.setFont(juce::FontOptions(14));label.setJustificationType(juce::Justification::centredRight);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
-    keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Applies to the instrument across all tabs.");addAndMakeVisible(keyStatus);keyStatus.setColour(juce::Label::textColourId,muted);keyStatus.setFont(juce::FontOptions(12));
+    keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Applies to the instrument across all tabs.");addAndMakeVisible(keyStatus);keyStatus.setComponentID("tune-key");keyStatus.setColour(juce::Label::textColourId,ink);keyStatus.setFont(juce::FontOptions(20));
     for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
     addAndMakeVisible(viewport); viewport.setComponentID("sound-controls");viewport.setViewedComponent(&content,false); viewport.setScrollBarsShown(true,false); viewport.setScrollBarThickness(8);
     addAndMakeVisible(*waveform);
@@ -744,10 +744,14 @@ void SoundEditor::refreshPreview()
     else if(analysis.midi<0)description+="no reliable pitch";
     else if(analysis.varying)description+=drum::musicalNote(analysis.lowMidi)+" to "+drum::musicalNote(analysis.highMidi)+" (varies)";
     else description+=drum::musicalNote(analysis.midi)+" / "+juce::String(440*std::pow(2.0,(analysis.midi-69)/12),1)+" Hz";
-    description+=busy?"     Key: analysing...":"     Key (spectrum estimate): "+drum::spectrumKey(analysis);
+    description+=busy?"     Key: analysing...":"     Key: "+drum::spectrumKey(analysis);
     noteIndicator.setText(description,juce::dontSendNotification);
     keySpectrum->update(analysis,busy,selectedSample!=nullptr);
-    juce::String detail=busy?"Analysing...":"Key: "+drum::spectrumKey(analysis)+" (highest-power note estimate). Octaves combined; strongest column = 0 dB.";
+    const auto& keyAnalysis=busy && selectedSample?selectedSample->tonal:analysis;
+    const double keyTranspose=busy?selectedControls.tuning+selectedControls.sound.detune/100.0:0.0;
+    const int keyNote=drum::strongestNote(keyAnalysis,keyTranspose);
+    juce::String detail=!selectedSample?"Key: load a sample":keyNote<0?"Key: no signal":
+        "Key: "+drum::spectrumKey(keyAnalysis,keyTranspose)+"     Camelot: "+drum::camelotCode(keyNote)+" (major) / "+drum::camelotCode(keyNote+12)+" (minor)";
     keyStatus.setText(detail,juce::dontSendNotification);
     syncEnvelopeOverlay();
 }

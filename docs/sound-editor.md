@@ -279,3 +279,7 @@ Drum Link opens collapsed; expand it when needed. Unassigned keys show Live-styl
 Group boundaries: Setup has separate Kit and Library entries, applying to the active collection of that type. 0 keeps notes contiguous; 0.5 starts each following nonempty group at the next available C or F#; 1 starts it at C. The first group still begins at A-1 (MIDI 21). A boundary already reached is reused, not skipped. Empty groups use no keys. Gaps count against the MIDI 21–108 range; changes that exceed it are rejected. Saved collections retain their boundary, and older collections default to continuous. Live notes follow boundary changes only with a connected companion and automatic clip updates enabled.
 
 The group-boundary menu labels are None, Half octave and Octave (formerly 0, 0.5 and 1). Setup > About Drum shows the version. The former Update toolbar action is now Setup > Reconnect to Ableton, for initial Configure linkage or retrying automatic rack setup. Normal connected editing needs no manual update.
+
+## Tune key display and tile clicks
+
+Open an instrument with **Edit**; double-clicking a tile does not open the editor. Tune shows the highest-power note prominently beside its major and minor Camelot references. For example, A shows 11B (major) / 8A (minor); a single note does not determine a major/minor scale. The readout follows Coarse and Fine immediately while the edited-audio analysis refreshes in the background.
