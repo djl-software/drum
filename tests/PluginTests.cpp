@@ -20,6 +20,7 @@ void runEqualizerTests();
 void runPadTests();
 void runChainTests(const juce::String&,const juce::String&);
 void runBuiltinTests();
+void runCreativeTests();
 void runTrackLibraryTests();
 void runPatternTests();
 void runChainSmoke(const juce::String&);
@@ -27,6 +28,7 @@ void runVst3PlaybackTest(const juce::String&);
 
 int main(int argc, char** argv)
 {
+    std::cout<<std::unitbuf;
     auto isolatedLibrary=juce::File::getCurrentWorkingDirectory().getChildFile("test-shared-"+juce::Uuid().toString()+"/kits.xml").getFullPathName();
 #if JUCE_WINDOWS
     _putenv_s("DJL_DRUM_TEST_LIBRARY",isolatedLibrary.toRawUTF8());
@@ -100,6 +102,7 @@ int main(int argc, char** argv)
         runEqualizerTests();
         runPadTests();
         runBuiltinTests();
+        runCreativeTests();
         runTrackLibraryTests();
         runPatternTests();
         std::cout << "Drum processor tests passed\n";

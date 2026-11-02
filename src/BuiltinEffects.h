@@ -4,9 +4,11 @@
 #include <juce_dsp/juce_dsp.h>
 #include <optional>
 #include "SpectrumAnalyzer.h"
+#include "BuiltinKind.h"
+#include "CreativeDSP.h"
 
 namespace drum {
-enum class BuiltinKind { eq, compressor, transient, saturation, clipper, limiter, gate, utility, stereoWidth };
+
 juce::String builtinName(BuiltinKind);
 juce::PluginDescription builtinDescription(BuiltinKind);
 bool isBuiltin(const juce::PluginDescription&);
@@ -22,17 +24,21 @@ public:
     explicit BuiltinEffect(BuiltinKind);
     const juce::String getName() const override {return "Drum "+builtinName(kind);}
     bool acceptsMidi() const override{return false;} bool producesMidi() const override{return false;}
-    double getTailLengthSeconds() const override{return kind==BuiltinKind::stereoWidth?.03:0;}
+    double getTailLengthSeconds() const override;
     bool hasEditor() const override{return true;} juce::AudioProcessorEditor* createEditor() override;
     int getNumPrograms() override{return 1;} int getCurrentProgram() override{return 0;}
     void setCurrentProgram(int) override{} const juce::String getProgramName(int) override{return {};}
     void changeProgramName(int,const juce::String&) override{}
-    bool isBusesLayoutSupported(const BusesLayout& l) const override{return l.getMainInputChannelSet()==juce::AudioChannelSet::stereo() && l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
+    bool isBusesLayoutSupported(const BusesLayout& l) const override{return l.getMainInputChannelSet()==juce::AudioChannelSet::stereo() && l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo() && (l.inputBuses.size()==1 || l.inputBuses[1].isDisabled() || l.inputBuses[1]==juce::AudioChannelSet::stereo());}
     void prepareToPlay(double,int) override; void releaseResources() override{} void reset() override;
     void processBlock(juce::AudioBuffer<float>&,juce::MidiBuffer&) override;
     void getStateInformation(juce::MemoryBlock&) override; void setStateInformation(const void*,int) override;
     Equalizer equalizer() const; void setEqualizer(const Equalizer&);
     void resetParameters();
+    void swapComparison();
+    std::atomic<bool> auditionBypass{false},levelMatch{false};
+    bool comparisonB=false;
+    std::atomic<float> dynamicGain{0},detectorLevel{0},matchGain{1};
     const BuiltinKind kind;
     std::vector<juce::AudioParameterFloat*> controls;
     std::atomic<bool> monoCheck{false},stereoActive{false};
@@ -42,6 +48,10 @@ public:
 private:
     void parameter(const juce::String&,float,float,float,const juce::String& unit={});
     juce::AudioBuffer<float> widthDelay;int widthWrite=0;float bassL=0,bassR=0;double energyL=0,energyR=0,crossEnergy=0;juce::SmoothedValue<float> monoBlend;
+    CreativeDSP creative;
+    juce::AudioBuffer<float> dryAudio;juce::dsp::DelayLine<float> dryLatency{128};juce::SmoothedValue<float> bypassBlend,matchSmooth;double dryEnergy=0,wetEnergy=0;
+    std::array<std::vector<float>,2> comparisons;
+    float detectorLowL=0,detectorLowR=0,tubeDcL=0,tubeDcR=0;
     VoiceEqualizer eq;
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
     std::vector<juce::SmoothedValue<float>> smooth;

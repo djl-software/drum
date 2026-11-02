@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.19.0 adds Dynamic EQ, Bitcrusher, Tempo Delay, sidechain Ducker, Room, Resonator and Frequency Shifter to the per-instrument chain. Built-in processors gain temporary level-matched bypass and A/B comparison. Saturation has Soft/Tube/Hard characters, Compressor has detector filtering and a reduction meter, and EQ point moves retain filter history with 20 ms smoothing.
+
 Version 0.18.0 links edits between instances using the same saved kit in one host process, adds instrument dragging onto group rows, shows pan as L/C/R, and explains unsupported Ableton Content AIFF files with an assisted rendered-WAV import. Conversion must be performed in Live; no Ableton samples are bundled.
 
 Version 0.17.9 restores normal Save behaviour: current files save silently; Save As confirms replacement. Kit names follow filenames on Save As and Load, including older files with stale internal names. Rename starts an unsaved copy name and preserves the original file.

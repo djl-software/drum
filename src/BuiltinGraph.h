@@ -6,9 +6,9 @@ namespace drum {
 class BuiltinGraph final : public juce::Component
 {
 public:
-    explicit BuiltinGraph(BuiltinEffect& p):effect(p){setComponentID("builtin-graph");}
-    ~BuiltinGraph() override{if(effect.waveform)effect.waveform->enabled.store(false);}
-    void tick(){if(effect.waveform){effect.waveform->enabled.store(isShowing());effect.waveform->consume([&](float l,float r){waveL[waveCursor]=std::isfinite(l)?l:0;waveR[waveCursor]=std::isfinite(r)?r:0;waveCursor=(waveCursor+1)%waveL.size();});}in[cursor]=effect.inputPeak.load();out[cursor]=effect.outputPeak.load();cursor=(cursor+1)%in.size();repaint();}
+    explicit BuiltinGraph(BuiltinEffect& p):effect(p){if(p.kind==BuiltinKind::dynamicEq)spectrumAnalysis=std::make_unique<SpectrumAnalysis>();setComponentID("builtin-graph");}
+    ~BuiltinGraph() override{if(effect.kind==BuiltinKind::dynamicEq && effect.spectrum)effect.spectrum->enabled.store(false);if(effect.waveform)effect.waveform->enabled.store(false);}
+    void tick(){if(effect.kind==BuiltinKind::dynamicEq && effect.spectrum){effect.spectrum->enabled.store(isShowing());spectrumAnalysis->update(*effect.spectrum);}if(effect.waveform){effect.waveform->enabled.store(isShowing());effect.waveform->consume([&](float l,float r){waveL[waveCursor]=std::isfinite(l)?l:0;waveR[waveCursor]=std::isfinite(r)?r:0;waveCursor=(waveCursor+1)%waveL.size();});}in[cursor]=effect.inputPeak.load();out[cursor]=effect.outputPeak.load();cursor=(cursor+1)%in.size();repaint();}
     void paint(juce::Graphics& g) override
     {
         auto a=plot();g.fillAll(juce::Colour(0xff10151f));g.setFont(juce::FontOptions(11));
@@ -18,7 +18,17 @@ public:
             for(int channel=0;channel<2;++channel){const bool delayed=(value(1)>=.5f)==(channel==1);const float y=40+channel*40,delay=delayed?value(0):0;g.setColour(channel?amber:blue);g.drawText(channel?"Right":"Left",24,(int)y-12,60,24,juce::Justification::centredLeft);g.drawLine(zero,y,start+width,y,2);const float mark=zero+delay/30*(width*.6f);g.fillEllipse(mark-5,y-5,10,10);g.drawText(juce::String(delay,1)+" ms",(int)mark+10,(int)y-12,90,24,juce::Justification::centredLeft);}
             const float corr=effect.correlation.load(),y=135;g.setColour(juce::Colour(0xff2b3648));g.fillRoundedRectangle(start,y,width,12,4);g.setColour(corr<0?juce::Colour(0xffff687d):corr<.3f?amber:mint);g.fillEllipse(start+(corr+1)*.5f*width-6,y-2,16,16);
             g.setColour(juce::Colour(0xffe5ebf5));g.drawText(effect.stereoActive.load()?"Correlation "+juce::String(corr,2)+"    Mono change "+juce::String(effect.monoChange.load(),1)+" dB":"Play the instrument for a live mono compatibility check",24,157,getWidth()-48,24,juce::Justification::centredLeft);
-            g.setColour(effect.monoCheck.load()?amber:mint);g.drawText(effect.monoCheck.load()?"MONO AUDITION — this instrument":"STEREO — negative correlation can mean mono cancellation",24,4,getWidth()-48,24,juce::Justification::centredLeft);return;
+            g.setColour(effect.monoCheck.load()?amber:mint);g.drawText(effect.monoCheck.load()?"MONO AUDITION - this instrument":"STEREO - negative correlation can mean mono cancellation",24,4,getWidth()-48,24,juce::Justification::centredLeft);return;
+        }
+        if((int)effect.kind>=9){
+            const auto blue=juce::Colour(0xff68b6ff),mint=juce::Colour(0xff67dfc5),amber=juce::Colour(0xffffba69);g.setColour(juce::Colour(0xff2b3648));for(int n=0;n<=6;++n){g.drawVerticalLine((int)(a.getX()+n*a.getWidth()/6),a.getY(),a.getBottom());g.drawHorizontalLine((int)(a.getY()+n*a.getHeight()/6),a.getX(),a.getRight());}
+            juce::String description;
+            if(effect.kind==BuiltinKind::dynamicEq){Equalizer eq;eq.enabled=true;auto& band=eq.bands[0];band.enabled=true;band.frequency=value(0);band.q=value(1);band.gain=effect.dynamicGain.load();juce::Path curve,fill;fill.startNewSubPath(a.getX(),a.getBottom());for(int x=0;x<=(int)a.getWidth();++x){const double hz=20*std::pow(1000.,x/a.getWidth()),db=juce::Decibels::gainToDecibels((float)eqMagnitude(eq,hz,effect.getSampleRate()>0?effect.getSampleRate():44100));const float px=a.getX()+x,py=a.getCentreY()-(float)db*a.getHeight()/48;if(x==0)curve.startNewSubPath(px,py);else curve.lineTo(px,py);const float level=spectrumAnalysis->levelAt(hz,effect.spectrum->rate.load());fill.lineTo(px,a.getBottom()-juce::jlimit(0.f,1.f,(level+60)/60)*a.getHeight());}fill.lineTo(a.getRight(),a.getBottom());fill.closeSubPath();g.setColour(blue.withAlpha(.22f));g.fillPath(fill);g.setColour(mint);g.strokePath(curve,juce::PathStrokeType(2));description="Dynamic bell  "+juce::String(effect.dynamicGain.load(),1)+" dB  |  "+juce::String(value(0),0)+" Hz";}
+            else if(effect.kind==BuiltinKind::bitcrusher){juce::Path line;for(int x=0;x<=(int)a.getWidth();++x){float input=2*x/a.getWidth()-1,steps=std::pow(2.f,std::round(value(0))-1),v=std::round(juce::jlimit(-1.f,1.f,input*juce::Decibels::decibelsToGain(value(2)))*steps)/steps;auto p=juce::Point<float>(a.getX()+x,a.getCentreY()-v*a.getHeight()*.45f);if(x==0)line.startNewSubPath(p);else line.lineTo(p);}g.setColour(amber);g.strokePath(line,juce::PathStrokeType(2));description="Quantisation / sample hold  "+juce::String(value(0),0)+" bits / "+juce::String(value(1),0)+" Hz";}
+            else if(effect.kind==BuiltinKind::tempoDelay){for(int n=0;n<6;++n){float x=a.getX()+n*a.getWidth()/6,level=std::pow(value(3)*.01f,(float)n);g.setColour(n%2 && value(6)>.5?amber:blue);g.fillRect(x,a.getBottom()-level*a.getHeight()*.8f,8.f,level*a.getHeight()*.8f);}description="Echoes / filtered feedback";}
+            else if(effect.kind==BuiltinKind::ducker){float reduction=effect.reduction.load();g.setColour(amber);g.fillRect(a.withHeight(a.getHeight()*juce::jlimit(0.f,1.f,reduction/36)));description="Sidechain "+juce::String(juce::Decibels::gainToDecibels(effect.detectorLevel.load(),-100.f),1)+" dBFS / ducking "+juce::String(reduction,1)+" dB";}
+            else {juce::Path line;for(int x=0;x<=(int)a.getWidth();++x){const float t=x/a.getWidth(),decay=effect.kind==BuiltinKind::room?3+7*(1-value(1)):effect.kind==BuiltinKind::resonator?3.f:0.f;const float signal=std::sin(t*40)*std::exp(-decay*t);auto p=juce::Point<float>(a.getX()+x,a.getCentreY()-signal*a.getHeight()*.4f);if(x==0)line.startNewSubPath(p);else line.lineTo(p);}g.setColour(mint);g.strokePath(line,juce::PathStrokeType(2));description=effect.kind==BuiltinKind::frequencyShifter?"Frequency offset: "+juce::String(value(0),1)+" Hz":effect.kind==BuiltinKind::room?"Room decay illustration":"Resonance at "+juce::String(value(0),0)+" Hz";}
+            g.setColour(juce::Colour(0xffe5ebf5));g.setFont(juce::FontOptions(13));g.drawText(description,12,0,getWidth()-24,22,juce::Justification::centredLeft);return;
         }
         const bool nonlinear=effect.kind==BuiltinKind::saturation || effect.kind==BuiltinKind::clipper;
         const bool history=effect.kind==BuiltinKind::transient || effect.kind==BuiltinKind::utility;
@@ -36,7 +46,7 @@ public:
         }else{
             juce::Path curve;for(int i=0;i<=200;++i){float f=i/200.f,px=a.getX()+f*a.getWidth(),py=0;
                 if(nonlinear){float input=f*2-1,drive=juce::Decibels::decibelsToGain(value(0)),output=0;
-                    if(effect.kind==BuiltinKind::saturation){float wet=std::tanh(input*drive)/std::tanh(drive);output=(input+(wet-input)*value(1)*.01f)*juce::Decibels::decibelsToGain(value(2));}
+                    if(effect.kind==BuiltinKind::saturation){float wet=value(3)>=1.5f?juce::jlimit(-1.f,1.f,input*drive):value(3)>=.5f?(std::tanh((input+.2f)*drive)-std::tanh(.2f*drive))/juce::jmax(std::tanh(1.2f*drive)-std::tanh(.2f*drive),std::tanh(.2f*drive)-std::tanh(-.8f*drive)):std::tanh(input*drive)/std::tanh(drive);output=(input+(wet-input)*value(1)*.01f)*juce::Decibels::decibelsToGain(value(2));}
                     else {float ceiling=juce::Decibels::decibelsToGain(value(1)),v=input*drive/ceiling,soft=value(2)*.01f;output=((1-soft)*juce::jlimit(-1.f,1.f,v)+soft*std::tanh(v))*ceiling*juce::Decibels::decibelsToGain(value(3));}
                     py=a.getCentreY()-juce::jlimit(-1.f,1.f,output)*a.getHeight()*.5f;
                 }else{float input=-60+f*66,output=input;
@@ -59,6 +69,7 @@ public:
                 g.setColour(juce::Colours::white);g.fillEllipse(x(juce::Decibels::gainToDecibels(effect.inputPeak.load(),-60.f))-3,y(juce::Decibels::gainToDecibels(effect.outputPeak.load(),-60.f))-3,6,6);
             }
         }
+        if(dynamics()){const float gr=effect.reduction.load();g.setColour(juce::Colour(0xff2b3648));g.fillRect((float)getWidth()-8,a.getY(),5.f,a.getHeight());g.setColour(gr>12?juce::Colour(0xffff687d):juce::Colour(0xffffba69));g.fillRect((float)getWidth()-8,a.getY(),5.f,a.getHeight()*juce::jlimit(0.f,1.f,gr/36));}
         g.setColour(juce::Colour(0xff9aabba));g.drawText(effect.waveform?"Saturation curve":history?"Peak history: input blue / output green (8 seconds)":nonlinear?"Waveshaping: input -1 to +1 / output -1 to +1":"Transfer curve: input / output dBFS; white dot = measured peaks",8,0,effect.waveform?(int)a.getRight()-8:getWidth()-16,18,juce::Justification::centredLeft);
         g.drawText(nonlinear?"-1     Input     +1":history?"Earlier                                                     Now":"-60                        Input dBFS                        +6",a.toNearestInt().withY(getHeight()-19).withHeight(18),juce::Justification::centred);
         if(effect.waveform)drawWaveform(g);
@@ -86,6 +97,6 @@ private:
     bool dynamics() const{return effect.kind==BuiltinKind::compressor || effect.kind==BuiltinKind::limiter || effect.kind==BuiltinKind::gate;}
     int thresholdIndex() const{return effect.kind==BuiltinKind::limiter?1:0;}
     float value(int i) const{return effect.controls[(size_t)i]->get();}
-    BuiltinEffect& effect;std::array<float,120> in{},out{};size_t cursor=0;bool dragging=false;std::array<float,2048> waveL{},waveR{};size_t waveCursor=0;
+    std::unique_ptr<SpectrumAnalysis> spectrumAnalysis;BuiltinEffect& effect;std::array<float,120> in{},out{};size_t cursor=0;bool dragging=false;std::array<float,2048> waveL{},waveR{};size_t waveCursor=0;
 };
 }

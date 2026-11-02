@@ -87,10 +87,11 @@ class VoiceEqualizer
 {
     struct Section
     {
-        EqCoefficients c;
+        EqCoefficients c,target;int remaining=0;
         std::array<double,2> z1{},z2{};
         double process(double input,int channel)
         {
+            if(channel==0 && remaining>0){const double f=1.0/remaining--;c.b0+=(target.b0-c.b0)*f;c.b1+=(target.b1-c.b1)*f;c.b2+=(target.b2-c.b2)*f;c.a1+=(target.a1-c.a1)*f;c.a2+=(target.a2-c.a2)*f;}
             const auto n=(size_t)channel;const double y=c.b0*input+z1[n];
             z1[n]=c.b1*input-c.a1*y+z2[n];z2[n]=c.b2*input-c.a2*y;
             return y;
@@ -98,22 +99,24 @@ class VoiceEqualizer
     };
     struct Bank
     {
-        std::array<Section,96> sections{};int count=0;double gain=1;
+        std::array<Section,96> sections{};int count=0,gainRemaining=0;double gain=1,targetGain=1;
         void configure(const Equalizer& eq,double rate)
         {
             *this={};if(!eq.enabled)return;
             gain=std::pow(10.0,eq.output/20);
-            for(auto& b:eq.bands)for(int stage=0;stage<eqStages(b);++stage)sections[(size_t)count++].c=eqCoefficients(b,rate,stage);
+            for(auto& b:eq.bands)for(int stage=0;stage<eqStages(b);++stage){auto& section=sections[(size_t)count++];section.c=section.target=eqCoefficients(b,rate,stage);}
         }
+        void retarget(const Equalizer& eq,double rate){int n=0;const int length=std::max(1,(int)(rate*.02));if(eq.enabled)for(auto& b:eq.bands)for(int stage=0;stage<eqStages(b);++stage){auto& section=sections[(size_t)n++];section.target=eqCoefficients(b,rate,stage);section.remaining=length;}targetGain=eq.enabled?std::pow(10.0,eq.output/20):1;gainRemaining=length;}
         double process(double input,int channel)
-        {for(int n=0;n<count;++n)input=sections[(size_t)n].process(input,channel);return input*gain;}
+        {if(channel==0 && gainRemaining>0)gain+=(targetGain-gain)/gainRemaining--;for(int n=0;n<count;++n)input=sections[(size_t)n].process(input,channel);return input*gain;}
     };
 public:
     void reset(const Equalizer& eq,double rate) {settings=eq;current.configure(eq,rate);remaining=0;}
     void update(const Equalizer& eq,double rate)
     {
         if(eq==settings)return;
-        previous=current;current.configure(eq,rate);settings=eq;remaining=length=std::max(1,(int)(rate*0.005));
+        bool topology=eq.enabled==settings.enabled;if(eq.enabled)for(size_t n=0;n<eq.bands.size();++n){const auto& before=settings.bands[n];const auto& after=eq.bands[n];topology&=before.enabled==after.enabled && before.type==after.type && eqStages(before)==eqStages(after);}
+        if(topology)current.retarget(eq,rate);else{previous=current;current.configure(eq,rate);remaining=length=std::max(1,(int)(rate*0.01));}settings=eq;
     }
     void process(float& left,float& right)
     {

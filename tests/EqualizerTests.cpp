@@ -18,6 +18,7 @@ void capture(juce::Component& c,const char* name)
 }
 void runEqualizerTests()
 {
+    {drum::Equalizer settings;settings.enabled=true;settings.bands[0]={true,3,1000,12,8};drum::VoiceEqualizer moving,reference;moving.reset(settings,48000);reference.reset(settings,48000);double error=0;for(int n=0;n<48000;++n){if(n>=12000 && n%16==0){settings.bands[0].frequency=n%32?1000.01:1000;moving.update(settings,48000);}float input=.1f*(float)std::sin(juce::MathConstants<double>::twoPi*1000*n/48000),a=input,b=input,c=input,d=input;moving.process(a,b);reference.process(c,d);if(n>=12000)error=std::max(error,(double)std::abs(a-c));}check(error<.02,"Small repeated EQ moves reset filter history or distort steady audio");}
     for(double rate:{44100.0,48000.0,96000.0})for(int type=0;type<8;++type)for(double bandGain:{9.0,-60.0})
     {
         drum::Equalizer eq;eq.enabled=true;eq.bands[0]={true,type,1000,bandGain,0.70710678};
