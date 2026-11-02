@@ -5,8 +5,7 @@ DrumAudioProcessor::DrumAudioProcessor(bool track)
     : AudioProcessor([] {
         BusesProperties buses;
         buses=buses.withOutput("Output",juce::AudioChannelSet::stereo(),true);
-        for(int n=2;n<=16;++n) buses=buses.withOutput("Out "+juce::String(n),juce::AudioChannelSet::stereo(),false);
-        for(int n=0;n<6;++n) buses=buses.withOutput("Send "+juce::String::charToString((juce::juce_wchar)('A'+n)),juce::AudioChannelSet::stereo(),false);
+        for(int n=1;n<22;++n){const int logical=drum::outputBusIndex(n);const auto name=logical<16?"Out "+juce::String(logical+1):"Send "+juce::String::charToString((juce::juce_wchar)('A'+logical-16));buses=buses.withOutput(name,juce::AudioChannelSet::stereo(),false);}
         return buses;
     }()),trackInstance(track),library(track)
 {
@@ -104,7 +103,7 @@ void DrumAudioProcessor::prepareToPlay(double rate, int blockSize)
     for(int n=0;n<getBusCount(false);++n)
     {
         auto count=getChannelCountOfBus(false,n);
-        if(count>0) { channels[(size_t)n]=offset; offset+=count; }
+        if(count>0) { channels[(size_t)drum::outputBusIndex(n)]=offset; offset+=count; }
     }
     sampleEngine.setOutputChannels(channels,getMainBusNumOutputChannels());
     if(libraryPreview){libraryPreview->setRateAndBufferSizeDetails(rate,blockSize);libraryPreview->prepareToPlay(rate,blockSize);previewBuffer.setSize(2,juce::jmax(1,blockSize));}

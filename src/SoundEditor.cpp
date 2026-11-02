@@ -787,7 +787,7 @@ void SoundEditor::refreshPreview()
     drum::EnvelopeShape cycle=sound.envelopes[3];if(sound.lfoShape!=6 || cycle.count<2){cycle={};cycle.count=sound.lfoShape==6?2:9;cycle.hold=0;for(int n=0;n<cycle.count;++n){const double phase=(double)n/(cycle.count-1);double level=.5;switch((int)sound.lfoShape){case 0:level=.5+.5*std::sin(phase*juce::MathConstants<double>::twoPi);break;case 1:level=1-2*std::abs(phase-.5);break;case 2:level=phase<.5?1:0;break;case 3:level=phase;break;case 4:level=1-phase;break;case 5:level=std::fmod(std::sin(std::floor(phase*8)+1)*43758.5453,1.0);if(level<0)level+=1;break;}cycle.points[(size_t)n]={phase*1000,level};}if(sound.lfoShape==0)for(int n=1;n<cycle.count;++n){const double phase=(n-.5)/(cycle.count-1);drum::bendEnvelopeSegment(cycle.points[(size_t)n-1].level,cycle.points[(size_t)n],.5,.5+.5*std::sin(phase*juce::MathConstants<double>::twoPi));}}
     lfoGraph->update({},cycle,false,1,"%",true,"One cycle / click to add / drag line to curve / Shift: fine",false);lfoGraph->setHistory(!lfoUndo.empty(),!lfoRedo.empty());
     routing->settings=selectedControls.sound;for(int n=0;n<drum::numMacros;++n){const auto& mapping=selectedControls.macros[(size_t)n];if(mapping.target>3)routing->settings.*(drum::macroTargets[(size_t)mapping.target].member)=mapping.minimum+(mapping.maximum-mapping.minimum)*processor.macro(n).get();}
-    routing->instrument=name;routing->hasChain=chainPresent;for(int n=0;n<22;++n){auto* bus=processor.getBus(false,n);routing->enabled[(size_t)n]=bus && bus->isEnabled();}if(page==4)routing->repaint();
+    routing->instrument=name;routing->hasChain=chainPresent;for(int n=0;n<22;++n){auto* bus=processor.getBus(false,drum::outputBusIndex(n));routing->enabled[(size_t)n]=bus && bus->isEnabled();}if(page==4)routing->repaint();
     syncEnvelopeOverlay();
 }
 void SoundEditor::syncEnvelopeOverlay()
@@ -877,12 +877,12 @@ void SoundEditor::paint(juce::Graphics& g)
         "Click line: add point. Drag point: move. Drag line: curve. Double-click point: remove. Right-click: hold at S.",
         "16-band EQ. Select and enable bands below. Drag a point for frequency/gain; wheel adjusts Q.",
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
-        "Enable the desired plug-in outputs in your DAW. Sends are post-fader stereo outputs; add effects on receiving tracks.",
+        "Sends are plug-in audio outputs, not Live return tracks. Connect a receiving audio track in your DAW.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
         "Add Click, Pulse or Noise independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note.",
         "Drag VST3 effects into this instrument\'s chain. Audio flows left to right. The waveform shows the sound before this chain.",
         "C through B, combined across octaves. Coarse = semitones; Fine = cents. The spectrum follows the edited sound."};
-    text(g,help[page],{page==1?376:18,116,getWidth()-(page==2?470:page==1?528:36),24},12,muted);
+    text(g,help[page],{page==1?376:18,116,getWidth()-(page==2?470:page==1?528:page==6?270:36),24},12,muted);
     text(g,message.isEmpty()?"Non-destructive edits. The original audio file is preserved.":message,{18,getHeight()-29,getWidth()-36,23},11,muted);
 }
 void SoundEditor::resized()
@@ -893,7 +893,7 @@ void SoundEditor::resized()
     constexpr int order[]{0,1,2,6,3,8,7,4,5};
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)order[n]].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
     ampOverlay.setBounds(18,116,112,24);pitchOverlay.setBounds(136,116,112,24);
-    adsrValues.setBounds(getWidth()-146,116,128,24);attackOnly.setBounds(18,116,220,24);
+    adsrValues.setBounds(getWidth()-146,116,128,24);attackOnly.setBounds(getWidth()-238,116,220,24);
     eqTab.setBounds(getWidth()-446,116,126,24);filterTab.setBounds(254,116,112,24);
     int graphHeight=0;
     const int graphWidth=getWidth()-36;

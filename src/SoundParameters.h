@@ -7,6 +7,10 @@
 
 namespace drum
 {
+// Keep all six sends in the first 16 host-visible stereo buses.
+// Logical outputs retain their saved identities; this mapping is its own inverse.
+inline int outputBusIndex(int bus){return bus>=10 && bus<16?bus+6:bus>=16 && bus<22?bus-6:bus;}
+
 // One registry supplies state validation, persistence and the editor. Values are
 // plain scalars so an immutable render bank can copy them without allocations.
 #define DRUM_SOUND_PARAMETERS(X) \

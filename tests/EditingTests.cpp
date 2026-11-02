@@ -100,11 +100,14 @@ void runEditingTests()
     r.controls={};r.controls.macros[0]={1,-6.020599913,0};r.set();r.p.macro(0).setValueNotifyingHost(0);r.reset();r.hit();r.render();near(r.audio.getSample(0,0),0.125f,"Macro gain mapping failed");
     r.p.macro(0).setValueNotifyingHost(1);r.render();near(r.audio.getSample(0,400),0.25f,"Macro automation did not update playing voice");
     r.controls={};r.controls.sound.output=1;r.controls.sound.sendA=-6.020599913;r.set();r.reset();r.hit();r.render();near(r.audio.getSample(0,0),0.25f,"Disabled output did not fall back to Main");
-    auto layout=r.p.getBusesLayout();layout.outputBuses.set(1,juce::AudioChannelSet::stereo());layout.outputBuses.set(16,juce::AudioChannelSet::stereo());
+    auto layout=r.p.getBusesLayout();layout.outputBuses.set(1,juce::AudioChannelSet::stereo());layout.outputBuses.set(drum::outputBusIndex(16),juce::AudioChannelSet::stereo());
     check(r.p.setBusesLayout(layout),"Aux outputs rejected");r.reset();r.hit();r.render();
     near(r.audio.getMagnitude(0,0,4096),0,"Routed sound leaked to Main");near(r.audio.getSample(2,0),0.25f,"Aux output silent");near(r.audio.getSample(4,0),0.125f,"Send output incorrect");
     layout.outputBuses.set(0,juce::AudioChannelSet::mono());check(r.p.setBusesLayout(layout),"Mono plus auxiliary outputs rejected");r.reset();r.hit();r.render();near(r.audio.getSample(1,0),0.25f,"Aux offset after mono Main incorrect");near(r.audio.getSample(3,0),0.125f,"Send offset after mono Main incorrect");
 
+    for(int n=0;n<22;++n)check(drum::outputBusIndex(drum::outputBusIndex(n))==n,"Output bus mapping is not reversible");
+    for(int n=0;n<6;++n)check(drum::outputBusIndex(16+n)<16 && r.p.getBus(false,drum::outputBusIndex(16+n))->getName()=="Send "+juce::String::charToString((juce::juce_wchar)('A'+n)),"Send exceeds Live output limit");
+    layout=r.p.getBusesLayout();for(int n=0;n<layout.outputBuses.size();++n)layout.outputBuses.set(n,juce::AudioChannelSet::disabled());layout.outputBuses.set(0,juce::AudioChannelSet::stereo());layout.outputBuses.set(drum::outputBusIndex(19),juce::AudioChannelSet::stereo());check(r.p.setBusesLayout(layout),"Send D layout rejected");r.controls={};r.controls.sound.sendD=-6.020599913;r.set();r.reset();r.hit();r.render();near(r.audio.getSample(0,0),.25f,"Send D changed main signal");near(r.audio.getSample(2,0),.125f,"Send D host output is silent");
     r.controls={};for(auto& p:drum::soundParameters)
     {
         auto value=p.minimum+(p.maximum-p.minimum)*0.25;if(p.step==1)value=std::floor(value);

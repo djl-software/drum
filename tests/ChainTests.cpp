@@ -40,7 +40,7 @@ struct Setup
         a=processor.getLibrary().addInstrument(kit,group).id;b=processor.getLibrary().addInstrument(kit,group).id;
         processor.getLibrary().setEffects(kit,a,{});processor.getLibrary().setEffects(kit,b,{});
         processor.getLibrary().rename(a,"Kick");processor.getLibrary().rename(b,"Snare");
-        auto routes=processor.getBusesLayout();routes.outputBuses.set(1,juce::AudioChannelSet::stereo());routes.outputBuses.set(2,juce::AudioChannelSet::stereo());routes.outputBuses.set(16,juce::AudioChannelSet::stereo());
+        auto routes=processor.getBusesLayout();routes.outputBuses.set(1,juce::AudioChannelSet::stereo());routes.outputBuses.set(2,juce::AudioChannelSet::stereo());routes.outputBuses.set(drum::outputBusIndex(16),juce::AudioChannelSet::stereo());
         check(processor.setBusesLayout(routes),"Chain output layout failed");processor.prepareToPlay(48000,64);
         auto& engine=processor.getSampleEngine();engine.requestLoad(kit,a,sampleFile("kick",0.25f));engine.requestLoad(kit,b,sampleFile("snare",0.5f));check(engine.waitForLoading(10000),"Chain sources failed");
         drum::InstrumentControls c;c.sound.output=1;c.sound.sendA=-6.020599913;processor.getLibrary().setControls(kit,a,c);c.sound.output=2;c.sound.sendA=-60;processor.getLibrary().setControls(kit,b,c);

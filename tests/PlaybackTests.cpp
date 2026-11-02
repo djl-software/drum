@@ -219,7 +219,7 @@ void runVst3PlaybackTest(const juce::String& path)
     envelope.getChildByName("IComponent")->deleteAllTextElements();envelope.getChildByName("IComponent")->addTextElement(state.toBase64Encoding());
     juce::AudioProcessor::copyXmlToBinary(envelope,hostState);plugin->setStateInformation(hostState.getData(),(int)hostState.getSize());
     auto routing=plugin->getBusesLayout();check(routing.outputBuses.size()==22,"Compiled VST3 missing output buses");
-    routing.outputBuses.set(1,juce::AudioChannelSet::stereo());routing.outputBuses.set(16,juce::AudioChannelSet::stereo());
+    routing.outputBuses.set(1,juce::AudioChannelSet::stereo());routing.outputBuses.set(drum::outputBusIndex(16),juce::AudioChannelSet::stereo());
     check(plugin->setBusesLayout(routing),"Compiled VST3 rejected output routing");plugin->prepareToPlay(48000,256);output.setSize(6,256);
     bool editedPlayed=false;
     for(int attempt=0;attempt<500;++attempt)
