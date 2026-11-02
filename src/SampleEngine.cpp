@@ -2,6 +2,7 @@
 #include "SampleEngine.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <set>
 
 namespace drum
@@ -112,7 +113,20 @@ std::shared_ptr<const Sample> SampleEngine::decode(const juce::File& file, juce:
     auto key=file.getFullPathName()+"|"+juce::String(file.getLastModificationTime().toMilliseconds())+"|"+juce::String(file.getSize());
     if(auto cached=cache[key].lock()) return cached;
     std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(file));
-    if(!reader) { error="Unsupported or damaged audio file."; return {}; }
+    if(!reader) {
+        error="Unsupported or damaged audio file.";
+        if(file.hasFileExtension("aif;aiff"))if(auto stream=file.createInputStream()){
+            char header[12]{};if(stream->read(header,12)==12 && std::memcmp(header,"FORM",4)==0 && std::memcmp(header+8,"AIFC",4)==0){
+                while(stream->getPosition()+8<=stream->getTotalLength()){
+                    char chunk[4]{};stream->read(chunk,4);auto length=(uint32_t)stream->readIntBigEndian();auto end=stream->getPosition()+(juce::int64)length+(length&1);
+                    if(end>stream->getTotalLength())break;
+                    if(std::memcmp(chunk,"COMM",4)==0 && length>=22){char common[22]{};stream->read(common,22);if(std::memcmp(common+18,"able",4)==0)error="Ableton Content sample: render this sound to WAV in Live, then import the rendered WAV into Drum.";break;}
+                    stream->setPosition(end);
+                }
+            }
+        }
+        return {};
+    }
     if(reader->numChannels<1 || reader->numChannels>2 || !std::isfinite(reader->sampleRate)
         || reader->sampleRate<8000 || reader->sampleRate>384000 || reader->lengthInSamples<1
         || reader->lengthInSamples>reader->sampleRate*30.0

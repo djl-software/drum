@@ -7,15 +7,17 @@
 #include "PortableFiles.h"
 #include "PatternPlayer.h"
 #include "LiveKitLink.h"
+#include "LinkedKits.h"
 #include <map>
 
-class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater
+class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater, private juce::Timer
 {
 public:
     explicit DrumAudioProcessor(bool trackInstance=false);
     bool isMidiTrack() const{return trackInstance;}
     bool hasOpenKit() const{return !trackInstance || kitOpened.load();}
     void newKit();
+    void syncLinkedKit(bool preferLocal=false);
     drum::Result duplicateActiveKit();
     drum::Result renameActiveKit(const juce::String&);
     drum::Result saveDocument(const juce::File&);
@@ -80,6 +82,13 @@ private:
     const bool trackInstance;
     std::atomic<bool> kitOpened{false};
     juce::File currentDocument;
+    juce::SharedResourcePointer<LinkedKits> linkedKits;
+    juce::String linkedKey;
+    uint64_t linkedRevision=0,linkedLocalRevision=0;
+    std::array<float,drum::numMacros> linkedMacros {};
+    void detachLinkedKit();
+    void timerCallback() override {syncLinkedKit();}
+
     struct LibraryDocument {juce::File file;std::unique_ptr<juce::XmlElement> baseline;};
     std::map<juce::String,LibraryDocument> libraryDocuments;
     mutable juce::CriticalSection libraryDocumentLock;

@@ -288,5 +288,39 @@ void runManagementTests()
     if(auto path=juce::SystemStats::getEnvironmentVariable("DJL_DRUM_WORKSPACE_FIXTURE",{});path.isNotEmpty()){
         auto xml=juce::parseXML(juce::File(path));DrumAudioProcessor fixture;check(xml && fixture.restoreLibraryWorkspace(*xml),"Workspace fixture restore failed");check(!fixture.libraryDocumentsDirty(),"Unedited real workspace reported dirty");fixture.getEffects().sync();fixture.getEffects().capture();check(!fixture.libraryDocumentsDirty(),"Loading unchanged effects marked real workspace dirty");DrumAudioProcessorEditor fixtureEditor(fixture);juce::MessageManager::getInstance()->runDispatchLoopUntil(100);juce::Timer::callPendingTimersSynchronously();fixture.getEffects().capture();check(!fixture.libraryDocumentsDirty(),"Opening Library UI marked real workspace dirty");
     }
+    {
+        DrumAudioProcessor source(true),peer(true);source.newKit();auto initial=source.getLibrary().snapshot();auto id=initial.activeKit;
+        auto instrument=source.getLibrary().addInstrument(id,initial.kits[0].groups[0].id);good(instrument);
+        auto file=juce::File::getCurrentWorkingDirectory().getChildFile("linked-"+juce::Uuid().toString()+"/Shared.drumkit");good(source.saveDocument(file));good(peer.openDocument(file));
+        good(source.getLibrary().rename(instrument.id,"Linked kick"));source.syncLinkedKit();peer.syncLinkedKit();
+        check(peer.getLibrary().snapshot().kits[0].groups[0].instruments[0].name=="Linked kick","Same-file kit edit did not propagate");
+        auto controls=peer.getLibrary().snapshot().kits[0].groups[0].instruments[0].controls;controls.pan=-.5;good(peer.getLibrary().setControls(id,instrument.id,controls));peer.syncLinkedKit();source.syncLinkedKit();
+        check(source.getLibrary().snapshot().kits[0].groups[0].instruments[0].controls.pan==-.5,"Linked controls did not propagate in reverse");
+        source.macro(0).setValueNotifyingHost(.8f);source.syncLinkedKit();peer.syncLinkedKit();check(std::abs(peer.macro(0).get()-.8f)<.001f,"Linked macro did not propagate");
+        auto effects=drum::factoryChain(1);good(source.getLibrary().setEffects(id,instrument.id,effects));source.syncLinkedKit();peer.syncLinkedKit();
+        check(peer.getLibrary().snapshot().kits[0].groups[0].instruments[0].effects.size()==effects.size(),"Linked effect chain did not propagate");
+        auto group=source.getLibrary().addGroup(id);good(group);good(source.getLibrary().moveInstrument(id,instrument.id,group.id));source.syncLinkedKit();peer.syncLinkedKit();
+        check(peer.getLibrary().snapshot().kits[0].groups.back().instruments[0].id==instrument.id,"Linked group move lost instrument identity");
+        good(peer.duplicateActiveKit());good(source.getLibrary().rename(instrument.id,"Original only"));source.syncLinkedKit();peer.syncLinkedKit();
+        check(peer.getLibrary().snapshot().kits[0].groups.back().instruments[0].name=="Linked kick","Duplicate remained linked to original");
+    }
+    {
+        DrumAudioProcessor library;auto state=library.getLibrary().snapshot();auto kit=state.activeKit,group=state.kits[0].groups[0].id;
+        auto file=juce::File::getCurrentWorkingDirectory().getChildFile("aiff-"+juce::Uuid().toString()+".aif");juce::AiffAudioFormat format;
+        std::unique_ptr<juce::AudioFormatWriter> writer(format.createWriterFor(file.createOutputStream().release(),48000,1,16,{},0));check(writer!=nullptr,"AIFF writer failed");
+        juce::AudioBuffer<float> audio(1,128);audio.clear();audio.setSample(0,32,.5f);writer->writeFromAudioSampleBuffer(audio,0,128);writer.reset();
+        library.getSampleEngine().requestImport(kit,group,file);check(library.getSampleEngine().waitForLoading(10000),"AIFF import timed out");check(drum::instrumentCount(library.getLibrary().snapshot().kits[0])==1,"Standard AIFF failed to import");
+        auto unsupported=file.getSiblingFile("content-"+file.getFileName());juce::MemoryOutputStream bytes;bytes.write("FORM",4);bytes.writeIntBigEndian(34);bytes.write("AIFC",4);bytes.write("COMM",4);bytes.writeIntBigEndian(22);for(int n=0;n<18;++n)bytes.writeByte(0);bytes.write("able",4);unsupported.replaceWithData(bytes.getData(),bytes.getDataSize());
+        library.getSampleEngine().requestImport(kit,group,unsupported);check(library.getSampleEngine().waitForLoading(10000),"Unsupported AIFF timed out");check(library.getSampleEngine().statusFor(group).message.startsWith("Ableton Content"),"Ableton Content did not produce clear import guidance");
+    }
+    {
+        DrumAudioProcessor track(true);track.newKit();auto state=track.getLibrary().snapshot();auto id=state.activeKit;auto instrument=track.getLibrary().addInstrument(id,state.kits[0].groups[0].id);good(instrument);auto destination=track.getLibrary().addGroup(id);good(destination);
+        DrumAudioProcessorEditor editor(track);editor.setSize(1280,900);auto* pads=control(editor,"instrument-grid");auto* groups=dynamic_cast<juce::ListBox*>(control(editor,"groups"));
+        auto start=juce::Point<float>(30,50);auto end=pads->getLocalPoint(groups,groups->getRowPosition(1,true).getCentre()).toFloat();auto time=juce::Time::getCurrentTime();
+        auto event=[&](juce::Point<float> pos){return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),pos,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),1,0,0,0,0,pads,pads,time,start,time,1,false);};
+        pads->mouseDown(event(start));pads->mouseDrag(event(end));pads->mouseUp(event(end));
+        auto after=track.getLibrary().snapshot();check(after.kits[0].groups[0].instruments.empty() && after.kits[0].groups[1].instruments[0].id==instrument.id,"Dragging a tile onto a group failed");
+        auto* pan=dynamic_cast<juce::Slider*>(control(editor,"instrument-pan"));check(pan->getTextFromValue(0)=="C" && pan->getTextFromValue(-50).contains("L") && pan->getTextFromValue(50).contains("R"),"Pan direction labels missing");
+    }
     std::cout << "Management, persistence and UI wiring tests passed\n";
 }

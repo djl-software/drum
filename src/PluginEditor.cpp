@@ -119,6 +119,7 @@ public:
     std::function<void(int,bool)> play;
     juce::String dragId;int dragTarget=-1;bool moving=false;juce::Point<int> dragStart;
     std::function<void(juce::String,int)> reorder;
+    std::function<bool(juce::String,juce::Point<int>,bool)> groupDrag;
     int pressedNote=-1;
     int columns() const { return 6; }
     int cellSize() const { return (getWidth()-(columns()-1)*12)/columns(); }
@@ -178,12 +179,13 @@ public:
     void mouseDrag(const juce::MouseEvent& e) override {
         if(dragId.isEmpty() || e.getPosition().getDistanceFrom(dragStart)<6)return;
         moving=true;releaseKey();dragTarget=-1;
+        if(groupDrag)groupDrag(dragId,e.getScreenPosition(),false);
         for(int n=0;n<(int)instruments.size();++n)if(cell(n).contains(e.getPosition()))dragTarget=n;
         if(auto* view=findParentComponentOfClass<juce::Viewport>())view->autoScroll(e.x-view->getViewPositionX(),e.y-view->getViewPositionY(),24,12);
         repaint();
     }
-    void mouseUp(const juce::MouseEvent&) override {
-        releaseKey();auto id=dragId;int target=dragTarget;bool commit=moving && target>=0;
+    void mouseUp(const juce::MouseEvent& e) override {
+        releaseKey();auto id=dragId;int target=dragTarget;bool grouped=moving && groupDrag && groupDrag(id,e.getScreenPosition(),true);bool commit=moving && target>=0 && !grouped;
         dragId.clear();dragTarget=-1;moving=false;if(commit && reorder)reorder(id,target);repaint();
     }
     void releaseKey(){if(pressedNote>=0 && play)play(pressedNote,false);pressedNote=-1;}
@@ -375,7 +377,9 @@ public:
         volume.textFromValueFunction=[](double v) { return v<=-60 ? juce::String("-inf") : juce::String(v,1); };
         volume.valueFromTextFunction=[](const juce::String& t) { return t.containsIgnoreCase("inf")?-60.0:t.getDoubleValue(); };
         volume.onValueChange=[this] { editControls([this](auto& c){c.volumeDb=volume.getValue();}); };
-        setupSlider(pan,"instrument-pan",-100,100,1," %");
+        setupSlider(pan,"instrument-pan",-100,100,1,"");
+        pan.textFromValueFunction=[](double value){return std::abs(value)<.5?juce::String("C"):juce::String(std::abs(value),0)+(value<0?" L":" R");};
+        pan.valueFromTextFunction=[](const juce::String& value){if(value.trim().equalsIgnoreCase("C"))return 0.0;auto n=value.getDoubleValue();return value.containsIgnoreCase("L")?-std::abs(n):value.containsIgnoreCase("R")?std::abs(n):n;};
         pan.setTooltip("Stereo balance: -100 left, 0 centre, +100 right.");
         pan.onValueChange=[this] { editControls([this](auto& c){c.pan=pan.getValue()/100.0;}); };
         setupSlider(tuning,"instrument-tuning",-48,48,0.01," st");
@@ -402,6 +406,13 @@ public:
         grid.setComponentID("instrument-grid");
         grid.keyLabel=[this](const drum::Instrument& i){auto sample=processor.getSampleEngine().waveformFor(i.id);return sample?drum::tileKey(sample->tonal,i.controls.tuning+i.controls.sound.detune/100):i.samplePath.isEmpty()?juce::String():juce::String("Analysing...");};
         viewport.setScrollBarThickness(8); grid.select = [this](juce::String id) { importStatus=false; instrumentId=id; refresh(); };
+        grid.groupDrag=[this](juce::String id,juce::Point<int> screen,bool commit){
+            auto point=groups.getLocalPoint(nullptr,screen);int row=groups.getLocalBounds().contains(point)?groups.getRowContainingPosition(point.x,point.y):-1;
+            groupDropRow=row;groups.repaint();if(!commit)return row>=0;
+            groupDropRow=-1;if(row<0 || row>=(int)kit().groups.size())return false;
+            auto target=kit().groups[(size_t)row].id;auto result=library.moveInstrument(view.activeKit,id,target);
+            if(result.ok){groupId=target;instrumentId=id;}complete(result);scrollToSelected();return true;
+        };
         grid.reorder=[this](juce::String id,int position){complete(library.positionInstrument(view.activeKit,id,position));scrollToSelected();};
         grid.play=[this](int n,bool down){playKey(n,down);};
         keyboard.play=grid.play;
@@ -835,6 +846,7 @@ private:
     {
         if(row<0 || row>=(int)kit().groups.size()) return;
         const auto& group=kit().groups[(size_t)row];
+        if(row==groupDropRow){g.setColour(accent);g.drawRoundedRectangle(juce::Rectangle<float>(2,1,(float)width-4,(float)height-2),6,2);}
         if(selected) { g.setColour(groupColour(group.colour).withAlpha(0.1f)); g.fillRoundedRectangle(4,2,(float)width-8,(float)height-4,7); }
         g.setColour(groupColour(group.colour)); g.fillRoundedRectangle(12,16,4,28,2);
         label(g,group.name,{25,9,width-60,24},14);
@@ -898,6 +910,15 @@ private:
         if(changed)grid.repaint();
         if(changed || moving)keyboard.repaint();
     }
+    void offerRenderedImport(){
+        juce::Component::SafePointer<Workspace> safe(this);
+        juce::AlertWindow::showAsync(juce::MessageBoxOptions().withTitle("Ableton Content sample")
+            .withMessage("Live must render this sample first. Put it on an audio track in Live, select the hit and export it as WAV. Then choose Import rendered WAV below to add it to this library. Drum cannot convert Ableton Content directly.")
+            .withButton("Import rendered WAV...").withButton("Cancel").withAssociatedComponent(this),[safe](int result){
+                if(!safe || result!=1)return;safe->chooser=std::make_unique<juce::FileChooser>("Import WAV rendered by Live",juce::File(),"*.wav");
+                safe->chooser->launchAsync(juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::openMode,[safe](const juce::FileChooser& dialog){if(safe && dialog.getResult()!=juce::File())safe->handleDrop({dialog.getResult().getFullPathName()},{});});
+            });
+    }
     void timerCallback() override
     {
         for(auto& flash:flashes)if(flash>0)--flash;
@@ -911,6 +932,7 @@ private:
             {
                 auto info=processor.getSampleEngine().statusFor(groupId);
                 status=info.message; statusError=!info.ready && !info.loading;
+                if(statusError && info.message.startsWith("Ableton Content")){importStatus=false;offerRenderedImport();}
             }
             else if(auto* i=instrument())
             {
@@ -925,6 +947,7 @@ private:
     drum::KitLibrary& library;
     drum::State view;
     juce::String groupId,instrumentId,status,controlsInstrumentId;
+    int groupDropRow=-1;
     bool refreshing=false,statusError=false,importStatus=false;
     juce::Image logo,scaledLogo;
     juce::TooltipWindow tooltip;
