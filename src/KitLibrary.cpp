@@ -438,7 +438,7 @@ Result KitLibrary::setEffects(const juce::String& kitId,const juce::String& inst
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 16); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 17); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
         auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);kit->setAttribute("groupBoundary",k.groupBoundary);
@@ -463,7 +463,7 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
                     instrument->setAttribute(prefix+"slope",b.slope);instrument->setAttribute(prefix+"on",b.enabled?1:0);instrument->setAttribute(prefix+"type",b.type);
                     instrument->setAttribute(prefix+"hz",juce::String(b.frequency,17,true));instrument->setAttribute(prefix+"gain",juce::String(b.gain,17,true));instrument->setAttribute(prefix+"q",juce::String(b.q,17,true));
                 }
-                for(int n=0;n<3;++n)if(const auto& shape=i.controls.sound.envelopes[(size_t)n];shape.count)
+                for(int n=0;n<4;++n)if(const auto& shape=i.controls.sound.envelopes[(size_t)n];shape.count)
                 {
                     auto* envelope=instrument->createNewChildElement("Envelope");envelope->setAttribute("index",n);envelope->setAttribute("hold",shape.hold);
                     for(int point=0;point<shape.count;++point)
@@ -500,7 +500,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
     }
-    if (version < 2 || version > 16) return false;
+    if (version < 2 || version > 17) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
@@ -550,7 +550,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                     }
                     if(version>=7)
                     {
-                        std::array<bool,3> seen {};
+                        std::array<bool,4> seen {};
                         for(auto* e:i->getChildIterator())
                         {
                             if(version>=11 && e->hasTagName("Effect"))
@@ -567,7 +567,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
                                 continue;
                             }
                             const int index=integerAttribute(*e,"index");
-                            if(!e->hasTagName("Envelope") || index<0 || index>2 || seen[(size_t)index] || e->getNumChildElements()<2 || e->getNumChildElements()>maxEnvelopePoints)return false;
+                            if(!e->hasTagName("Envelope") || index<0 || index>3 || seen[(size_t)index] || e->getNumChildElements()<2 || e->getNumChildElements()>maxEnvelopePoints)return false;
                             seen[(size_t)index]=true;auto& shape=group.instruments.back().controls.sound.envelopes[(size_t)index];shape.hold=integerAttribute(*e,"hold");
                             for(auto* p:e->getChildIterator())
                             {

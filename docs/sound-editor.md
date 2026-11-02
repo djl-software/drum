@@ -287,3 +287,11 @@ Open an instrument with **Edit**; double-clicking a tile does not open the edito
 Tile and Tune key labels share the edited-audio analysis, including tuning, envelopes and filters, before the effect chain. Changed settings invalidate the cached result; both use the same transposed source readout while updated analysis finishes. Tune always analyses the main instrument signal, regardless of the waveform send view.
 
 EQ output analysers scan overlapping FFT windows and retain peaks across each screen update, including short hits followed by silence. Both Filter and chain EQ start displaying incoming audio before a full FFT window has accumulated. The shaded spectrum shows live playback output.
+
+Envelope editing: click empty graph space to place a point and drag it immediately. Ctrl-click on a line also places a movable point; ordinary line drags shape curves. Shift-drag a point for finer movement. Each envelope Reset creates a flat neutral shape: full amplitude, zero pitch/filter modulation. Undo restores the previous settings.
+
+Attack layer has an **Attack waveform only** checkbox that hides the sample from the rendered waveform without changing playback. Outputs & Sends replaces the waveform with the instrument-chain split into its main destination and six parallel sends; disabled host outputs are labelled. Macros uses the full editing area for macro mapping cards. Tune bars analyse the edited sample and update after sound edits, rather than scrolling continuously during repeated playback.
+
+The final editing tabs are ordered Chain, Outputs & Sends, Macros. Audio passes through the chain before its output/send split. Macros control parameters rather than forming a serial audio stage.
+
+LFO replaces the sample waveform with an editable single cycle, shown from 0% to 100%. Choose a standard waveform or draw points and curves to switch to Custom. Custom LFO shapes are stored with the instrument and repeat at the chosen free or tempo-synchronised rate. Graph Reset gives a flat centre line and turns the LFO off; Undo/Redo restores shape edits. Random displays an illustrative cycle because playback generates fresh random values.

@@ -25,7 +25,14 @@ private:
     class Waveform;
     class WaveformDivider;
     class KeySpectrum;
+    class RoutingView;
     void changeKeyTuning();
+    void changeLfo(drum::EnvelopeShape,bool reset=false);
+    void undoLfo(bool redo);
+    struct LfoState {drum::EnvelopeShape shape;double choice=0,on=0;};
+    std::vector<LfoState> lfoUndo,lfoRedo;
+    bool lfoGesture=false,lfoRecorded=false;
+    std::unique_ptr<EnvelopeEditor> lfoGraph;
     void change(const drum::SoundParameter&,double);
     void refresh();
     void refreshPreview();
@@ -70,6 +77,7 @@ private:
     juce::TextButton back,reset;
     juce::Label noteIndicator;
     juce::TextButton slice;
+    juce::ToggleButton attackOnly{"Attack waveform only"};
     juce::ToggleButton adsrValues{"ADSR values"};
     juce::TextButton ampOverlay{"Amplitude"},pitchOverlay{"Pitch"};
     int selectedEnvelope=0;
@@ -78,6 +86,7 @@ private:
     juce::ComboBox sliceCount;
     std::array<juce::TextButton,9> tabs;
     std::unique_ptr<KeySpectrum> keySpectrum;
+    std::unique_ptr<RoutingView> routing;
     ResetSlider keyCoarse,keyFine;
     juce::Label keyCoarseLabel,keyFineLabel,keyStatus;
     juce::Viewport viewport;

@@ -122,6 +122,8 @@ void runPreviewTests()
         while(worker.pending() && juce::Time::getMillisecondCounterHiRes()-start<10000)juce::Thread::sleep(5);
         check(!worker.pending() && worker.latest().sample,"Latest preview failed to publish");
         near(worker.latest().sample->peak,baseline.sample->peak*0.5f,"Stale slider result replaced latest preview");
+        input.attackOnly=true;input.controls.sound.attackOn=0;worker.request(input);while(worker.pending())juce::Thread::sleep(5);check(worker.latest().sample && worker.latest().sample->peak==0,"Attack-only waveform still contains the sample");
+        input.controls.sound.attackOn=1;input.controls.sound.attackLevel=0;worker.request(input);while(worker.pending())juce::Thread::sleep(5);check(worker.latest().sample && worker.latest().sample->peak>0,"Attack-only waveform lost generated attack");
         input.source.reset();worker.request(input);
         while(worker.pending())juce::Thread::sleep(5);
         check(!worker.latest().sample,"Removed source retained stale preview");
@@ -133,10 +135,11 @@ void runPreviewTests()
     auto initial=pixels(editor);
     auto& wave=control<juce::Component>(editor,"sample-waveform");auto bounds=wave.getBoundsInParent();
     const auto initialStatus=control<juce::Label>(editor,"waveform-status").getText();
+    check(control<juce::TextButton>(editor,"edit-tab-7").getX()<control<juce::TextButton>(editor,"edit-tab-4").getX() && control<juce::TextButton>(editor,"edit-tab-4").getX()<control<juce::TextButton>(editor,"edit-tab-5").getX(),"Routing tab order does not follow signal flow");
     for(int page=0;page<7;++page)
     {
         click(editor,"edit-tab-"+juce::String(page));control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);settle(editor);
-        check(wave.isVisible()==(page!=2 && page!=8) && wave.getHeight()>=184,"Graph/waveform visibility incorrect between tabs");
+        check(wave.isVisible()==(page!=2 && page!=8 && page!=4 && page!=5 && page!=3) && wave.getHeight()>=184,"Graph/waveform visibility incorrect between tabs");
         check(control<juce::Label>(editor,"waveform-status").getText()==initialStatus,"Tab switch changed preview signal");
         capture(editor,"drum-preview-tab-"+juce::String(page)+".png");
     }
@@ -155,6 +158,13 @@ void runPreviewTests()
     control<juce::Slider>(editor,"edit-lfoVolume").setValue(90,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"LFO controls did not update waveform");
     control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(1,juce::sendNotificationSync);
+    click(editor,"edit-tab-3");check(control<juce::Component>(editor,"lfo-cycle").isVisible() && !wave.isVisible(),"LFO cycle did not replace sample waveform");
+    auto& lfoCycle=control<EnvelopeEditor>(editor,"lfo-cycle");const auto lfoPoint=lfoCycle.pointFor({130,.12});auto now=juce::Time::getCurrentTime();juce::MouseEvent lfoEvent(juce::Desktop::getInstance().getMainMouseSource(),lfoPoint,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier|juce::ModifierKeys::ctrlModifier),1,0,0,0,0,&lfoCycle,&lfoCycle,now,lfoPoint,now,1,false);lfoCycle.mouseDown(lfoEvent);lfoCycle.mouseUp(lfoEvent);
+    auto lfoState=library.snapshot();auto custom=drum::findInstrument(*drum::activeKit(lfoState),id)->controls;check(custom.sound.lfoShape==6 && custom.sound.envelopes[3].count>2,"LFO drawing did not enable custom shape");
+    auto testLfo=custom;testLfo.sound.lfoVolume=1;testLfo.sound.envelopes[3]={};testLfo.sound.envelopes[3].count=2;testLfo.sound.envelopes[3].points[0]={0,0};testLfo.sound.envelopes[3].points[1]={1000,0};auto silenceLfo=drum::SampleEngine::renderPreview(source,testLfo,{},120,48000);check(silenceLfo.sample && silenceLfo.sample->peak<.00001,"Custom LFO is not applied to playback");testLfo.sound.envelopes[3].points[0].level=testLfo.sound.envelopes[3].points[1].level=1;auto loudLfo=drum::SampleEngine::renderPreview(source,testLfo,{},120,48000);check(loudLfo.sample && loudLfo.sample->peak>.01,"Custom LFO full level does not restore audio");
+    drum::KitLibrary lfoRecall;check(lfoRecall.restore(*library.toXml()),"Custom LFO could not be recalled");auto recalled=lfoRecall.snapshot();check(drum::findInstrument(*drum::activeKit(recalled),id)->controls.sound.envelopes[3]==custom.sound.envelopes[3],"Custom LFO changed on recall");
+    control<juce::TextButton>(editor,"lfo-cycle-reset").onClick();auto resetLfo=library.snapshot();auto resetSound=drum::findInstrument(*drum::activeKit(resetLfo),id)->controls.sound;check(resetSound.lfoOn==0 && resetSound.envelopes[3].points[0].level==.5 && resetSound.envelopes[3].points[1].level==.5,"LFO reset is not neutral");control<juce::TextButton>(editor,"lfo-cycle-undo").onClick();auto undone=library.snapshot();check(drum::findInstrument(*drum::activeKit(undone),id)->controls.sound.envelopes[3]==custom.sound.envelopes[3],"LFO undo did not restore custom shape");
+    control<juce::TextButton>(editor,"reset-edit-page").onClick();
     click(editor,"edit-tab-1");settle(editor);initial=pixels(editor);control<juce::Slider>(editor,"edit-pitchAmount").setValue(12,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Pitch envelope did not update waveform");
     auto& view=control<juce::ComboBox>(editor,"waveform-view");view.setSelectedId(1,juce::sendNotificationSync);auto sourcePixels=pixels(editor);
@@ -173,7 +183,7 @@ void runPreviewTests()
     before=pixels(editor);processor.macro(0).setValueNotifyingHost(0.9f);settle(editor);
     check(pixels(editor)!=before,"Host macro change did not update waveform");
     editor.setSize(800,600);capture(editor,"drum-preview-compact.png");
-    check(wave.isVisible() && viewport->getHeight()>150,"Compact preview leaves no usable control area");
+    check(!wave.isVisible() && viewport->getY()==150 && viewport->getHeight()>150,"Macros did not reclaim waveform space");click(editor,"edit-tab-0");
     // Viewing changes must magnify quiet signals without changing audio/state.
     editor.setSize(1280,900);controls={};controls.volumeDb=-24;
     check(library.setControls(kit,id,controls).ok,"Quiet preview controls failed");check(engine.waitForLoading(10000),"Quiet preview bank timed out");

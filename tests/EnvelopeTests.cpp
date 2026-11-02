@@ -139,6 +139,8 @@ void tonalTests()
 void runEnvelopeTests()
 {
     shapeTests();tonalTests();
+    {EnvelopeEditor drawing("drawing-test","Drawing",juce::Colours::pink);drawing.setSize(700,400);drawing.setTimeLimit(1000);drum::EnvelopeShape shape;shape.count=2;shape.hold=0;shape.points[0]={0,.5};shape.points[1]={1000,.5};auto update=[&]{drawing.update({},shape,false,1,"%",true,"",false);};update();drawing.onShape=[&](auto next,bool){shape=next;update();};const auto start=drawing.pointFor({150,.8});drawing.mouseDown(event(drawing,start,start));drawing.mouseDrag(event(drawing,start+juce::Point<float>{40,20},start,juce::ModifierKeys::leftButtonModifier|juce::ModifierKeys::shiftModifier));drawing.mouseUp(event(drawing,start,start));check(shape.count==3 && shape.points[1].ms>150 && shape.points[1].ms<170 && shape.points[1].level>.78,"Direct point insertion or fine dragging failed");}
+
     const auto diagnostics=juce::SystemStats::getEnvironmentVariable("DJL_DRUM_ANALYSE_FILES",{});
     if(diagnostics.isNotEmpty()){juce::AudioFormatManager formats;formats.registerBasicFormats();for(const auto& path:juce::StringArray::fromLines(juce::File(diagnostics).loadFileAsString())){std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(juce::File(path)));if(!reader)continue;juce::AudioBuffer<float> audio((int)reader->numChannels,(int)reader->lengthInSamples);reader->read(&audio,0,audio.getNumSamples(),0,true,true);auto a=drum::analyseTonal(audio,reader->sampleRate);std::cout<<juce::File(path).getFileName()<<": midi="<<a.midi<<" range="<<a.lowMidi<<".."<<a.highMidi<<" key="<<a.key<<" confidence="<<a.confidence<<" spectrum="<<drum::spectrumKey(a)<<"\n";}}
 
@@ -149,7 +151,7 @@ void runEnvelopeTests()
     check(p.getSampleEngine().statusFor(id).ready,"Envelope fixture unavailable");check(p.getSampleEngine().waveformFor(id)->tonal.complete,"Imported sample was not analysed");p.getSampleEngine().prepare(48000);
     DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");
     check(control<juce::TextButton>(editor,"edit-tab-1").getButtonText()=="Envelopes","Envelope tab name incorrect");
-    int lastTabX=-1;for(int tab:{0,1,2,6,3,8,4,5,7}){const int x=control<juce::TextButton>(editor,("edit-tab-"+juce::String(tab)).toRawUTF8()).getX();check(x>lastTabX,"Edit tabs out of order");lastTabX=x;}
+    int lastTabX=-1;for(int tab:{0,1,2,6,3,8,7,4,5}){const int x=control<juce::TextButton>(editor,("edit-tab-"+juce::String(tab)).toRawUTF8()).getX();check(x>lastTabX,"Edit tabs out of order");lastTabX=x;}
     check(!control<juce::Slider>(editor,"edit-start").isShowing() && !control<juce::Slider>(editor,"edit-end").isShowing(),"Separate trim sliders still visible");
     check(control<juce::Component>(editor,"sample-waveform").getHeight()>240,"Sample waveform lost its usable height");check(control<SoundEditor>(editor,"sound-editor").getY()>=control<juce::Component>(editor,"library-menu").getBottom(),"Sound editor overlaps navigation");
     auto sampleField=[&](const char* id){return find(editor,id)->getParentComponent()->getBounds();};
@@ -276,7 +278,7 @@ void runEnvelopeTests()
         click(editor,(prefix+"-undo").toRawUTF8());check(current()==before,"Undo did not restore entire drag and activation");
         check(!control<juce::TextButton>(editor,(prefix+"-undo").toRawUTF8()).isEnabled(),"Drag created multiple undo entries");
         click(editor,(prefix+"-redo").toRawUTF8());check(current()==after,"Redo did not restore envelope edit");
-        click(editor,(prefix+"-reset").toRawUTF8());check(current().sound.envelopes[(size_t)n].count==0,"Envelope reset left custom points");
+        click(editor,(prefix+"-reset").toRawUTF8());check(current().sound.envelopes[(size_t)n].count==2 && current().sound.envelopes[(size_t)n].points[0].level==(n==0?1.0:0.0) && current().sound.envelopes[(size_t)n].points[1].level==(n==0?1.0:0.0),"Envelope reset is not neutral");
         click(editor,(prefix+"-undo").toRawUTF8());check(current()==after,"Reset cannot be undone");
         drag(handle,{(float)graph.getWidth()*1000,0});
         const auto bounded=current().sound.envelopes[(size_t)n];

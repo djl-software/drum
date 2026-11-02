@@ -528,6 +528,7 @@ void SampleEngine::renderVoices(juce::AudioBuffer<float>& output,int start,int e
                     case 2:lfo=phase<0.5?1:-1;break;
                     case 3:lfo=2*phase-1;break;
                     case 4:lfo=1-2*phase;break;
+                    case 6:lfo=s.envelopes[3].count?2*envelopeValue(s.envelopes[3],phase*1000)-1:0;break;
                     default:lfo=voice.randomLfo;break;
                 }
                 lfo*=s.lfoAttack>0?juce::jmin(1.0,voice.elapsed*1000/s.lfoAttack):1;

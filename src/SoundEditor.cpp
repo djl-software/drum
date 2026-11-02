@@ -126,6 +126,7 @@ struct SoundEditor::MacroField final : juce::Component
     }
     void paint(juce::Graphics& g) override
     {
+        g.setColour(juce::Colour(0xff202d3c));g.fillRoundedRectangle(getLocalBounds().toFloat(),7);g.setColour(mint.withAlpha(.35f));g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1),7,1);
         drawControlLabel(g,"Macro "+juce::String(index+1),{0,0,84,24});
         drawControlLabel(g,"Min",{0,82,34,24});drawControlLabel(g,"Max",{getWidth()/2+4,82,34,24});
     }
@@ -464,6 +465,29 @@ public:
         if(!hasSample || busy)text(g,busy?"Analysing edited audio...":"Load a sample to analyse its notes.",plot.reduced(15),16);
     }
 };
+class SoundEditor::RoutingView final : public juce::Component {
+public:
+    drum::SoundParameters settings;juce::String instrument;bool hasChain=false;std::array<bool,22> enabled{};
+    void paint(juce::Graphics& g) override {
+        g.setColour(bg);g.fillRoundedRectangle(getLocalBounds().toFloat(),8);
+        const float w=(float)getWidth(),h=(float)getHeight(),row=(h-50)/7,left=18,boxWidth=w*.22f,chainX=w*.29f,junction=w*.59f,destX=w*.66f;
+        auto box=[&](juce::Rectangle<float> r,const juce::String& title,juce::Colour c){g.setColour(c.withAlpha(.12f));g.fillRoundedRectangle(r,6);g.setColour(c);g.drawRoundedRectangle(r,6,1.5f);g.setFont(juce::FontOptions(14));g.drawFittedText(title,r.reduced(8,2).toNearestInt(),juce::Justification::centred,2);};
+        auto wire=[&](float x1,float y1,float x2,float y2,juce::Colour c){g.setColour(c);g.drawLine(x1,y1,x2,y2,2);};
+        const float centre=h*.5f;
+        box({left,centre-30,boxWidth,60},instrument+"\nEdited sound",waveColour);
+        wire(left+boxWidth,centre,chainX,centre,mint);box({chainX,centre-30,w*.23f,60},hasChain?"Instrument chain\nEffects in order":"Instrument chain\nPass-through",mint);
+        wire(chainX+w*.23f,centre,junction,centre,mint);wire(junction,25+row*.5f,junction,25+row*6.5f,mint.withAlpha(.6f));
+        const double sends[]{settings.sendA,settings.sendB,settings.sendC,settings.sendD,settings.sendE,settings.sendF};
+        for(int n=0;n<7;++n){const int bus=n==0?(int)settings.output:15+n;const bool on=n==0 || sends[n-1]>-60;const bool connected=enabled[(size_t)bus];const auto c=!on?muted:n==0?mint:spectrumColour;const float y=25+row*n;
+            wire(junction,y+row*.5f,destX,y+row*.5f,c.withAlpha(on?.9f:.25f));
+            juce::String title=n==0?(bus==0?"Main output":"Out "+juce::String(bus+1)):"Send "+juce::String::charToString((juce::juce_wchar)('A'+n-1))+"   "+(on?juce::String(sends[n-1],1)+" dB":"Off");
+            title+="\n";title+=connected?"To DAW":n==0?"Main fallback":"Enable output in DAW";
+            box({destX,y,w-destX-18,row-5},title,c);
+        }
+        text(g,"Parallel sends carry copies of the signal after the instrument chain.",{18,getHeight()-22,getWidth()-36,18},11,muted);
+    }
+};
+namespace { void neutralEnvelope(drum::SoundParameters&,int,double); }
 SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(),p.getEffects()),waveform(std::make_unique<Waveform>(*this)),waveformDivider(std::make_unique<WaveformDivider>(*this))
 {
     setComponentID("sound-editor"); setOpaque(true);addAndMakeVisible(chain);
@@ -475,13 +499,19 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
         if(!i || kit->id!=kitId) return;
         auto c=i->controls; for(auto& parameter:drum::soundParameters) if((page==1?(parameter.page==1 || parameter.page==2):page!=2 && parameter.page==page) && !(page==1 && parameter.member==&drum::SoundParameters::detune)) c.sound.*(parameter.member)=parameter.initial;
+        if(page==3)c.sound.envelopes[3]={};
         if(page==8){c.tuning=0;c.sound.detune=0;}
-        if(page==1){for(int n=0;n<3;++n){c.sound.envelopes[n]={};constrainEnvelope(c.sound,n);}}else if(page==2)c.sound.equalizer={};
+        if(page==1){for(int n=0;n<3;++n){neutralEnvelope(c.sound,n,envelopeLimit());constrainEnvelope(c.sound,n);}}else if(page==2)c.sound.equalizer={};
         auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
         if(result.ok){for(int n=0;n<3;++n)if(page==1)recordEnvelope(n,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
         message=result.ok?"Page reset. The source file is unchanged.":result.message; refresh();
     };
-    const char* names[]{"Sample","Envelopes","Filter","LFO","Outputs & sends","Macros","Attack layer","Chain","Tune"};
+    const char* names[]{"Sample","Envelopes","Filter","LFO","Outputs & Sends","Macros","Attack layer","Chain","Tune"};
+    lfoGraph=std::make_unique<EnvelopeEditor>("lfo-cycle","LFO cycle",mint);addAndMakeVisible(*lfoGraph);lfoGraph->setCycleMode();lfoGraph->setTimeLimit(1000);
+    lfoGraph->onShape=[this](const auto& shape,bool){changeLfo(shape);};lfoGraph->onReset=[this]{drum::EnvelopeShape flat;flat.count=2;flat.hold=0;flat.points[0]={0,.5};flat.points[1]={1000,.5};changeLfo(flat,true);};
+    lfoGraph->onBeginGesture=[this]{lfoGesture=true;lfoRecorded=false;};lfoGraph->onEndGesture=[this]{lfoGesture=lfoRecorded=false;};lfoGraph->onUndo=[this]{undoLfo(false);};lfoGraph->onRedo=[this]{undoLfo(true);};
+    routing=std::make_unique<RoutingView>();addAndMakeVisible(*routing);routing->setComponentID("output-routing");
+    addAndMakeVisible(attackOnly);attackOnly.setComponentID("attack-waveform-only");attackOnly.setTooltip("Show only the generated attack layer in the waveform. Playback still includes the sample.");attackOnly.onClick=[this]{waveform->showEdited();refreshPreview();};
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
     auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);useValueBar(slider);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,juce::Colours::white);label.setFont(juce::FontOptions(14));label.setJustificationType(juce::Justification::centredRight);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
@@ -539,6 +569,7 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     const bool changed=kitId!=kit || instrumentId!=(i?i->id:juce::String());
     processor.getSampleEngine().analyserNote.store(i?i->note:-1);
     if(changed)equalizer.setSpectrum(&processor.getSampleEngine().eqSpectrum);
+    if(changed){lfoUndo.clear();lfoRedo.clear();lfoGesture=lfoRecorded=false;}
     if(changed || path!=(i?i->samplePath:juce::String()))envelopeHistory={};
     updating=true; kitId=kit; instrumentId=i?i->id:juce::String(); name=i?i->name:"No instrument selected"; path=i?i->samplePath:juce::String(); note=i?i->note:21; sound=i?i->controls.sound:drum::SoundParameters{};
     chainPresent=i && !i->effects.empty();chain.select(kitId,instrumentId);
@@ -656,6 +687,7 @@ void SoundEditor::constrainEnvelope(drum::SoundParameters& s,int n,SoundMember c
     total=s.*m[0]+s.*m[1]+s.*m[3];
     if(total>limit)for(int k:{0,1,3})s.*m[(size_t)k]*=limit/total;
 }
+namespace { void neutralEnvelope(drum::SoundParameters& sound,int n,double length){auto& shape=sound.envelopes[(size_t)n];shape={};shape.count=2;shape.hold=0;const double level=n==0?1.0:0.0;shape.points[0]={0,level};shape.points[1]={length,level};if(n==1)sound.pitchAmount=0;if(n==2)sound.filterAmount=0;} }
 SoundEditor::EnvelopeState SoundEditor::envelopeState(const drum::InstrumentControls& c,int n)
 {
     EnvelopeState value;value.shape=c.sound.envelopes[(size_t)n];value.macros=c.macros;
@@ -678,12 +710,11 @@ void SoundEditor::resetEnvelope(int n)
     if(!i || kit->id!=kitId)return;
     auto c=i->controls;const drum::SoundParameters defaults;
     for(auto member:envelopeMembers[(size_t)n])c.sound.*member=defaults.*member;
-    c.sound.envelopes[(size_t)n]={};
-    if(n==1)c.sound.pitchAmount=defaults.pitchAmount;if(n==2)c.sound.filterAmount=defaults.filterAmount;
+    neutralEnvelope(c.sound,n,envelopeLimit());
     constrainEnvelope(c.sound,n);
     const auto result=processor.getLibrary().setControls(kitId,instrumentId,c);
     if(result.ok){recordEnvelope(n,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
-    waveform->showEdited();message=result.ok?"Envelope reset to defaults. Undo restores the previous settings.":result.message;refresh();
+    waveform->showEdited();message=result.ok?"Envelope reset to neutral. Undo restores the previous settings.":result.message;refresh();
 }
 void SoundEditor::undoEnvelope(int n,bool redo)
 {
@@ -727,7 +758,7 @@ void SoundEditor::refreshPreview()
 {
     drum::PreviewInput input;
     if(isVisible())input.source=selectedSample;
-    input.controls=selectedControls;input.send=page==8?-1:waveform->send();
+    input.controls=selectedControls;input.send=page==8?-1:waveform->send();input.attackOnly=page==6 && attackOnly.getToggleState();
     for(int n=0;n<drum::numMacros;++n)input.macros[(size_t)n]=processor.macro(n).get();
     input.bpm=processor.getSampleEngine().previewTempo();input.rate=processor.getSampleEngine().previewSampleRate();
     preview.request(input);const auto result=preview.latest();const bool busy=preview.pending();waveform->setPreview(result,busy);
@@ -747,12 +778,16 @@ void SoundEditor::refreshPreview()
     description+=busy?"     Key: analysing...":"     Key: "+drum::spectrumKey(analysis);
     noteIndicator.setText(description,juce::dontSendNotification);
     keySpectrum->update(analysis,busy,selectedSample!=nullptr);
-    if(!busy && input.send==-1)processor.getSampleEngine().rememberKey(instrumentId,selectedSample,selectedControls,input.macros,input.bpm,input.rate,analysis);
+    if(!busy && input.send==-1 && !input.attackOnly)processor.getSampleEngine().rememberKey(instrumentId,selectedSample,selectedControls,input.macros,input.bpm,input.rate,analysis);
     const auto [keyAnalysis,keyTranspose]=processor.getSampleEngine().displayKey(instrumentId,selectedControls,input.macros);
     const int keyNote=drum::strongestNote(keyAnalysis,keyTranspose);
     juce::String detail=!selectedSample?"Key: load a sample":keyNote<0?"Key: no signal":
         "Key: "+drum::spectrumKey(keyAnalysis,keyTranspose)+"     Camelot: "+drum::camelotCode(keyNote)+" (major) / "+drum::camelotCode(keyNote+12)+" (minor)";
     keyStatus.setText(detail,juce::dontSendNotification);
+    drum::EnvelopeShape cycle=sound.envelopes[3];if(sound.lfoShape!=6 || cycle.count<2){cycle={};cycle.count=sound.lfoShape==6?2:9;cycle.hold=0;for(int n=0;n<cycle.count;++n){const double phase=(double)n/(cycle.count-1);double level=.5;switch((int)sound.lfoShape){case 0:level=.5+.5*std::sin(phase*juce::MathConstants<double>::twoPi);break;case 1:level=1-2*std::abs(phase-.5);break;case 2:level=phase<.5?1:0;break;case 3:level=phase;break;case 4:level=1-phase;break;case 5:level=std::fmod(std::sin(std::floor(phase*8)+1)*43758.5453,1.0);if(level<0)level+=1;break;}cycle.points[(size_t)n]={phase*1000,level};}if(sound.lfoShape==0)for(int n=1;n<cycle.count;++n){const double phase=(n-.5)/(cycle.count-1);drum::bendEnvelopeSegment(cycle.points[(size_t)n-1].level,cycle.points[(size_t)n],.5,.5+.5*std::sin(phase*juce::MathConstants<double>::twoPi));}}
+    lfoGraph->update({},cycle,false,1,"%",true,"One cycle / click to add / drag line to curve / Shift: fine",false);lfoGraph->setHistory(!lfoUndo.empty(),!lfoRedo.empty());
+    routing->settings=selectedControls.sound;for(int n=0;n<drum::numMacros;++n){const auto& mapping=selectedControls.macros[(size_t)n];if(mapping.target>3)routing->settings.*(drum::macroTargets[(size_t)mapping.target].member)=mapping.minimum+(mapping.maximum-mapping.minimum)*processor.macro(n).get();}
+    routing->instrument=name;routing->hasChain=chainPresent;for(int n=0;n<22;++n){auto* bus=processor.getBus(false,n);routing->enabled[(size_t)n]=bus && bus->isEnabled();}if(page==4)routing->repaint();
     syncEnvelopeOverlay();
 }
 void SoundEditor::syncEnvelopeOverlay()
@@ -786,6 +821,20 @@ void SoundEditor::change(const drum::SoundParameter& parameter,double value)
     message=result.ok?"Saved with this kit. Markers, direction, playback mode and loop on/off apply on the next hit.":"Start must be before End; loop start must be before loop end.";
     refresh();
 }
+void SoundEditor::changeLfo(drum::EnvelopeShape shape,bool reset)
+{
+    auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);if(!i)return;
+    if(!lfoGesture || !lfoRecorded){lfoUndo.push_back({i->controls.sound.envelopes[3],i->controls.sound.lfoShape,i->controls.sound.lfoOn});if(lfoUndo.size()>100)lfoUndo.erase(lfoUndo.begin());lfoRedo.clear();lfoRecorded=true;}
+    shape.points[0].ms=0;shape.points[(size_t)shape.count-1].ms=1000;
+    auto c=i->controls;c.sound.envelopes[3]=shape;c.sound.lfoShape=6;c.sound.lfoOn=reset?0:1;
+    if(processor.getLibrary().setControls(kitId,instrumentId,c).ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));refresh();
+}
+void SoundEditor::undoLfo(bool redo)
+{
+    auto& from=redo?lfoRedo:lfoUndo;auto& to=redo?lfoUndo:lfoRedo;if(from.empty())return;
+    auto state=processor.getLibrary().snapshot();auto* i=drum::findInstrument(*drum::activeKit(state),instrumentId);if(!i)return;auto c=i->controls;to.push_back({c.sound.envelopes[3],c.sound.lfoShape,c.sound.lfoOn});const auto previous=from.back();from.pop_back();c.sound.envelopes[3]=previous.shape;c.sound.lfoShape=previous.choice;c.sound.lfoOn=previous.on;
+    if(processor.getLibrary().setControls(kitId,instrumentId,c).ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));refresh();
+}
 void SoundEditor::changeKeyTuning()
 {
     if(updating)return;auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);if(!i || kit->id!=kitId)return;
@@ -814,8 +863,9 @@ void SoundEditor::setPage(int value)
     equalizer.setVisible(page==2);eqTab.setVisible(false);filterTab.setVisible(page==1);
 
     slice.setVisible(page==0);sliceCount.setVisible(page==0);reset.setVisible(page!=5 && page!=7);chain.setVisible(page==7);viewport.setVisible(page!=7 && page!=2);
+    attackOnly.setVisible(page==6);
     keySpectrum->setVisible(page==8);keyCoarse.setVisible(page==8);keyFine.setVisible(page==8);keyCoarseLabel.setVisible(page==8);keyFineLabel.setVisible(page==8);keyStatus.setVisible(page==8);if(page==8)viewport.setVisible(false);
-    waveform->setVisible(page!=2 && page!=8);waveformDivider->setVisible(page!=2 && page!=8);
+    lfoGraph->setVisible(page==3);routing->setVisible(page==4);waveform->setVisible(page!=2 && page!=8 && page!=4 && page!=5 && page!=3);waveformDivider->setVisible(page!=2 && page!=8 && page!=4 && page!=5 && page!=3);
     resized(); repaint();
 }
 void SoundEditor::paint(juce::Graphics& g)
@@ -840,10 +890,10 @@ void SoundEditor::resized()
     noteIndicator.setBounds(18,46,getWidth()-36,22);
     back.setBounds(getWidth()-230,15,125,32); reset.setBounds(getWidth()-95,15,80,32);
     const int tabWidth=(getWidth()-36-8*((int)tabs.size()-1))/(int)tabs.size();
-    constexpr int order[]{0,1,2,6,3,8,4,5,7};
+    constexpr int order[]{0,1,2,6,3,8,7,4,5};
     for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)order[n]].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
     ampOverlay.setBounds(18,116,112,24);pitchOverlay.setBounds(136,116,112,24);
-    adsrValues.setBounds(getWidth()-146,116,128,24);
+    adsrValues.setBounds(getWidth()-146,116,128,24);attackOnly.setBounds(18,116,220,24);
     eqTab.setBounds(getWidth()-446,116,126,24);filterTab.setBounds(254,116,112,24);
     int graphHeight=0;
     const int graphWidth=getWidth()-36;
@@ -851,6 +901,8 @@ void SoundEditor::resized()
     const int reserved=(page==0 || page==1 || page==2 || page==8)?148:page==7?310:160;
     const int minimumWaveHeight=page==7?160:184;
     const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),(page==0 || page==1 || page==2 || page==8)?getHeight():waveformHeight);
+    lfoGraph->setBounds(18,waveTop,graphWidth,height);
+    routing->setBounds(18,waveTop,graphWidth,height);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
     const int graphTop=waveTop+12+height;
@@ -859,7 +911,7 @@ void SoundEditor::resized()
     const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
     if(page==8){keySpectrum->setBounds(18,waveTop,graphWidth,height);int row=controlsTop;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,30);}
     chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
-    viewport.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
+    viewport.setBounds(18,page==5?waveTop:controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-(page==5?waveTop:controlsTop)-37));
     const int width=juce::jmax(1,viewport.getWidth()-12),columns=page==0?4:page==1?4:width>=1000?3:2,gap=page==1?10:16,cell=(width-gap*(columns-1))/columns;
     const int rowHeight=page==1?28:34;
     int top=page==1?2:6;
@@ -869,9 +921,9 @@ void SoundEditor::resized()
     if(page==0) {sliceCount.setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28);++n;slice.setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28);++n;bottom=top+((n+columns-1)/columns)*34+6;}
     if(page==5)
     {
-        const int cellWidth=(width-30)/2;
-        for(int index=0;index<drum::numMacros;++index) macroFields[(size_t)index]->setBounds((index%2)*(cellWidth+30),(index/2)*135,cellWidth,118);
-        bottom=(drum::numMacros/2)*135;
+        const int cellWidth=(width-30)/2,macroRow=juce::jmax(124,viewport.getHeight()/4);
+        for(int index=0;index<drum::numMacros;++index) macroFields[(size_t)index]->setBounds((index%2)*(cellWidth+30),(index/2)*macroRow,cellWidth,macroRow-10);
+        bottom=(drum::numMacros/2)*macroRow;
     }
     content.setSize(width,juce::jmax(viewport.getHeight(),bottom));
     syncEnvelopeOverlay();

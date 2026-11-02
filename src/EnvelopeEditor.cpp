@@ -19,13 +19,13 @@ public:
     {
         g.setColour(owner.active?(owner.overlay?(owner.unit=="%"?juce::Colour(0xffff80c0):juce::Colour(0xff8bc5ff)):owner.colour):muted);g.fillEllipse(getLocalBounds().toFloat().reduced(1));
         g.setColour(background);g.setFont(juce::FontOptions(9.0f));
-        g.drawText(index==owner.shape.hold?"S":juce::String(index+1),getLocalBounds(),juce::Justification::centred);
+        g.drawText(!owner.cycle && index==owner.shape.hold?"S":juce::String(index+1),getLocalBounds(),juce::Justification::centred);
         if(hasKeyboardFocus(false)){g.setColour(ink);g.drawEllipse(getLocalBounds().toFloat().reduced(1),2);}
     }
     void mouseDown(const juce::MouseEvent& e) override
     {
         if(e.mods.isMiddleButtonDown()){owner.mouseDown(e.getEventRelativeTo(&owner));return;}
-        if(e.mods.isPopupMenu()) {owner.holdPoint(index);return;}
+        if(e.mods.isPopupMenu()) {if(!owner.cycle)owner.holdPoint(index);return;}
         if(isShowing())grabKeyboardFocus();owner.beginPoint(index,e.getEventRelativeTo(&owner).position);
     }
     void mouseDrag(const juce::MouseEvent& e) override {owner.mouseDrag(e.getEventRelativeTo(&owner));}
@@ -55,7 +55,7 @@ EnvelopeEditor::EnvelopeEditor(juce::String id,juce::String heading,juce::Colour
     for(auto* b:{&zoomOut,&zoomIn,&fitButton,&activate,&adsr,&reset,&undo,&redo})addAndMakeVisible(*b);
     zoomOut.setComponentID(getComponentID()+"-zoom-out");zoomIn.setComponentID(getComponentID()+"-zoom-in");fitButton.setComponentID(getComponentID()+"-fit");activate.setComponentID(getComponentID()+"-activate");adsr.setComponentID(getComponentID()+"-adsr");
     reset.setComponentID(getComponentID()+"-reset");undo.setComponentID(getComponentID()+"-undo");redo.setComponentID(getComponentID()+"-redo");
-    reset.setTooltip("Reset this envelope's shape, ADSR and amount to defaults. Undo restores the previous settings.");
+    reset.setTooltip("Reset to a neutral envelope: full amplitude, zero pitch/filter modulation. Undo restores the previous settings.");
     adsr.setTooltip("Use the saved numeric ADSR values instead of custom points.");
     undo.setTooltip("Undo one edit in this envelope, including a whole drag.");redo.setTooltip("Redo an undone envelope edit.");
     zoomOut.setTooltip("Zoom out. Ctrl + wheel zooms around the pointer.");zoomIn.setTooltip("Zoom in. Wheel pans; middle-drag also pans.");
@@ -148,7 +148,7 @@ void EnvelopeEditor::paint(juce::Graphics& g)
     label(g,status,{158,header+32,getWidth()-168,18},10,active?colour:muted);
     if(shape.count<2)return;
     const auto a=plot();const auto c=active?(overlay?(unit=="%"?juce::Colour(0xffff80c0):juce::Colour(0xff8bc5ff)):colour):muted;
-    if(!overlay)for(int n=0;n<5;++n){const float x=a.getX()+a.getWidth()*n/4;g.setColour(grid);g.drawVerticalLine((int)x,a.getY(),a.getBottom());label(g,timeText(offset+span*n/4),{(int)x-(n==4?53:0),(int)a.getBottom()+(getHeight()<160?2:9),58,15},9,muted);}
+    if(!overlay)for(int n=0;n<5;++n){const float x=a.getX()+a.getWidth()*n/4;g.setColour(grid);g.drawVerticalLine((int)x,a.getY(),a.getBottom());label(g,cycle?juce::String((offset+span*n/4)/10,0)+"%":timeText(offset+span*n/4),{(int)x-(n==4?53:0),(int)a.getBottom()+(getHeight()<160?2:9),58,15},9,muted);}
     g.setColour(grid);g.drawHorizontalLine((int)a.getY(),a.getX(),a.getRight());g.drawHorizontalLine((int)a.getBottom(),a.getX(),a.getRight());
     label(g,amount<0?"0":unit=="%" || amount==0?"100%":juce::String(amount,1),{2,(int)a.getY()-7,32,15},9,muted);
     label(g,amount<0?juce::String(amount,1):"0",{2,(int)a.getBottom()-7,32,15},9,muted);
@@ -166,20 +166,20 @@ void EnvelopeEditor::paint(juce::Graphics& g)
         g.setGradientFill(juce::ColourGradient(c.withAlpha(.26f),a.getX(),a.getY(),c.withAlpha(.02f),a.getX(),a.getBottom(),false));g.fillPath(fill);
         g.setColour(c);g.strokePath(path,juce::PathStrokeType(2));
         if(limit<offset+span){const auto end=position({limit,0}).x;g.setColour(juce::Colours::orange.withAlpha(0.7f));g.drawVerticalLine((int)end,a.getY(),a.getBottom());label(g,"Sample end",{(int)end-68,(int)a.getBottom()-18,68,15},9,muted);}
-        const auto hold=position(shape.points[(size_t)shape.hold]);float dash[]{3,3};g.setColour(muted.withAlpha(0.7f));g.drawDashedLine({{hold.x,a.getY()},{hold.x,a.getBottom()}},dash,2);
-        label(g,"Hold / note off",{(int)hold.x+5,(int)a.getY()+3,90,15},9,muted);
+        if(!cycle){const auto hold=position(shape.points[(size_t)shape.hold]);float dash[]{3,3};g.setColour(muted.withAlpha(0.7f));g.drawDashedLine({{hold.x,a.getY()},{hold.x,a.getBottom()}},dash,2);
+        label(g,"Hold / note off",{(int)hold.x+5,(int)a.getY()+3,90,15},9,muted);}
         if(bending && line>0){const auto& p=shape.points[(size_t)line];const auto& prev=shape.points[(size_t)line-1];const auto grip=position({prev.ms+(p.ms-prev.ms)*p.pivot,drum::envelopeSegment(prev.level,p,p.pivot)});g.setColour(ink);g.drawEllipse(grip.x-4,grip.y-4,8,8,1);}
     }
     for(int n=0;n<shape.count;++n)if(handles[(size_t)n]->isVisible()){g.setColour(c.withAlpha(0.5f));g.drawLine({position(shape.points[(size_t)n]),handles[(size_t)n]->getBounds().getCentre().toFloat()});}
-    if(!overlay && getHeight()>=160)label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click line: add / drag line: curve / double-click point: remove":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
+    if(!overlay && getHeight()>=160)label(g,feedback.isEmpty()?juce::String(shape.count)+" points / click: add / Ctrl-drag: new point / drag line: curve / Shift: fine":feedback,{10,getHeight()-19,getWidth()-20,17},10,ink);
 }
 void EnvelopeEditor::submit(drum::EnvelopeShape value,bool audibleEdit)
 {for(int n=0;n<value.count;++n)value.points[(size_t)n].ms=std::min(value.points[(size_t)n].ms,limit);if(editable() && drum::validEnvelope(value) && onShape)onShape(value,audibleEdit);}
 void EnvelopeEditor::beginPoint(int n,juce::Point<float> p)
-{if(editable() && n<shape.count){dragging=n;line=-1;initial=shape;dragStart=p;gesture=true;if(onBeginGesture)onBeginGesture();}}
-void EnvelopeEditor::dragPoint(juce::Point<float> p)
+{if(editable() && n<shape.count){dragging=n;line=-1;initial=shape;dragStart=p;automatic=false;if(!gesture){gesture=true;if(onBeginGesture)onBeginGesture();}}}
+void EnvelopeEditor::dragPoint(juce::Point<float> p,bool fine)
 {
-    if(dragging<0 || !editable())return;auto edited=initial;auto& node=edited.points[(size_t)dragging];
+    if(dragging<0 || !editable())return;if(fine)p=dragStart+(p-dragStart)*0.1f;auto edited=initial;auto& node=edited.points[(size_t)dragging];
     node.ms=std::clamp(std::round((node.ms+(p.x-dragStart.x)/plot().getWidth()*span)*100)/100,0.0,limit);
     node.level=std::clamp(node.level+(amount<0?1:-1)*(p.y-dragStart.y)/plot().getHeight(),0.0,1.0);
     feedback="Point "+juce::String(dragging+1)+": "+timeText(node.ms)+" / "+juce::String(node.level*100,1)+"%";
@@ -216,12 +216,19 @@ void EnvelopeEditor::mouseDown(const juce::MouseEvent& e)
             if(distance<best && b.ms-a.ms>0.02){best=distance;picked=n;pickedTime=timeAt(nearest.x);pickedLevel=levelAt(nearest.y);}previous=next;
         }
     }
+    if((picked<0 || e.mods.isCtrlDown()) && plot().contains(e.position)){
+        if(shape.count>=drum::maxEnvelopePoints)return;
+        auto edited=shape;const double ms=std::clamp(timeAt(e.position.x),0.0,limit);int index=0;while(index<edited.count && edited.points[(size_t)index].ms<=ms)++index;
+        for(int n=edited.count;n>index;--n)edited.points[(size_t)n]=edited.points[(size_t)n-1];
+        edited.points[(size_t)index]={ms,std::clamp(levelAt(e.position.y),0.0,1.0)};++edited.count;if(index<=edited.hold)++edited.hold;edited.hold=std::min(edited.hold,edited.count-2);
+        gesture=true;if(onBeginGesture)onBeginGesture();submit(edited);beginPoint(index,e.position);return;
+    }
     if(picked>0){line=picked;dragging=-1;initial=shape;dragStart=e.position;grabTime=pickedTime;grabLevel=pickedLevel;bending=false;gesture=true;if(onBeginGesture)onBeginGesture();}
 }
 void EnvelopeEditor::mouseDrag(const juce::MouseEvent& e)
 {
     if(panning){const double delta=panStart-(e.position.x-dragStart.x)/plot().getWidth()*span-offset;if(overlay && onOverlayPan)onOverlayPan(delta);else pan(delta);return;}
-    if(dragging>=0){dragPoint(e.position);return;}
+    if(dragging>=0){dragPoint(e.position,e.mods.isShiftDown());return;}
     if(line<=0 || !editable() || (!bending && e.position.getDistanceFrom(dragStart)<3))return;
     bending=true;auto edited=initial;auto& right=edited.points[(size_t)line];const auto& left=edited.points[(size_t)line-1];
     const double t=std::clamp((grabTime+(e.position.x-dragStart.x)/plot().getWidth()*span-left.ms)/(right.ms-left.ms),0.02,0.98);

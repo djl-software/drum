@@ -11,6 +11,7 @@ struct PreviewInput
     std::array<float,numMacros> macros {};
     double bpm=120,rate=44100;
     int send=-1;
+    bool attackOnly=false;
     bool operator==(const PreviewInput&) const = default;
 };
 // One cancellable worker per open editor. No decoding, DSP or waiting in paint
@@ -55,6 +56,7 @@ private:
             PreviewResult rendered;
             try
             {
+                if(input.attackOnly && input.source){auto isolated=std::make_shared<Sample>();isolated->rate=input.source->rate;isolated->audio.setSize(input.source->audio.getNumChannels(),input.source->audio.getNumSamples());isolated->audio.clear();input.source=std::move(isolated);}
                 rendered=SampleEngine::renderPreview(input.source,input.controls,input.macros,input.bpm,input.rate,input.send,cancelled);
                 if(rendered.sample && !cancelled())rendered.analysis=analyseTonal(rendered.sample->audio,rendered.sample->rate,cancelled);
             }

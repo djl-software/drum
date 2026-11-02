@@ -53,7 +53,7 @@ namespace drum
  X(filterRelease,"Filter release",100,0,30000,0.1," ms",2,"",1) \
  X(velocityFilter,"Velocity to filter",0,-8,8,0.01," oct",2,"",1) \
  X(lfoOn,"LFO",0,0,1,1,"",3,"Off|On",1) \
- X(lfoShape,"Waveform",0,0,5,1,"",3,"Sine|Triangle|Square|Saw up|Saw down|Random",1) \
+ X(lfoShape,"Waveform",0,0,6,1,"",3,"Sine|Triangle|Square|Saw up|Saw down|Random|Custom",1) \
  X(lfoRate,"Rate",1,0.01,30,0.01," Hz",3,"",1) \
  X(lfoSync,"Clock",0,0,1,1,"",3,"Free Hz|Host tempo",1) \
  X(lfoDivision,"Beat division",4,0,8,1,"",3,"1/64|1/32|1/16|1/8|1/4|1/2|1 bar|2 bars|4 bars",1) \
@@ -84,7 +84,7 @@ struct SoundParameters
 #define DRUM_DECLARE(key,label,initial,low,high,step,unit,page,choices,scale) double key = initial;
     DRUM_SOUND_PARAMETERS(DRUM_DECLARE)
 #undef DRUM_DECLARE
-    std::array<EnvelopeShape,3> envelopes {};
+    std::array<EnvelopeShape,4> envelopes {};
     Equalizer equalizer;
     bool operator==(const SoundParameters&) const = default;
 };

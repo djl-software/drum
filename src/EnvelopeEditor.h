@@ -9,6 +9,7 @@ public:
     EnvelopeEditor(juce::String id,juce::String title,juce::Colour colour);
     ~EnvelopeEditor() override;
     void update(Values,const drum::EnvelopeShape&,bool locked,double amount,juce::String unit,bool active,juce::String status,bool newSelection,bool amountMapped=false);
+    void setCycleMode(){cycle=true;adsr.setVisible(false);}
     void setOverlay(juce::Rectangle<float>,double offsetMs,double spanMs);
     bool hitTest(int x,int y) override;
     std::function<void(double)> onOverlayPan;
@@ -36,7 +37,7 @@ private:
     double timeAt(float x) const;
     double levelAt(float y) const;
     void beginPoint(int,juce::Point<float>);
-    void dragPoint(juce::Point<float>);
+    void dragPoint(juce::Point<float>,bool fine=false);
     void removePoint(int);
     void holdPoint(int);
     void submit(drum::EnvelopeShape,bool audibleEdit=true);
@@ -55,7 +56,7 @@ private:
     juce::String title,unit,status,feedback;
     juce::Colour colour;
     double amount=1,span=500,offset=0,grabTime=0,grabLevel=0,limit=80000,panStart=0;
-    bool overlay=false;juce::Rectangle<float> overlayPlot;
+    bool cycle=false,overlay=false;juce::Rectangle<float> overlayPlot;
     bool active=true,automatic=true,locked=false,custom=false,bending=false,updating=false,panning=false,gesture=false;
     int dragging=-1,line=-1;
     juce::Point<float> dragStart;
