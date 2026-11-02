@@ -6,7 +6,7 @@
 #include "SpectrumAnalyzer.h"
 
 namespace drum {
-enum class BuiltinKind { eq, compressor, transient, saturation, clipper, limiter, gate, utility };
+enum class BuiltinKind { eq, compressor, transient, saturation, clipper, limiter, gate, utility, stereoWidth };
 juce::String builtinName(BuiltinKind);
 juce::PluginDescription builtinDescription(BuiltinKind);
 bool isBuiltin(const juce::PluginDescription&);
@@ -22,7 +22,7 @@ public:
     explicit BuiltinEffect(BuiltinKind);
     const juce::String getName() const override {return "Drum "+builtinName(kind);}
     bool acceptsMidi() const override{return false;} bool producesMidi() const override{return false;}
-    double getTailLengthSeconds() const override{return 0;}
+    double getTailLengthSeconds() const override{return kind==BuiltinKind::stereoWidth?.03:0;}
     bool hasEditor() const override{return true;} juce::AudioProcessorEditor* createEditor() override;
     int getNumPrograms() override{return 1;} int getCurrentProgram() override{return 0;}
     void setCurrentProgram(int) override{} const juce::String getProgramName(int) override{return {};}
@@ -35,10 +35,13 @@ public:
     void resetParameters();
     const BuiltinKind kind;
     std::vector<juce::AudioParameterFloat*> controls;
+    std::atomic<bool> monoCheck{false},stereoActive{false};
+    std::atomic<float> correlation{1},monoChange{0};
     std::atomic<float> inputPeak{0},outputPeak{0},reduction{0};
     std::unique_ptr<SpectrumTap> spectrum, waveform;
 private:
     void parameter(const juce::String&,float,float,float,const juce::String& unit={});
+    juce::AudioBuffer<float> widthDelay;int widthWrite=0;float bassL=0,bassR=0;double energyL=0,energyR=0,crossEnergy=0;juce::SmoothedValue<float> monoBlend;
     VoiceEqualizer eq;
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
     std::vector<juce::SmoothedValue<float>> smooth;

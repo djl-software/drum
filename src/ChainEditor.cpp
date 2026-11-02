@@ -82,7 +82,7 @@ ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library
 {
     setComponentID("plugin-chain");
     addAndMakeVisible(builtin);builtin.setComponentID("chain-add-builtin");
-    builtin.onClick=[this]{juce::PopupMenu menu;for(int n=0;n<8;++n)menu.addItem(n+1,drum::builtinName((drum::BuiltinKind)n));menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&builtin),[safe=juce::Component::SafePointer<ChainEditor>(this)](int choice){if(safe && choice>0 && choice<=8)safe->apply(safe->effects.add(safe->kitId,safe->instrumentId,drum::builtinDescription((drum::BuiltinKind)(choice-1))));});};
+    builtin.onClick=[this]{juce::PopupMenu menu;for(int n=0;n<9;++n)menu.addItem(n+1,drum::builtinName((drum::BuiltinKind)n));menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&builtin),[safe=juce::Component::SafePointer<ChainEditor>(this)](int choice){if(safe && choice>0 && choice<=9)safe->apply(safe->effects.add(safe->kitId,safe->instrumentId,drum::builtinDescription((drum::BuiltinKind)(choice-1))));});};
     addAndMakeVisible(presets);presets.setComponentID("chain-presets");presets.onClick=[this]{showChainMenu();};
     addAndMakeVisible(load);load.setComponentID("chain-load");
     load.onClick=[this]{

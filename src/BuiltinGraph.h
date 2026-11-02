@@ -12,6 +12,14 @@ public:
     void paint(juce::Graphics& g) override
     {
         auto a=plot();g.fillAll(juce::Colour(0xff10151f));g.setFont(juce::FontOptions(11));
+        if(effect.kind==BuiltinKind::stereoWidth){
+            const auto blue=juce::Colour(0xff68b6ff),mint=juce::Colour(0xff67dfc5),amber=juce::Colour(0xffffba69);g.setFont(juce::FontOptions(14));
+            const float width=(float)getWidth()-48,start=24,zero=start+width*.22f;
+            for(int channel=0;channel<2;++channel){const bool delayed=(value(1)>=.5f)==(channel==1);const float y=40+channel*40,delay=delayed?value(0):0;g.setColour(channel?amber:blue);g.drawText(channel?"Right":"Left",24,(int)y-12,60,24,juce::Justification::centredLeft);g.drawLine(zero,y,start+width,y,2);const float mark=zero+delay/30*(width*.6f);g.fillEllipse(mark-5,y-5,10,10);g.drawText(juce::String(delay,1)+" ms",(int)mark+10,(int)y-12,90,24,juce::Justification::centredLeft);}
+            const float corr=effect.correlation.load(),y=135;g.setColour(juce::Colour(0xff2b3648));g.fillRoundedRectangle(start,y,width,12,4);g.setColour(corr<0?juce::Colour(0xffff687d):corr<.3f?amber:mint);g.fillEllipse(start+(corr+1)*.5f*width-6,y-2,16,16);
+            g.setColour(juce::Colour(0xffe5ebf5));g.drawText(effect.stereoActive.load()?"Correlation "+juce::String(corr,2)+"    Mono change "+juce::String(effect.monoChange.load(),1)+" dB":"Play the instrument for a live mono compatibility check",24,157,getWidth()-48,24,juce::Justification::centredLeft);
+            g.setColour(effect.monoCheck.load()?amber:mint);g.drawText(effect.monoCheck.load()?"MONO AUDITION — this instrument":"STEREO — negative correlation can mean mono cancellation",24,4,getWidth()-48,24,juce::Justification::centredLeft);return;
+        }
         const bool nonlinear=effect.kind==BuiltinKind::saturation || effect.kind==BuiltinKind::clipper;
         const bool history=effect.kind==BuiltinKind::transient || effect.kind==BuiltinKind::utility;
         g.setColour(juce::Colour(0xff2b3648));for(int i=0;i<=6;++i){float f=i/6.f;g.drawHorizontalLine(juce::roundToInt(a.getBottom()-f*a.getHeight()),a.getX(),a.getRight());g.drawVerticalLine(juce::roundToInt(a.getX()+f*a.getWidth()),a.getY(),a.getBottom());}
