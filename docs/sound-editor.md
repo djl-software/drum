@@ -285,3 +285,5 @@ The group-boundary menu labels are None, Half octave and Octave (formerly 0, 0.5
 Open an instrument with **Edit**; double-clicking a tile does not open the editor. Tune shows the highest-power note prominently beside its major and minor Camelot references. For example, A shows 11B (major) / 8A (minor); a single note does not determine a major/minor scale. The readout follows Coarse and Fine immediately while the edited-audio analysis refreshes in the background.
 
 Tile and Tune key labels share the edited-audio analysis, including tuning, envelopes and filters, before the effect chain. Changed settings invalidate the cached result; both use the same transposed source readout while updated analysis finishes. Tune always analyses the main instrument signal, regardless of the waveform send view.
+
+EQ output analysers scan overlapping FFT windows and retain peaks across each screen update, including short hits followed by silence. Both Filter and chain EQ start displaying incoming audio before a full FFT window has accumulated. The shaded spectrum shows live playback output.

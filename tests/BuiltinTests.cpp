@@ -14,6 +14,12 @@ void runBuiltinTests(){
     SpectrumTap tap;tap.rate.store(48000);tap.enabled.store(true);SpectrumAnalysis analyser;
     for(int n=0;n<SpectrumAnalysis::size;++n){float v=.5f*std::sin(juce::MathConstants<float>::twoPi*32*n/SpectrumAnalysis::size);tap.push(v,-v);}
     require(analyser.update(tap) && std::abs(analyser.db[32]+6.0206f)<.2f,"Spectrum calibration or stereo phase handling incorrect");
+    SpectrumTap burstTap;burstTap.enabled.store(true);SpectrumAnalysis burst;
+    for(int n=0;n<24576;++n){float v=n<4096?.5f*std::sin(juce::MathConstants<float>::twoPi*128*n/SpectrumAnalysis::size):0;burstTap.push(v,v);}
+    require(burst.update(burstTap) && burst.db[128]>-20,"EQ spectrum lost a short hit before a queued silent tail");
+    SpectrumTap shortTap;shortTap.enabled.store(true);SpectrumAnalysis shortHit;
+    for(int n=0;n<1024;++n)shortTap.push(.5f,.5f);
+    require(shortHit.update(shortTap) && *std::max_element(shortHit.db.begin(),shortHit.db.end())>-60,"EQ spectrum waits for a full window before displaying short hits");
     BuiltinEffect filtered(BuiltinKind::eq);auto spectrumEq=filtered.equalizer();spectrumEq.bands[3].enabled=true;spectrumEq.bands[3].frequency=750;spectrumEq.bands[3].gain=-18;spectrumEq.bands[3].q=2;filtered.setEqualizer(spectrumEq);filtered.prepareToPlay(48000,4096);filtered.spectrum->enabled.store(true);juce::AudioBuffer<float> tone(2,16384);for(int n=0;n<16384;++n)for(int c=0;c<2;++c)tone.setSample(c,n,.5f*std::sin(juce::MathConstants<float>::twoPi*750*n/48000));filtered.processBlock(tone,midi);SpectrumAnalysis after;require(after.update(*filtered.spectrum) && after.db[128]<analyser.db[32]-16,"Spectrum was not taken after EQ processing");
     tap.enabled.store(false);tap.push(1,1);require(tap.consume([](float,float){})==0,"Disabled spectrum still captured audio");
     for(double rate:{44100.,48000.,96000.})for(int type=0;type<8;++type){BuiltinEffect p((BuiltinKind)type);p.prepareToPlay(rate,4096);auto audio=signal();p.processBlock(audio,midi);for(int c=0;c<2;++c)for(int n=0;n<audio.getNumSamples();++n)require(std::isfinite(audio.getSample(c,n)),"Built-in emitted nonfinite audio");p.reset();audio.clear();p.processBlock(audio,midi);require(audio.getMagnitude(0,4096)==0,"Built-in generated sound after reset");}
