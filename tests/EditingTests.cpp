@@ -99,15 +99,15 @@ void runEditingTests()
     r.controls={};r.controls.sound.bendRange=12;r.controls.sound.end=0.1;r.set();r.reset(5000);r.midi.addEvent(juce::MidiMessage::pitchWheel(1,16383),0);r.hit();r.render();check(r.audio.getSample(0,2403)==0,"Pitch bend not applied");
     r.controls={};r.controls.macros[0]={1,-6.020599913,0};r.set();r.p.macro(0).setValueNotifyingHost(0);r.reset();r.hit();r.render();near(r.audio.getSample(0,0),0.125f,"Macro gain mapping failed");
     r.p.macro(0).setValueNotifyingHost(1);r.render();near(r.audio.getSample(0,400),0.25f,"Macro automation did not update playing voice");
-    r.controls={};r.controls.sound.output=1;r.controls.sound.sendA=-6.020599913;r.set();r.reset();r.hit();r.render();near(r.audio.getSample(0,0),0.25f,"Disabled output did not fall back to Main");
+    r.controls={};r.controls.sound.output=1;r.controls.sound.sendA=-6.020599913;r.set();r.reset();r.hit();r.render();near(r.audio.getSample(0,0),0.375f,"Disabled output did not fall back to Main plus local return");
     auto layout=r.p.getBusesLayout();layout.outputBuses.set(1,juce::AudioChannelSet::stereo());layout.outputBuses.set(drum::outputBusIndex(16),juce::AudioChannelSet::stereo());
     check(r.p.setBusesLayout(layout),"Aux outputs rejected");r.reset();r.hit();r.render();
-    near(r.audio.getMagnitude(0,0,4096),0,"Routed sound leaked to Main");near(r.audio.getSample(2,0),0.25f,"Aux output silent");near(r.audio.getSample(4,0),0.125f,"Send output incorrect");
-    layout.outputBuses.set(0,juce::AudioChannelSet::mono());check(r.p.setBusesLayout(layout),"Mono plus auxiliary outputs rejected");r.reset();r.hit();r.render();near(r.audio.getSample(1,0),0.25f,"Aux offset after mono Main incorrect");near(r.audio.getSample(3,0),0.125f,"Send offset after mono Main incorrect");
+    near(r.audio.getSample(0,0),.125f,"Local return did not reach Main");near(r.audio.getSample(2,0),0.25f,"Aux output silent");near(r.audio.getSample(4,0),0.f,"Local send leaked to legacy host bus");
+    layout.outputBuses.set(0,juce::AudioChannelSet::mono());check(r.p.setBusesLayout(layout),"Mono plus auxiliary outputs rejected");r.reset();r.hit();r.render();near(r.audio.getSample(1,0),0.25f,"Aux offset after mono Main incorrect");near(r.audio.getSample(0,0),.125f,"Local return to mono Main incorrect");near(r.audio.getSample(3,0),0.f,"Local send leaked after mono Main");
 
     for(int n=0;n<22;++n)check(drum::outputBusIndex(drum::outputBusIndex(n))==n,"Output bus mapping is not reversible");
-    for(int n=0;n<6;++n)check(drum::outputBusIndex(16+n)<16 && r.p.getBus(false,drum::outputBusIndex(16+n))->getName()=="Send "+juce::String::charToString((juce::juce_wchar)('A'+n)),"Send exceeds Live output limit");
-    layout=r.p.getBusesLayout();for(int n=0;n<layout.outputBuses.size();++n)layout.outputBuses.set(n,juce::AudioChannelSet::disabled());layout.outputBuses.set(0,juce::AudioChannelSet::stereo());layout.outputBuses.set(drum::outputBusIndex(19),juce::AudioChannelSet::stereo());check(r.p.setBusesLayout(layout),"Send D layout rejected");r.controls={};r.controls.sound.sendD=-6.020599913;r.set();r.reset();r.hit();r.render();near(r.audio.getSample(0,0),.25f,"Send D changed main signal");near(r.audio.getSample(2,0),.125f,"Send D host output is silent");
+    for(int n=0;n<6;++n)check(drum::outputBusIndex(16+n)<16 && r.p.getBus(false,drum::outputBusIndex(16+n))->getName().startsWith("Unused (local Send "),"Send exceeds Live output limit");
+    layout=r.p.getBusesLayout();for(int n=0;n<layout.outputBuses.size();++n)layout.outputBuses.set(n,juce::AudioChannelSet::disabled());layout.outputBuses.set(0,juce::AudioChannelSet::stereo());layout.outputBuses.set(drum::outputBusIndex(19),juce::AudioChannelSet::stereo());check(r.p.setBusesLayout(layout),"Send D layout rejected");r.controls={};r.controls.sound.sendD=-6.020599913;r.set();r.reset();r.hit();r.render();near(r.audio.getSample(0,0),.375f,"Local Send D did not return to Main");near(r.audio.getSample(2,0),0.f,"Local Send D leaked to legacy host output");
     r.controls={};for(auto& p:drum::soundParameters)
     {
         auto value=p.minimum+(p.maximum-p.minimum)*0.25;if(p.step==1)value=std::floor(value);
@@ -128,6 +128,15 @@ void runEditingTests()
     auto before=r.p.getLibrary().toXml()->toString();check(!r.p.getLibrary().sliceInstrument(r.kit,r.id,88).ok && before==r.p.getLibrary().toXml()->toString(),"Rejected slicing changed kit");
 
     r.controls={};r.set();DrumAudioProcessorEditor editor(r.p);editor.setSize(1280,900);click(editor,"open-sound-editor");
+    auto& editSolo=*dynamic_cast<juce::TextButton*>(find(editor,"editor-instrument-solo"));
+    auto& tileSolo=*dynamic_cast<juce::TextButton*>(find(editor,"instrument-solo"));
+    const auto soloPosition=editSolo.getBounds();
+    editSolo.setToggleState(true,juce::dontSendNotification);editSolo.onClick();
+    check(tileSolo.getToggleState() && editSolo.getToggleState(),"Editor Solo did not sync with main instrument Solo");
+    tileSolo.setToggleState(false,juce::dontSendNotification);tileSolo.onClick();
+    check(!editSolo.getToggleState(),"Main instrument Solo did not sync with editor Solo");
+    for(int page=0;page<9;++page){click(editor,("edit-tab-"+juce::String(page)).toRawUTF8());check(editSolo.isVisible() && editSolo.getBounds()==soloPosition,"Solo moved or disappeared between tabs");}
+    click(editor,"edit-tab-0");
     auto* reverse=dynamic_cast<juce::ComboBox*>(find(editor,"edit-reverse"));check(reverse!=nullptr,"Reverse UI missing");reverse->setSelectedId(2,juce::sendNotificationSync);
     auto* attack=dynamic_cast<juce::Slider*>(find(editor,"edit-ampAttack"));check(attack!=nullptr,"Envelope UI missing");attack->setValue(25,juce::sendNotificationSync);
     state=r.p.getLibrary().snapshot();auto sound=drum::findInstrument(*drum::activeKit(state),r.id)->controls.sound;check(sound.reverse==1 && sound.ampAttack==25,"Editing UI not saved");
@@ -136,7 +145,17 @@ void runEditingTests()
         click(editor,("edit-tab-"+juce::String(page)).toRawUTF8());capture(editor,"drum-editor-"+juce::String(page)+".png");
         for(auto& p:drum::soundParameters)check((find(editor,juce::String("edit-")+p.key)!=nullptr)==(p.member!=&drum::SoundParameters::keyOverride),"Sound control visibility incorrect");
     }
-    editor.setSize(800,600);click(editor,"edit-tab-0");capture(editor,"drum-editor-compact.png");
+    click(editor,"edit-tab-4");
+    auto& sendName=*dynamic_cast<juce::Label*>(find(editor,"send-name-0"));sendName.showEditor();check(sendName.getCurrentTextEditor()!=nullptr,"Send name editor missing");sendName.getCurrentTextEditor()->setText("Ambience",false);sendName.hideEditor(false);
+    state=r.p.getLibrary().snapshot();check(drum::activeKit(state)->returns[0].name=="Ambience" && sendName.getText()=="A: Ambience","Send rename did not update routing name");
+    check(dynamic_cast<juce::Slider*>(find(editor,"edit-sendA"))->getName()=="A: Ambience","Send pot did not follow shared name");
+    auto namedXml=r.p.getLibrary().toXml();drum::KitLibrary named;check(named.restore(*namedXml),"Named sends did not recall");auto recalledNames=named.snapshot();check(drum::activeKit(recalledNames)->returns[0].name=="Ambience","Send name lost on recall");
+    auto namedCopy=named.duplicateKit(recalledNames.activeKit);check(namedCopy.ok,"Named kit duplicate failed");recalledNames=named.snapshot();check(drum::activeKit(recalledNames)->returns[0].name=="Ambience","Send name lost on kit duplicate");
+    check(!r.p.getLibrary().setReturnName(r.kit,0,juce::String::repeatedString("x",65)).ok && !r.p.getLibrary().setReturnName(r.kit,6,"Invalid").ok,"Invalid send name or index accepted");
+    namedXml->setAttribute("schemaVersion",20);drum::KitLibrary legacyNames;check(legacyNames.restore(*namedXml),"Legacy send state rejected");auto oldNames=legacyNames.snapshot();check(drum::activeKit(oldNames)->returns[0].name=="Send A","Legacy send acquired a new name");
+    check(named.setReturnName(namedCopy.id,0,"").ok,"Empty send name did not reset");recalledNames=named.snapshot();check(drum::activeKit(recalledNames)->returns[0].name=="Send A","Empty send name did not restore default");
+    auto* send=dynamic_cast<juce::Slider*>(find(editor,"edit-sendA"));check(send && send->getMaximum()==0 && send->getTextFromValue(send->getMinimum()).contains(juce::String::fromUTF8("\xe2\x88\x9e")),"Send range/infinity display incorrect");send->setValue(send->getValueFromText("-inf"),juce::sendNotificationSync);check(send->getValue()==drum::sendFloor,"Typed infinity did not turn send off");send->setValue(-12,juce::sendNotificationSync);check(r.p.getEffects().returnSend(r.kit,0,1,-12).ok && r.p.getEffects().returnMain(r.kit,0,false).ok,"Diagram route setup failed");juce::MessageManager::getInstance()->runDispatchLoopUntil(100);juce::Timer::callPendingTimersSynchronously();capture(editor,"drum-local-sends-active.png");click(editor,"edit-return-0");
+    editor.setSize(800,600);click(editor,"edit-tab-4");capture(editor,"drum-local-sends-compact.png");click(editor,"edit-tab-0");capture(editor,"drum-editor-compact.png");
     auto* target=dynamic_cast<juce::ComboBox*>(find(editor,"macro-target-0"));target->setSelectedId(2,juce::sendNotificationSync);
     state=r.p.getLibrary().snapshot();check(drum::findInstrument(*drum::activeKit(state),r.id)->controls.macros[0].target==1,"Macro mapping UI not saved");
     click(editor,"close-sound-editor");check(!find(editor,"sound-editor")->isVisible(),"Back to kit failed");

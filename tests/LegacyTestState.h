@@ -4,5 +4,6 @@
 inline void stripChainEffects(juce::XmlElement& xml)
 {
     xml.deleteAllChildElementsWithTagName("Effect");
+    xml.deleteAllChildElementsWithTagName("Return");
     for(auto* child:xml.getChildIterator())stripChainEffects(*child);
 }

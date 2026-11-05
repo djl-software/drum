@@ -8,6 +8,7 @@
 #include "PatternPlayer.h"
 #include "LiveKitLink.h"
 #include "LinkedKits.h"
+#include "NamedMacroParameter.h"
 #include <map>
 
 class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater, private juce::Timer
@@ -20,6 +21,8 @@ public:
     void syncLinkedKit(bool preferLocal=false);
     drum::Result duplicateActiveKit();
     drum::Result renameActiveKit(const juce::String&);
+    drum::Result exportInstrument(const juce::String& kitId,const juce::String& instrumentId,const juce::File&);
+    drum::Result importInstrumentFile(const juce::String& kitId,const juce::String& groupId,const juce::File&);
     drum::Result saveDocument(const juce::File&);
     drum::Result openDocument(const juce::File&);
     juce::File documentFile() const{return currentDocument;}
@@ -57,6 +60,8 @@ public:
     drum::PatternPlayer& getPatterns(){return *patternPlayer;}
     drum::SampleEngine& getSampleEngine() { return sampleEngine; }
     drum::EffectRack& getEffects() { return effects; }
+    drum::Result renameMacro(int n,const juce::String& name);
+    void refreshMacroNames();
     juce::AudioParameterFloat& macro(int n) { return *macros[(size_t)n]; }
     void prepareToPlay(double, int) override;
     void releaseResources() override;
@@ -78,6 +83,7 @@ public:
     void setStateInformation(const void*, int) override;
 private:
     std::unique_ptr<drum::LiveKitLink> liveKitLink;
+    std::atomic<uint64_t> macroNameRevision{UINT64_MAX};
     juce::AudioParameterFloat* liveLinkParameter = nullptr;
     const bool trackInstance;
     std::atomic<bool> kitOpened{false};
@@ -87,7 +93,7 @@ private:
     uint64_t linkedRevision=0,linkedLocalRevision=0;
     std::array<float,drum::numMacros> linkedMacros {};
     void detachLinkedKit();
-    void timerCallback() override {syncLinkedKit();}
+    void timerCallback() override {syncLinkedKit();refreshMacroNames();}
 
     struct LibraryDocument {juce::File file;std::unique_ptr<juce::XmlElement> baseline;};
     std::map<juce::String,LibraryDocument> libraryDocuments;

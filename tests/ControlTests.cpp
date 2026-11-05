@@ -1,6 +1,7 @@
 #include "LegacyTestState.h"
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "ResetSlider.h"
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -14,6 +15,31 @@ juce::Component* control(juce::Component& root,const char* id)
     if(root.getComponentID()==id) return &root;
     for(auto* child:root.getChildren()) if(auto* found=control(*child,id)) return found;
     return nullptr;
+}
+void rotaryScrollTests()
+{
+    ResetSlider dial;configureDjlRotary(dial);dial.setRange(-60,12,.1);dial.setDoubleClickReturnValue(true,0);dial.setSize(96,88);
+    juce::int64 time=1000;int begins=0,ends=0;dial.onDragStart=[&]{++begins;};dial.onDragEnd=[&]{++ends;};
+    auto wheel=[&](float delta,int elapsed=300,bool shift=false,bool reversed=false,bool inertia=false){time+=elapsed;auto now=juce::Time(time);juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(),{45,30},shift?juce::ModifierKeys(juce::ModifierKeys::shiftModifier):juce::ModifierKeys(),1,0,0,0,0,&dial,&dial,now,{45,30},now,0,false);juce::MouseWheelDetails details{};details.deltaY=delta*(float)(djlDetentedWheelDelta()/.1);details.isReversed=reversed;details.isInertial=inertia;dial.mouseWheelMove(event,details);};
+    dial.setValue(-30);for(int n=0;n<10;++n)wheel(.1f);double slow=dial.getValue()+30;check(slow>.9 && slow<1.1,"Slow scroll did not make native fine steps");
+    dial.setValue(-30);time+=500;for(int n=0;n<10;++n)wheel(.1f,12);double fast=dial.getValue()+30;check(fast>slow*4,"Fast scrolling did not accelerate");
+    auto before=dial.getValue();wheel(.1f,300);check(std::abs(dial.getValue()-before-.1)<.001,"Slowing down after a burst did not restore one-step nudging");before=dial.getValue();wheel(.1f,600);check(std::abs(dial.getValue()-before-.1)<.001,"Pause did not restore fine scrolling");before=dial.getValue();wheel(-.1f,12);check(std::abs(dial.getValue()-before+.1)<.001,"Direction reversal did not restore precision");
+    before=dial.getValue();wheel(.1f,0);check(dial.getValue()==before,"Duplicate wheel event applied twice");wheel(.1f,10,false,false,true);check(dial.getValue()==before,"Trackpad inertia moved the dial");
+    dial.setValue(-30);time+=500;for(int n=0;n<10;++n)wheel(.01f,300);check(std::abs(dial.getValue()+29.9)<.001,"Fractional trackpad movement did not accumulate");
+    dial.setValue(-30);time+=500;for(int n=0;n<10;++n)wheel(.1f,12,true);check(dial.getValue()+30<fast*.2,"Shift fine mode was ignored");
+    dial.setValue(11.9);time+=500;for(int n=0;n<20;++n)wheel(.1f,12);check(dial.getValue()==12,"Fast scroll exceeded the upper bound");dial.setValue(-59.9);for(int n=0;n<20;++n)wheel(-.1f,12);check(dial.getValue()==-60,"Fast scroll exceeded the lower bound");
+    before=dial.getValue();wheel(.1f,600,false,true);check(dial.getValue()==before,"Reversed wheel direction ignored");dial.setEnabled(false);wheel(.1f);check(dial.getValue()==before,"Disabled rotary control changed");check(begins==ends && begins>0,"Wheel automation gestures were not paired");
+    dial.setEnabled(true);dial.setRange(0,1,1);dial.setValue(0);wheel(.1f,600);check(dial.getValue()==1,"A discrete dial did not advance one native step");
+    dial.setEnabled(true);dial.setRange(.1,18,.00000001);dial.setNumDecimalPlacesToDisplay(2);dial.setValue(2);wheel(.1f,600);check(std::abs(dial.getValue()-2.01)<1e-8,"Slow wheel did not follow the displayed Q denomination");
+    dial.setEnabled(true);dial.setRange(20,20000,1);dial.setSkewFactorFromMidPoint(1000);dial.setValue(1000);time+=500;for(int n=0;n<10;++n)wheel(.1f,300);check(dial.getValue()>1000 && dial.getValue()<1020,"Fine scroll did not respect a logarithmic range");dial.setValue(18000);wheel(.1f,600);check(dial.getValue()==18001,"One slow notch did not nudge a high frequency by exactly one Hz");
+}
+void macroNameTests()
+{
+    DrumAudioProcessor p(true);p.newKit();p.macro(0).setValueNotifyingHost(.25f);auto* parameter=&p.macro(0);auto id=dynamic_cast<juce::AudioProcessorParameterWithID*>(parameter)->paramID;
+    check(p.renameMacro(0,"Wood ambience").ok,"Macro rename failed");check(p.macro(0).getName(64)=="Wood ambience" && &p.macro(0)==parameter && dynamic_cast<juce::AudioProcessorParameterWithID*>(parameter)->paramID==id && p.macro(0).get()==.25f,"Macro rename changed parameter identity or value");
+    juce::MemoryBlock saved;p.getStateInformation(saved);DrumAudioProcessor copy(true);copy.setStateInformation(saved.getData(),(int)saved.getSize());check(copy.macro(0).getName(64)=="Wood ambience" && copy.macro(0).get()==.25f,"Macro name did not recall");
+    auto folder=juce::File::getCurrentWorkingDirectory().getChildFile("macro-name-"+juce::Uuid().toString());auto file=folder.getChildFile("Kits/Named.drumkit");check(p.saveDocument(file).ok,"Named macro kit save failed");DrumAudioProcessor opened(true);check(opened.openDocument(file).ok,"Named kit open failed");opened.refreshMacroNames();check(opened.macro(0).getName(64)=="Wood ambience","Saved kit lost macro name");
+    check(!p.renameMacro(0,juce::String::repeatedString("a",65)).ok && !p.renameMacro(0,"Bad\nName").ok && p.macro(0).getName(64)=="Wood ambience","Invalid macro name changed state");check(p.renameMacro(0,"").ok && p.macro(0).getName(64)=="Macro 1","Blank macro name did not restore default");
 }
 struct Rig
 {
@@ -46,6 +72,7 @@ struct Rig
 }
 void runControlTests()
 {
+    rotaryScrollTests();macroNameTests();
     Rig r; drum::InstrumentControls c;
     c.volumeDb=-6.020599913; r.set(r.a,c); r.hit(21); r.render();
     near(r.audio.getSample(0,0),0.125f,"Instrument volume incorrect");
@@ -139,3 +166,5 @@ void runControlTests()
     check(prior==dropped.getLibrary().toXml()->toString(),"Bad audio drop created empty instrument");
     std::cout << "Instrument controls, choke, migration, UI and drop tests passed\n";
 }
+
+void runRotaryControlTests(){rotaryScrollTests();macroNameTests();}

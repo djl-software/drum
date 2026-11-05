@@ -218,6 +218,7 @@ void runVst3PlaybackTest(const juce::String& path)
     setup.processor.macro(0).setValueNotifyingHost(0);setup.processor.getStateInformation(state);
     envelope.getChildByName("IComponent")->deleteAllTextElements();envelope.getChildByName("IComponent")->addTextElement(state.toBase64Encoding());
     juce::AudioProcessor::copyXmlToBinary(envelope,hostState);plugin->setStateInformation(hostState.getData(),(int)hostState.getSize());
+    check(setup.processor.renameMacro(15,"Wood ambience").ok,"Hosted macro naming setup failed");setup.processor.getStateInformation(state);envelope.getChildByName("IComponent")->deleteAllTextElements();envelope.getChildByName("IComponent")->addTextElement(state.toBase64Encoding());juce::AudioProcessor::copyXmlToBinary(envelope,hostState);plugin->setStateInformation(hostState.getData(),(int)hostState.getSize());juce::MessageManager::getInstance()->runDispatchLoopUntil(100);bool renamed=false;for(auto* parameter:plugin->getParameters())renamed|=parameter->getName(64)=="Wood ambience";check(renamed,"VST3 host did not receive renamed macro title");check(setup.processor.renameMacro(15,"").ok,"Hosted macro reset failed");setup.processor.getStateInformation(state);envelope.getChildByName("IComponent")->deleteAllTextElements();envelope.getChildByName("IComponent")->addTextElement(state.toBase64Encoding());juce::AudioProcessor::copyXmlToBinary(envelope,hostState);plugin->setStateInformation(hostState.getData(),(int)hostState.getSize());juce::MessageManager::getInstance()->runDispatchLoopUntil(100);
     auto routing=plugin->getBusesLayout();check(routing.outputBuses.size()==22,"Compiled VST3 missing output buses");
     routing.outputBuses.set(1,juce::AudioChannelSet::stereo());routing.outputBuses.set(drum::outputBusIndex(16),juce::AudioChannelSet::stereo());
     check(plugin->setBusesLayout(routing),"Compiled VST3 rejected output routing");plugin->prepareToPlay(48000,256);output.setSize(6,256);
@@ -227,8 +228,8 @@ void runVst3PlaybackTest(const juce::String& path)
         midi.clear();midi.addEvent(juce::MidiMessage::allSoundOff(1),0);midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);midi.addEvent(juce::MidiMessage::noteOff(1,21),64);
         plugin->processBlock(output,midi);if(output.getSample(2,0)>0.1f){editedPlayed=true;break;}juce::Thread::sleep(10);
     }
-    check(editedPlayed,"Compiled VST3 edited sound silent");near(output.getSample(0,0),0,"Compiled VST3 routing leaked to Main");
-    near(output.getSample(2,0),0.125f,"Compiled VST3 macro not applied");near(output.getSample(4,0),0.0625f,"Compiled VST3 send incorrect");near(output.getSample(2,200),0,"Compiled VST3 gate note-off ignored");
+    check(editedPlayed,"Compiled VST3 edited sound silent");near(output.getSample(0,0),.0625f,"Compiled VST3 local return missing from Main");
+    near(output.getSample(2,0),0.125f,"Compiled VST3 macro not applied");near(output.getSample(0,0),0.0625f,"Compiled VST3 local return incorrect");near(output.getSample(4,0),0.f,"Compiled VST3 send leaked to legacy output");near(output.getSample(2,200),0,"Compiled VST3 gate note-off ignored");
     juce::AudioProcessorParameter* firstMacro=nullptr;
     for(int n=1;n<=drum::numMacros;++n)
     {
@@ -262,7 +263,7 @@ void runVst3PlaybackTest(const juce::String& path)
         {
             const float value=expected.sample->audio.getSample(0,n);
             near(output.getSample(2,n),value,"Compiled VST3 attack differs from preview");
-            near(output.getSample(3,n),value,"Compiled VST3 mono channels differ");near(output.getSample(4,n),value*0.5f,"Compiled VST3 attack send differs");
+            near(output.getSample(3,n),value,"Compiled VST3 mono channels differ");near(output.getSample(0,n),value*0.5f,"Compiled VST3 attack local send differs");
         }
         plugin->getStateInformation(recalled);plugin->releaseResources();plugin.reset();
         if(recall==0)

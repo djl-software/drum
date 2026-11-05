@@ -10,7 +10,7 @@ namespace drum
 class EffectRack final : private juce::Timer, private juce::AudioProcessorListener
 {
 public:
-    static constexpr int channels = maxInstruments * 2;
+    static constexpr int channels = (maxInstruments + 6) * 2;
     EffectRack(KitLibrary&, std::function<void()> changed, std::function<void(int)> latency);
     ~EffectRack() override;
     void prepare(double rate, int blockSize);
@@ -21,8 +21,11 @@ public:
     bool active() const noexcept { return hasEffects.load(); }
     double tailSeconds() const noexcept { return tail.load(); }
     void process(juce::AudioBuffer<float>&, uint64_t kitEpoch, juce::AudioPlayHead*, bool nonRealtime);
+    void setSendLevels(int note,const std::array<float,6>& levels) noexcept {for(int n=0;n<6;++n)sendLevels[(size_t)(note-firstNote)][(size_t)n].store(levels[(size_t)n],std::memory_order_relaxed);}
     void reset() noexcept { resetGeneration.fetch_add(1); }
     juce::OwnedArray<juce::PluginDescription> discover(const juce::File&);
+    Result returnSend(const juce::String& kit,int source,int destination,double db);
+    Result returnMain(const juce::String& kit,int source,bool enabled);
     Result add(const juce::String& kit, const juce::String& instrument, const juce::PluginDescription&, int position = -1);
     Result remove(const juce::String& kit, const juce::String& instrument, const juce::String& slot);
     Result move(const juce::String& kit, const juce::String& instrument, const juce::String& slot, int position);
@@ -38,6 +41,7 @@ public:
     std::array<float,2> peaks(const juce::String& slot) const;
     juce::AudioProcessor* instance(const juce::String& slot) const; // Message thread only.
 private:
+    class SendSplitter;
     class HostedProcessor;
     class PluginWindow;
     struct Runtime;
@@ -52,6 +56,10 @@ private:
     juce::VST3PluginFormat format;
     Graph graph;
     Graph::Node::Ptr input, output;
+    std::array<Graph::Node::Ptr,maxInstruments+6> splitters;
+    std::array<std::array<std::atomic<float>,6>,maxInstruments+6> sendLevels{};
+    std::array<std::atomic<bool>,6> returnMainEnabled{};
+    std::array<ReturnRouting,6> returnRouting{};
     mutable juce::CriticalSection managementLock;
     std::map<juce::String, std::unique_ptr<Runtime>> nodes;
     std::vector<std::pair<int, std::vector<EffectSlot>>> layout;

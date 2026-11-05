@@ -9,7 +9,7 @@ class EqualizerEditor final : public juce::Component,private juce::Timer
 public:
     EqualizerEditor();
     ~EqualizerEditor() override;
-    void setSpectrum(drum::SpectrumTap*);
+    void setSpectrum(drum::SpectrumTap*,juce::String stage="EQ output",bool reset=false);
     void visibilityChanged() override;
     void update(const drum::Equalizer&,double sampleRate);
     std::function<void(const drum::Equalizer&)> onChange;
@@ -19,12 +19,13 @@ public:
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&,const juce::MouseWheelDetails&) override;
-    int controlsHeight() const {return 144;}
+    int controlsHeight() const {return 204;}
     juce::Rectangle<int> graphBounds() const {return {0,0,getWidth(),getHeight()-controlsHeight()};}
 private:
     void timerCallback() override;
     drum::SpectrumTap* spectrum=nullptr;
     drum::SpectrumAnalysis analysis;
+    juce::String spectrumStage="EQ output";
     juce::Rectangle<float> plot() const;
     juce::Point<float> point(int) const;
     void select(int);
@@ -34,7 +35,7 @@ private:
     int selected=0;
     bool updating=false;
     juce::Point<float> down;
-    juce::ToggleButton enabled{"EQ on"};
+    juce::ToggleButton enabled{"EQ"};
     std::array<juce::TextButton,16> bands;
     std::array<juce::ToggleButton,16> bandEnabled;
     juce::TextButton reset{"Reset EQ"};

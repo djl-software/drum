@@ -54,7 +54,15 @@ def note_name(note):
 
 
 def compact_rack(rack):
-    # One-time presentation only; never change MIDI/audio routing.
+    # One-time presentation only; never change MIDI/audio routing. Live still
+    # owns the chain-activator automation entries; there is no per-entry hide API.
+    if not getattr(rack,"has_macro_mappings",True):
+        for _ in range(16):
+            count=getattr(rack,"visible_macro_count",0)
+            if count<=1: break
+            try: rack.remove_macro()
+            except (AttributeError,RuntimeError): break
+            if getattr(rack,"visible_macro_count",count)>=count: break
     view = getattr(rack, "view", None)
     if view is None:
         return False

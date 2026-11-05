@@ -18,6 +18,7 @@ template<class T>T& control(juce::Component& root,const char* id)
 {
     auto* result=dynamic_cast<T*>(find(root,id));check(result!=nullptr,"Preview UI control missing");return *result;
 }
+void auditControls(juce::Component& root){for(auto* child:root.getChildren())if(child->isVisible()){if(auto* slider=dynamic_cast<juce::Slider*>(child))check(slider->getSliderStyle()!=juce::Slider::LinearBar && slider->getSliderStyle()!=juce::Slider::LinearBarVertical,"A visible parameter bar remains");if(auto* combo=dynamic_cast<juce::ComboBox*>(child))if(combo->getNumItems()==2)check(!(combo->getItemText(0)=="Off" && combo->getItemText(1)=="On"),"An On/Off dropdown remains");auditControls(*child);}}
 void click(juce::Component& root,const juce::String& id) {control<juce::TextButton>(root,id.toRawUTF8()).onClick();}
 void settle(juce::Component& root)
 {
@@ -100,11 +101,11 @@ void runPreviewTests()
     controls.sound.mono=1;controls.sound.attackOn=1;controls.sound.attackType=2;controls.sound.attackLevel=-6;controls.sound.attackDecay=45;
     controls.sound.equalizer.enabled=true;controls.sound.equalizer.bands[2]={true,3,850,-4,1.3};controls.sound.equalizer.bands[6]={true,5,6000,3,0.707};
     for(auto& shape:controls.sound.envelopes){shape=drum::adsrShape(20,120,0.35,200);shape.points[1].bend=-0.3;shape.points[2].bend=0.25;drum::insertEnvelopePoint(shape,2,85);}
-    controls.sound.output=4;controls.sound.sendA=-9;controls.macros[0]={4,-3,3};macros[0]=0.25;
+    controls.sound.output=4;controls.sound.sendA=drum::sendFloor;controls.macros[0]={4,-3,3};macros[0]=0.25;
     check(library.setControls(kit,id,controls).ok,"Preview comparison controls invalid");check(engine.waitForLoading(10000),"Preview comparison bank timed out");
     for(double rate:{44100.0,48000.0,96000.0})
     {
-        engine.prepare(rate);engine.setTempo(123);engine.setMacros(macros);engine.audition(21);
+        processor.prepareToPlay(rate,512);engine.setTempo(123);engine.setMacros(macros);engine.audition(21);
         auto expected=drum::SampleEngine::renderPreview(source,controls,macros,123,rate);
         juce::AudioBuffer<float> output(2,257);juce::MidiBuffer midi;
         for(int block=0;block<20;++block)
@@ -130,7 +131,7 @@ void runPreviewTests()
     }
     controls={};controls.sound.mode=2;check(library.setControls(kit,id,controls).ok,"UI preview controls failed");check(engine.waitForLoading(10000),"UI preview bank timed out");
     for(int n=0;n<drum::numMacros;++n)processor.macro(n).setValueNotifyingHost(0.5f);
-    engine.prepare(48000);
+    processor.prepareToPlay(48000,512);
     DrumAudioProcessorEditor editor(processor);editor.setSize(1280,900);click(editor,"open-sound-editor");control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);settle(editor);
     auto initial=pixels(editor);
     auto& wave=control<juce::Component>(editor,"sample-waveform");auto bounds=wave.getBoundsInParent();
@@ -141,23 +142,25 @@ void runPreviewTests()
         click(editor,"edit-tab-"+juce::String(page));control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);settle(editor);
         check(wave.isVisible()==(page!=2 && page!=8 && page!=4 && page!=5 && page!=3) && wave.getHeight()>=184,"Graph/waveform visibility incorrect between tabs");
         check(control<juce::Label>(editor,"waveform-status").getText()==initialStatus,"Tab switch changed preview signal");
+        if(page==5){auto& name=control<juce::TextEditor>(editor,"macro-name-0");name.setText("Wood ambience",false);name.onReturnKey();check(processor.macro(0).getName(64)=="Wood ambience","Macro name editor did not update host parameter");}
+        auditControls(control<SoundEditor>(editor,"sound-editor"));
         capture(editor,"drum-preview-tab-"+juce::String(page)+".png");
     }
     click(editor,"edit-tab-0");control<juce::ComboBox>(editor,"waveform-view").setSelectedId(2,juce::sendNotificationSync);initial=pixels(editor);control<juce::ComboBox>(editor,"edit-mono").setSelectedId(2,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Mono playback did not update waveform");capture(editor,"drum-source-channels.png");
     control<juce::ComboBox>(editor,"edit-mono").setSelectedId(1,juce::sendNotificationSync);settle(editor);
-    click(editor,"edit-tab-6");initial=pixels(editor);control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(2,juce::sendNotificationSync);
+    click(editor,"edit-tab-6");initial=pixels(editor);control<juce::ToggleButton>(editor,"edit-attackOn").setToggleState(true,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-attackLevel").setValue(-3,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-attackDecay").setValue(40,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Attack controls did not update waveform");initial=pixels(editor);
     control<juce::Slider>(editor,"edit-attackPosition").setValue(150,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Attack Position did not move the edited waveform");capture(editor,"drum-attack-layer.png");
     editor.setSize(800,600);capture(editor,"drum-attack-compact.png");editor.setSize(1280,900);
-    control<juce::ComboBox>(editor,"edit-attackOn").setSelectedId(1,juce::sendNotificationSync);settle(editor);
-    click(editor,"edit-tab-3");settle(editor);initial=pixels(editor);control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(2,juce::sendNotificationSync);
+    control<juce::ToggleButton>(editor,"edit-attackOn").setToggleState(false,juce::sendNotificationSync);settle(editor);check(!control<juce::Slider>(editor,"edit-attackLevel").isEnabled() && !control<juce::Slider>(editor,"edit-attackDecay").isEnabled(),"Attack controls active while section off");check(control<juce::Slider>(editor,"edit-attackLevel").getValue()==-3 && control<juce::Slider>(editor,"edit-attackDecay").getValue()==40,"Attack bypass discarded stored settings");control<juce::ToggleButton>(editor,"edit-attackOn").setToggleState(true,juce::sendNotificationSync);settle(editor);check(control<juce::Slider>(editor,"edit-attackLevel").isEnabled() && control<juce::Slider>(editor,"edit-attackLevel").getValue()==-3,"Re-enabling Attack failed to restore controls/settings");control<juce::ToggleButton>(editor,"edit-attackOn").setToggleState(false,juce::sendNotificationSync);
+    click(editor,"edit-tab-3");settle(editor);initial=pixels(editor);control<juce::ToggleButton>(editor,"edit-lfoOn").setToggleState(true,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-lfoVolume").setValue(90,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"LFO controls did not update waveform");
-    control<juce::ComboBox>(editor,"edit-lfoOn").setSelectedId(1,juce::sendNotificationSync);
+    control<juce::ToggleButton>(editor,"edit-lfoOn").setToggleState(false,juce::sendNotificationSync);settle(editor);check(!control<juce::Slider>(editor,"edit-lfoVolume").isEnabled() && control<juce::Slider>(editor,"edit-lfoVolume").getValue()==90,"LFO bypass lost value or left control enabled");control<juce::ToggleButton>(editor,"edit-lfoOn").setToggleState(true,juce::sendNotificationSync);settle(editor);check(control<juce::Slider>(editor,"edit-lfoVolume").isEnabled() && control<juce::Slider>(editor,"edit-lfoVolume").getValue()==90,"LFO re-enable lost value");control<juce::ToggleButton>(editor,"edit-lfoOn").setToggleState(false,juce::sendNotificationSync);
     click(editor,"edit-tab-3");check(control<juce::Component>(editor,"lfo-cycle").isVisible() && !wave.isVisible(),"LFO cycle did not replace sample waveform");
     auto& lfoCycle=control<EnvelopeEditor>(editor,"lfo-cycle");const auto lfoPoint=lfoCycle.pointFor({130,.12});auto now=juce::Time::getCurrentTime();juce::MouseEvent lfoEvent(juce::Desktop::getInstance().getMainMouseSource(),lfoPoint,juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier|juce::ModifierKeys::ctrlModifier),1,0,0,0,0,&lfoCycle,&lfoCycle,now,lfoPoint,now,1,false);lfoCycle.mouseDown(lfoEvent);lfoCycle.mouseUp(lfoEvent);
     auto lfoState=library.snapshot();auto custom=drum::findInstrument(*drum::activeKit(lfoState),id)->controls;check(custom.sound.lfoShape==6 && custom.sound.envelopes[3].count>2,"LFO drawing did not enable custom shape");
@@ -173,9 +176,9 @@ void runPreviewTests()
     click(editor,"edit-tab-1");control<juce::Slider>(editor,"edit-ampAttack").setValue(200,juce::sendNotificationSync);settle(editor);
     check(pixels(editor)!=initial,"Envelope UI did not update waveform");capture(editor,"drum-preview-envelope.png");
     click(editor,"edit-tab-1");click(editor,"filter-envelope-tab");auto before=pixels(editor);
-    control<juce::ComboBox>(editor,"edit-filterOn").setSelectedId(2,juce::sendNotificationSync);
+    control<juce::ToggleButton>(editor,"edit-filterOn").setToggleState(true,juce::sendNotificationSync);
     control<juce::Slider>(editor,"edit-cutoff").setValue(90,juce::sendNotificationSync);settle(editor);
-    check(pixels(editor)!=before,"Filter UI did not update waveform");capture(editor,"drum-preview-filter.png");
+    check(pixels(editor)!=before,"Filter UI did not update waveform");control<juce::ToggleButton>(editor,"edit-filterOn").setToggleState(false,juce::sendNotificationSync);settle(editor);check(!control<juce::Slider>(editor,"edit-cutoff").isEnabled() && !control<juce::Slider>(editor,"envelope-filter-amount").isEnabled() && control<juce::Slider>(editor,"edit-cutoff").getValue()==90,"Filter bypass lost cutoff or left control enabled");control<juce::ToggleButton>(editor,"edit-filterOn").setToggleState(true,juce::sendNotificationSync);settle(editor);check(control<juce::Slider>(editor,"edit-cutoff").isEnabled() && control<juce::Slider>(editor,"edit-cutoff").getValue()==90,"Filter re-enable lost cutoff");capture(editor,"drum-preview-filter.png");
     // Scroll the controls while the waveform remains pinned outside the viewport.
     auto* viewport=dynamic_cast<juce::Viewport*>(find(editor,"sound-controls"));check(viewport!=nullptr,"Control viewport missing");
     bounds=wave.getBoundsInParent();viewport->setViewPosition(0,300);check(wave.getBoundsInParent()==bounds,"Controls scrolling moved waveform");

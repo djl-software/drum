@@ -1,6 +1,7 @@
 #pragma once
 #include "EffectRack.h"
 #include "LiveBrowserBridge.h"
+#include "ResetSlider.h"
 #include <optional>
 
 class ChainEditor final : public juce::Component, public juce::DragAndDropContainer,
@@ -31,6 +32,9 @@ private:
     juce::TextButton load{"Load VST3..."};
     juce::TextButton builtin{"Add effect"},presets{"Presets"};
     inline static std::optional<std::vector<drum::EffectSlot>> clipboard;
+    ValueBarLook returnLook;
+    juce::ToggleButton toMain{"Main"};
+    std::array<ResetSlider,6> returnSends;std::array<juce::Label,6> returnLabels;bool routingUpdate=false;
     juce::Label status;
     juce::Viewport viewport;
     juce::Component flow;

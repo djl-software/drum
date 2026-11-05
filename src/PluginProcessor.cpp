@@ -5,7 +5,7 @@ DrumAudioProcessor::DrumAudioProcessor(bool track)
     : AudioProcessor([] {
         BusesProperties buses;
         buses=buses.withOutput("Output",juce::AudioChannelSet::stereo(),true);
-        for(int n=1;n<22;++n){const int logical=drum::outputBusIndex(n);const auto name=logical<16?"Out "+juce::String(logical+1):"Send "+juce::String::charToString((juce::juce_wchar)('A'+logical-16));buses=buses.withOutput(name,juce::AudioChannelSet::stereo(),false);}
+        for(int n=1;n<22;++n){const int logical=drum::outputBusIndex(n);const auto name=logical<16?"Out "+juce::String(logical+1):"Unused (local Send "+juce::String::charToString((juce::juce_wchar)('A'+logical-16))+")";buses=buses.withOutput(name,juce::AudioChannelSet::stereo(),false);}
         return buses;
     }()),trackInstance(track),library(track)
 {
@@ -26,7 +26,7 @@ DrumAudioProcessor::DrumAudioProcessor(bool track)
     library.afterRestore=[this]{effects.stateRestored();};
     for(int n=0;n<drum::numMacros;++n)
     {
-        auto* parameter=new juce::AudioParameterFloat(juce::ParameterID("macro"+juce::String(n+1),1),"Macro "+juce::String(n+1),0.0f,1.0f,0.5f);
+        auto* parameter=new NamedMacroParameter(n);
         addParameter(parameter); macros[(size_t)n]=parameter;
     }
     if(trackInstance){
@@ -87,14 +87,29 @@ void DrumAudioProcessor::syncLinkedKit(bool preferLocal)
     }
 }
 
+drum::Result DrumAudioProcessor::renameMacro(int n,const juce::String& name)
+{
+    if(n<0 || n>=drum::numMacros)return drum::Result::fail("Macro no longer exists.");refreshMacroNames();if(name.trim().isNotEmpty() && name.trim()==macros[(size_t)n]->getName(64))return drum::Result::success();
+    auto result=library.setMacroName(library.snapshot().activeKit,n,name);if(result.ok){refreshMacroNames();updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}return result;
+}
+void DrumAudioProcessor::refreshMacroNames()
+{
+    const auto revision=library.currentRevision();if(revision==macroNameRevision.load())return;
+    if(!juce::MessageManager::getInstance()->isThisTheMessageThread()){triggerAsyncUpdate();return;}
+    auto state=library.snapshot();auto* kit=drum::activeKit(state);if(!kit)return;macroNameRevision=revision;bool changed=false;
+    for(int n=0;n<drum::numMacros;++n)changed|=static_cast<NamedMacroParameter*>(macros[(size_t)n])->rename(kit->macroNames[(size_t)n]);
+    if(changed)updateHostDisplay(juce::AudioProcessor::ChangeDetails().withParameterInfoChanged(true));
+}
 void DrumAudioProcessor::handleAsyncUpdate()
 {
+    refreshMacroNames();
     if(trackInstance)migrateLegacyKits();
     updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
 }
 
 void DrumAudioProcessor::prepareToPlay(double rate, int blockSize)
 {
+    refreshMacroNames();
     if(juce::MessageManager::getInstance()->isThisTheMessageThread())effects.sync();
     patternPlayer->prepare(rate);patternMidi.ensureSize(2*1024*1024);
     effects.prepare(rate,blockSize);
@@ -148,6 +163,7 @@ juce::AudioProcessorEditor* DrumAudioProcessor::createEditor()
 
 void DrumAudioProcessor::getStateInformation(juce::MemoryBlock& data)
 {
+    refreshMacroNames();
     effects.capture();if(libraryPreview && libraryLoaded.load())libraryPreview->effects.capture();
     const auto state = library.toXml();
     for(int n=0;n<drum::numMacros;++n) state->setAttribute("macro"+juce::String(n+1),(double)macros[(size_t)n]->get());
@@ -179,6 +195,7 @@ void DrumAudioProcessor::setStateInformation(const void* data, int size)
         }
         if(library.restore(*state))
         {
+          refreshMacroNames();
           if(trackInstance){detachLinkedKit();if(liveKitLink)liveKitLink->autoRemap=saved->getBoolAttribute("autoRemapLiveClips",true);kitOpened=saved->getBoolAttribute("kitOpen",true);auto path=saved->getStringAttribute("document");currentDocument=juce::File::isAbsolutePath(path)?juce::File(path):juce::File();const juce::ScopedLock lock(migrationLock);legacyKits=std::move(pending);migrationAttempted=false;triggerAsyncUpdate();}
 
           for(int n=0;n<drum::numMacros;++n)

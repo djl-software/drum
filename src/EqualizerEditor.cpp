@@ -19,7 +19,7 @@ EqualizerEditor::EqualizerEditor()
     type.onChange=[this]{if(!updating){auto& b=equalizer.bands[(size_t)selected];b.slope=drum::eqSlope(b);b.type=type.getSelectedId()-1;save();}};
     for(auto* s:{&frequency,&gain,&q,&output})
     {
-        addAndMakeVisible(*s);useValueBar(*s);s->setTextBoxStyle(juce::Slider::TextBoxRight,false,78,24);
+        addAndMakeVisible(*s);useValueBar(*s);
         s->setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));s->setColour(juce::Slider::thumbColourId,mint);s->setColour(juce::Slider::textBoxTextColourId,ink);
     }
     frequency.setComponentID("eq-frequency");frequency.setName("EQ frequency");frequency.setRange(20,20000,1);frequency.setSkewFactorFromMidPoint(1000);frequency.setTextValueSuffix(" Hz");
@@ -33,13 +33,13 @@ EqualizerEditor::EqualizerEditor()
     addAndMakeVisible(slope);slope.setComponentID("eq-slope");for(int db=6;db<=72;db+=6)slope.addItem(juce::String(db)+" dB/oct",db);
     slope.onChange=[this]{if(!updating){equalizer.bands[selected].slope=slope.getSelectedId();save();}};
     addAndMakeVisible(reset);reset.setComponentID("eq-reset");reset.onClick=[this]{equalizer={};select(0);save();};
-    const char* names[]{"Frequency","Gain","Q","Output","Shape","Slope"};for(int i=0;i<6;++i){addAndMakeVisible(labels[i]);labels[i].setText(names[i],juce::dontSendNotification);labels[i].setColour(juce::Label::textColourId,juce::Colours::white);labels[i].setFont(juce::FontOptions(14));labels[i].setJustificationType(juce::Justification::centredRight);}
+    const char* names[]{"Frequency","Gain","Q","Output","Shape","Slope"};for(int i=0;i<6;++i){addAndMakeVisible(labels[i]);labels[i].setText(names[i],juce::dontSendNotification);labels[i].setColour(juce::Label::textColourId,juce::Colours::white);labels[i].setFont(juce::FontOptions(14));labels[i].setJustificationType(juce::Justification::centred);}
     select(0);
 }
 void EqualizerEditor::update(const drum::Equalizer& value,double sampleRate)
 {equalizer=value;rate=sampleRate>0?sampleRate:44100;select(selected);}
 EqualizerEditor::~EqualizerEditor(){stopTimer();if(spectrum)spectrum->enabled.store(false);}
-void EqualizerEditor::setSpectrum(drum::SpectrumTap* tap){if(spectrum)spectrum->enabled.store(false);spectrum=tap;if(tap)analysis.clear(*tap);visibilityChanged();}
+void EqualizerEditor::setSpectrum(drum::SpectrumTap* tap,juce::String stage,bool reset){spectrumStage=std::move(stage);if(spectrum==tap && !reset){visibilityChanged();return;}if(spectrum)spectrum->enabled.store(false);spectrum=tap;if(tap)analysis.clear(*tap);visibilityChanged();}
 void EqualizerEditor::visibilityChanged(){bool active=spectrum && isShowing();if(spectrum)spectrum->enabled.store(active);if(spectrum){if(!isTimerRunning())startTimerHz(15);}else stopTimer();}
 void EqualizerEditor::timerCallback(){visibilityChanged();if(spectrum && isShowing() && analysis.update(*spectrum))repaint();}
 void EqualizerEditor::select(int n)
@@ -49,8 +49,8 @@ void EqualizerEditor::select(int n)
     enabled.setToggleState(equalizer.enabled,juce::dontSendNotification);
     for(int i=0;i<16;++i){bands[i].setToggleState(i==n,juce::dontSendNotification);bandEnabled[i].setToggleState(equalizer.bands[i].enabled,juce::dontSendNotification);}
     type.setSelectedId((b.type==1?0:b.type==7?6:b.type)+1,juce::dontSendNotification);slope.setSelectedId(drum::eqSlope(b),juce::dontSendNotification);slope.setEnabled(drum::eqIsCut(b.type));
-    auto set=[](juce::Slider& s,double v){if(!s.isMouseButtonDown() && !s.hasKeyboardFocus(true))s.setValue(v,juce::dontSendNotification);};
-    set(frequency,b.frequency);set(gain,b.gain);set(q,b.q);set(output,equalizer.output);gain.setEnabled(drum::eqHasGain(b.type));q.setEnabled(!drum::eqIsCut(b.type) || drum::eqSlope(b)>6);
+    auto set=[](juce::Slider& s,double v){bool typing=false;for(auto* child:s.getChildren())if(auto* label=dynamic_cast<juce::Label*>(child))typing|=label->isBeingEdited();if(!s.isMouseButtonDown() && !typing)s.setValue(v,juce::dontSendNotification);};
+    set(frequency,b.frequency);set(gain,b.gain);set(q,b.q);set(output,equalizer.output);const bool active=equalizer.enabled && b.enabled;frequency.setEnabled(active);gain.setEnabled(active && drum::eqHasGain(b.type));q.setEnabled(active && (!drum::eqIsCut(b.type) || drum::eqSlope(b)>6));output.setEnabled(equalizer.enabled);type.setEnabled(active);slope.setEnabled(active && drum::eqIsCut(b.type));
     updating=false;repaint();
 }
 void EqualizerEditor::save(){select(selected);if(onChange)onChange(equalizer);}
@@ -66,9 +66,9 @@ void EqualizerEditor::resized()
     const int top=graphBounds().getBottom()+6,w=(getWidth()-16)/16;
     for(int n=0;n<16;++n){bands[n].setBounds(8+n*w,top,w-4,24);bandEnabled[n].setBounds(8+n*w+(w-24)/2,top+26,24,20);}
     const int cell=(getWidth()-24)/4,row=top+52;
-    auto bar=[&](int n,juce::Component& c,int column,int y){const int x=8+column*cell;labels[n].setBounds(x,y,86,26);c.setBounds(x+92,y,cell-100,26);};
-    bar(0,frequency,0,row);bar(1,gain,1,row);bar(2,q,2,row);bar(3,output,3,row);
-    bar(4,type,0,row+32);bar(5,slope,1,row+32);enabled.setBounds(48,18,94,26);reset.setBounds(getWidth()-106,row+32,96,26);
+    juce::Component* dials[]{&frequency,&gain,&q,&output};for(int n=0;n<4;++n){const int x=8+n*cell;labels[n].setBounds(x,row,cell,20);dials[n]->setBounds(x+(cell-104)/2,row+20,104,88);}
+    labels[4].setBounds(8,row+114,50,26);type.setBounds(62,row+114,cell-62,26);labels[5].setBounds(cell+8,row+114,50,26);slope.setBounds(cell+62,row+114,cell-62,26);enabled.setButtonText("EQ");enabled.setBounds(48,18,94,26);reset.setBounds(getWidth()-106,row+114,96,26);
+
 
 }
 void EqualizerEditor::paint(juce::Graphics& g)
@@ -80,7 +80,8 @@ void EqualizerEditor::paint(juce::Graphics& g)
             level=analysis.levelAt(hz,sampleRate);
             fill.lineTo(a.getX()+x,a.getBottom()-juce::jlimit(0.f,1.f,(level+60)/84)*a.getHeight());}
         fill.lineTo(a.getRight(),a.getBottom());fill.closeSubPath();juce::ColourGradient shade(juce::Colour(0xff4cb7d6),a.getX(),a.getY(),bg,a.getX(),a.getBottom(),false);g.setGradientFill(shade);g.fillPath(fill);
-        label(g,"Output spectrum: -60 to +24 dBFS",{(int)a.getRight()-170,(int)a.getY()+4,166,14},muted);
+        label(g,spectrumStage+" / peak spectrum (dBFS)",{(int)a.getRight()-286,(int)a.getY()+4,282,14},muted);
+        label(g,"Signal peak (1s hold): "+(analysis.signalPeakDb<=-100?("-"+juce::String::charToString(0x221e)):juce::String(analysis.signalPeakDb,1))+" dBFS",{(int)a.getRight()-286,(int)a.getY()+20,282,14},ink);
     }
     for(double hz:{20.,50.,100.,200.,500.,1000.,2000.,5000.,10000.,20000.})
     {
@@ -114,6 +115,7 @@ void EqualizerEditor::paint(juce::Graphics& g)
 void EqualizerEditor::mouseDown(const juce::MouseEvent& e)
 {
     if(!plot().expanded(12).contains(e.position))return;
+    for(auto* dial:{&frequency,&gain,&q,&output})dial->hideTextBox(false);
     float distance=18;int n=-1;for(int i=0;i<16;++i){if(!equalizer.bands[i].enabled)continue;const auto d=point(i).getDistanceFrom(e.position);if(d<distance){distance=d;n=i;}}
     if(n<0)n=selected;
     select(n);down=e.position;initialQ=equalizer.bands[(size_t)n].q;

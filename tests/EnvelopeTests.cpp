@@ -148,14 +148,14 @@ void runEnvelopeTests()
     const auto id=library.addInstrument(kit,group).id;
     auto file=juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav");
     p.getSampleEngine().requestLoad(kit,id,file);check(p.getSampleEngine().waitForLoading(10000),"Envelope sample load timed out");
-    check(p.getSampleEngine().statusFor(id).ready,"Envelope fixture unavailable");check(p.getSampleEngine().waveformFor(id)->tonal.complete,"Imported sample was not analysed");p.getSampleEngine().prepare(48000);
+    check(p.getSampleEngine().statusFor(id).ready,"Envelope fixture unavailable");check(p.getSampleEngine().waveformFor(id)->tonal.complete,"Imported sample was not analysed");p.prepareToPlay(48000,512);
     DrumAudioProcessorEditor editor(p);editor.setVisible(true);editor.setSize(1280,900);capture(editor,"drum-manual-main.png");click(editor,"open-sound-editor");
     check(control<juce::TextButton>(editor,"edit-tab-1").getButtonText()=="Envelopes","Envelope tab name incorrect");
     int lastTabX=-1;for(int tab:{0,1,2,6,3,8,7,4,5}){const int x=control<juce::TextButton>(editor,("edit-tab-"+juce::String(tab)).toRawUTF8()).getX();check(x>lastTabX,"Edit tabs out of order");lastTabX=x;}
     check(!control<juce::Slider>(editor,"edit-start").isShowing() && !control<juce::Slider>(editor,"edit-end").isShowing(),"Separate trim sliders still visible");
     check(control<juce::Component>(editor,"sample-waveform").getHeight()>240,"Sample waveform lost its usable height");check(control<SoundEditor>(editor,"sound-editor").getY()>=control<juce::Component>(editor,"library-menu").getBottom(),"Sound editor overlaps navigation");
     auto sampleField=[&](const char* id){return find(editor,id)->getParentComponent()->getBounds();};
-    check(sampleField("edit-sampleGain").getY()==sampleField("edit-normalise").getY() && sampleField("edit-normalise").getX()>sampleField("edit-reverse").getX() && sampleField("edit-snap").getY()>sampleField("edit-normalise").getY(),"Sample controls not four per row");
+    check(sampleField("edit-sampleGain").getHeight()>=100 && !sampleField("edit-normalise").intersects(sampleField("edit-reverse")) && dynamic_cast<juce::ToggleButton*>(find(editor,"edit-normalise"))!=nullptr,"Sample dial/tick-box layout overlaps or has wrong widget types");
     const int sampleWaveHeight=control<juce::Component>(editor,"sample-waveform").getHeight();capture(editor,"drum-sample-layout.png");click(editor,"edit-tab-1");settle(editor);check(control<juce::Component>(editor,"sample-waveform").getHeight()==sampleWaveHeight,"Envelope waveform does not match Sample");
     auto current=[&]{auto s=library.snapshot();return drum::findInstrument(*drum::activeKit(s),id)->controls;};
     auto& soundEditor=control<SoundEditor>(editor,"sound-editor");
@@ -178,7 +178,7 @@ void runEnvelopeTests()
     check(amp.isVisible() && !pitch.isVisible() && !filter.isVisible(),"Envelope graphs shown on wrong page");
     auto shown=[&](const char* id){for(auto* c=&control<juce::Component>(editor,id);c!=nullptr;c=c->getParentComponent())if(!c->isVisible())return false;return true;};
     check(shown("edit-velocityVolume") && shown("edit-randomPan") && !shown("edit-velocityPitch") && !shown("edit-bendRange") && !shown("edit-detune"),"Amplitude mode shows wrong controls");
-    check(control<juce::Slider>(editor,"edit-velocityVolume").getSliderStyle()==juce::Slider::LinearBar,"Amplitude control is not a value bar");
+    check(control<juce::Slider>(editor,"edit-velocityVolume").getSliderStyle()==juce::Slider::RotaryVerticalDrag,"Amplitude control is not a value bar");
     auto& wave=control<juce::Component>(editor,"sample-waveform");const auto waveBounds=wave.getBounds();
     auto c=current();c.sound.ampAttack=80;c.sound.ampDecay=200;c.sound.ampSustain=0.4;c.sound.ampRelease=200;c.sound.pitchAttack=80;c.sound.pitchDecay=200;c.sound.pitchSustain=0.2;
     check(library.setControls(kit,id,c).ok,"Envelope fixture controls failed");refresh();
@@ -188,7 +188,7 @@ void runEnvelopeTests()
         const auto a=shape.points[segment-1],b=shape.points[segment];const double ms=a.ms+(b.ms-a.ms)*fraction;
         return graph.pointFor({ms,drum::envelopeSegment(a.level,b,fraction)});
     };
-    click(editor,"overlay-pitch");settle(editor);check(pitch.isVisible() && !amp.isVisible(),"Pitch overlay selection failed");check(!shown("edit-velocityVolume") && shown("edit-velocityPitch") && shown("edit-bendRange") && shown("edit-randomPan") && !shown("edit-detune"),"Pitch mode shows wrong controls");check(control<juce::Slider>(editor,"envelope-pitch-amount").getSliderStyle()==juce::Slider::LinearBar,"Pitch depth is not a value bar");
+    click(editor,"overlay-pitch");settle(editor);check(pitch.isVisible() && !amp.isVisible(),"Pitch overlay selection failed");check(!shown("edit-velocityVolume") && shown("edit-velocityPitch") && shown("edit-bendRange") && shown("edit-randomPan") && !shown("edit-detune"),"Pitch mode shows wrong controls");check(control<juce::Slider>(editor,"envelope-pitch-amount").getSliderStyle()==juce::Slider::RotaryVerticalDrag,"Pitch depth is not a rotary control");
     auto line=onLine(pitch,drum::adsrShape(80,200,0.2,100),2,0.5);
     check(editor.getComponentAt(editor.getLocalPoint(&pitch,line.roundToInt()))==&pitch,"Envelope line is intercepted by another component");
     pitch.mouseDown(event(pitch,line,line));pitch.mouseUp(event(pitch,line,line));
@@ -307,7 +307,7 @@ void runEnvelopeTests()
     resetNumber("edit-fadeOut",25,2,true);check(current().sound.fadeOut==2,"Open editor reset did not reach sound state");
     click(editor,"edit-tab-1");resetNumber("envelope-pitch-amount",5,0);check(current().sound.pitchAmount==0,"Envelope amount default incorrect");
     resetNumber("edit-ampRelease",0,100);check(current().sound.ampRelease==100 && current().sound.ampAttack+current().sound.ampDecay+current().sound.ampRelease<=fullMs+0.00001,"Bounded timing reset did not retain its default");
-    click(editor,"edit-tab-2");click(editor,"filter-eq-tab");click(editor,"eq-band-4");resetNumber("eq-frequency",3000,1500);resetNumber("eq-output",6,0);resetNumber("eq-q",3,0.70710678);
+    click(editor,"edit-tab-2");click(editor,"filter-eq-tab");click(editor,"eq-band-4");control<juce::ToggleButton>(editor,"eq-enabled").setToggleState(true,juce::sendNotificationSync);control<juce::ToggleButton>(editor,"eq-enable-4").setToggleState(true,juce::sendNotificationSync);resetNumber("eq-frequency",3000,1500);resetNumber("eq-output",6,0);resetNumber("eq-q",3,0.70710678);
     click(editor,"edit-tab-5");resetNumber("macro-value-0",75,50);near(p.macro(0).get(),0.5,0.0001,"Macro numeric reset did not notify host");
     click(editor,"edit-tab-1");
     c=current();c.sound.envelopes[0]=drum::adsrShape(100,150,0.4,150);check(library.setControls(kit,id,c).ok,"Recall shape fixture failed");refresh();

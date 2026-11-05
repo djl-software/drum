@@ -37,7 +37,7 @@ void runManagementTests()
         for(int n=0;n<4;++n)good(layout.addInstrument(k,g));check(note(b)==30,"Half octave must advance to F# after crossing C");
         good(layout.setGroupBoundary(k,12));check(note(b)==36,"Full octave must advance to next C");
         auto xml=layout.toXml();drum::KitLibrary restored;check(restored.restore(*xml) && restored.snapshot().kits[0].groupBoundary==12,"Boundary lost on recall");
-        xml->setAttribute("schemaVersion",15);check(restored.restore(*xml) && restored.snapshot().kits[0].groupBoundary==0,"Old documents must retain continuous mapping");
+        for(auto* kit:xml->getChildIterator())kit->deleteAllChildElementsWithTagName("Return");xml->setAttribute("schemaVersion",15);check(restored.restore(*xml) && restored.snapshot().kits[0].groupBoundary==0,"Old documents must retain continuous mapping");
         good(layout.setGroupBoundary(k,0));check(note(b)==26,"Continuous mapping did not close gaps");
         good(layout.setGroupBoundary(k,12));for(int n=0;n<6;++n){auto group=layout.addGroup(k).id;good(layout.addInstrument(k,group));}
         auto overflowGroup=layout.addGroup(k).id;auto before=layout.snapshot();check(!layout.addInstrument(k,overflowGroup).ok,"Out-of-range boundary accepted");check(layout.snapshot().revision==before.revision,"Rejected boundary mutated state");
@@ -115,7 +115,7 @@ void runManagementTests()
         good(ordered.removeInstrument(k,b));contiguous();check(item(c).effects[0].sidechainNote==-1 && !item(c).effects[0].sidechainMute,"Deleted sidechain source retargeted another sound");
         auto sample=ordered.addSampleInstrument(k,h,juce::File::getCurrentWorkingDirectory().getChildFile("ordered-sample.wav").getFullPathName());good(sample);contiguous();check(item(sample.id).note==23 && item(copy.id).note==24,"Sample insertion did not shift later group");
         good(ordered.sliceInstrument(k,sample.id,2));contiguous();good(ordered.duplicateGroup(k,g));contiguous();
-        effect.sidechainNote=item(x).note;good(ordered.setEffects(k,c,{effect}));auto legacy=ordered.toXml();legacy->setAttribute("schemaVersion",11);
+        effect.sidechainNote=item(x).note;good(ordered.setEffects(k,c,{effect}));auto legacy=ordered.toXml();for(auto* kit:legacy->getChildIterator())kit->deleteAllChildElementsWithTagName("Return");legacy->setAttribute("schemaVersion",11);
         for(auto* kit:legacy->getChildIterator())for(auto* group:kit->getChildIterator())for(auto* instrument:group->getChildIterator()){
             instrument->setAttribute("note",instrument->getIntAttribute("note")+30);
             for(auto* slot:instrument->getChildIterator())if(slot->hasTagName("Effect") && slot->getIntAttribute("sidechainNote",-1)>=0)slot->setAttribute("sidechainNote",slot->getIntAttribute("sidechainNote")+30);

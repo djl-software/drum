@@ -8,7 +8,7 @@ public:
     struct Values {double attack=0,decay=100,sustain=1,release=100;};
     EnvelopeEditor(juce::String id,juce::String title,juce::Colour colour);
     ~EnvelopeEditor() override;
-    void update(Values,const drum::EnvelopeShape&,bool locked,double amount,juce::String unit,bool active,juce::String status,bool newSelection,bool amountMapped=false);
+    void update(Values,const drum::EnvelopeShape&,bool locked,double amount,juce::String unit,bool active,juce::String status,bool newSelection,bool amountMapped=false,bool amountAvailable=true);
     void setCycleMode(){cycle=true;adsr.setVisible(false);}
     void setOverlay(juce::Rectangle<float>,double offsetMs,double spanMs);
     bool hitTest(int x,int y) override;

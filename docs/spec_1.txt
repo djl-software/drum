@@ -1,0 +1,16 @@
+plan:
+VST3 attaches and works directly with Ableton and other DAWs.
+A standalone version will do all of VST3 but will also create midi clips.
+Tablet version same as standalone. No external VST3 can be added.
+the file structure must be the same and portable, with the main one under the DAW file structure.
+ 
+workflow:
+Library (formerly known as Kit) is the full 88 instrument list. Multiple Libraries can exist and need to be stored as above.
+Libraries can be named.
+Kit is the selected instruments to be used. Different Kits can be used in a production, but only one per track. It may be that one kit is created and used on several tracks, or different kits are used on different tracks.
+Only one Kit can be opened at any one time in DRUM.
+KITS can be saved and opened and resaved.
+These kits are what are used for MIDI and are mapped accordingly like the standard Ableton rack is (by the Keyboard keys)
+Kits can be saved, along with all of the instrument settings and chains. The Library versions are not affected by changes in the Kit.
+An instrument is selected by going to the Library Tab (LIB will always be appended to the name given), finding the instrument and selecting ADD. If no Kit is opened in DRUM then that shall be flagged and prompted accordingly. That added instrument will be added to the KIT in the same group as the Library. Its order on the keyboard will be based on the group. Instrument position on the keyboard will be adjusted when other instruments are added so they all remain grouped by contiguous on the keys.
+A DRUM VST3 can be used on multiple MIDI tracks each one with the same or different Kits.

@@ -1,0 +1,2 @@
+1. if a kit is used on multiple tracks, if one instance is edited, the changes don't flow into the other tracks.
+2. Need to be able to move an instrument to another group.

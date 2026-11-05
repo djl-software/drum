@@ -211,7 +211,7 @@ SampleEngine::RenderControls SampleEngine::controlsFor(const Sample& sample,cons
     render.loopEnd=juce::jlimit(render.loopStart+1,render.end,snap(render.start+(int)(s.loopEnd*region)));
     render.sampleGain=std::pow(10.0,s.sampleGain/20)*(s.normalise!=0 && sample.peak>0?1.0/sample.peak:1.0);
     std::array<double,6> db{s.sendA,s.sendB,s.sendC,s.sendD,s.sendE,s.sendF};
-    for(size_t n=0;n<6;++n)render.sends[n]=db[n]<=-60?0.0f:juce::Decibels::decibelsToGain((float)db[n]);
+    for(size_t n=0;n<6;++n)render.sends[n]=sendGain(db[n]);
     return render;
 }
 PreviewResult SampleEngine::renderPreview(std::shared_ptr<const Sample> source,InstrumentControls controls,
@@ -463,7 +463,7 @@ void SampleEngine::updateRenderControls() noexcept
         render.sampleGain*=juce::Decibels::decibelsToGain((float)(c.sound.sampleGain-render.sound.sampleGain));
         render.sound=c.sound;
         std::array<double,6> db{c.sound.sendA,c.sound.sendB,c.sound.sendC,c.sound.sendD,c.sound.sendE,c.sound.sendF};
-        for(size_t n=0;n<6;++n) render.sends[n]=db[n]<=-60?0.0f:juce::Decibels::decibelsToGain((float)db[n]);
+        for(size_t n=0;n<6;++n) render.sends[n]=sendGain(db[n]);
     }
     previousMacros=macroValues;
 }
@@ -654,8 +654,9 @@ void SampleEngine::mixEffects(juce::AudioBuffer<float>& output,int offset,int fr
                 for(int lane=0;lane<2;++lane)output.addFrom(channel+lane,offset,instrumentAudio,input+lane,0,frames,gain);
         };
         const int destination=(int)c.sound.output;write(busChannels[(size_t)destination]>=0?destination:0,1);
-        for(int send=0;send<6;++send)if(c.sends[(size_t)send]>0)write(send+16,c.sends[(size_t)send]);
     }
+    // Local returns are already summed and processed by the shared graph.
+    for(int send=0;send<6;++send)for(int lane=0;lane<2;++lane){const int source=(maxInstruments+send)*2+lane;if(mainWidth==1)output.addFrom(0,offset,instrumentAudio,source,0,frames,.5f);else if(output.getNumChannels()>lane)output.addFrom(lane,offset,instrumentAudio,source,0,frames);}
 }
 void SampleEngine::publishPlaybackHeads() noexcept
 {
@@ -705,7 +706,7 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
     }
     const bool captureSpectrum=effects && eqSpectrum.enabled.load(std::memory_order_relaxed);
     const int spectrumNote=analyserNote.load(std::memory_order_relaxed);
-    const bool chainActive=effects && (effects->active() || current->hasEffects);
+    const bool chainActive=effects!=nullptr;
     renderingInstruments=chainActive || captureSpectrum;
     if(stopped && effects)effects->reset();
     const int frames=output.getNumSamples();
@@ -731,7 +732,7 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
         render(target,position,count);
         if(renderingInstruments && count>0){
             if(captureSpectrum && spectrumNote>=firstNote && spectrumNote<firstNote+maxInstruments){const int channel=(spectrumNote-firstNote)*2;for(int n=0;n<count;++n)eqSpectrum.push(instrumentAudio.getSample(channel,n),instrumentAudio.getSample(channel+1,n));}
-            if(chainActive)effects->process(instrumentAudio,current->kitEpoch,playHead,nonRealtime);mixEffects(output,base,count);}
+            if(chainActive){for(int note=firstNote;note<firstNote+maxInstruments;++note){auto levels=renderControls[(size_t)note].sends;if(!renderControls[(size_t)note].audible)levels.fill(0);effects->setSendLevels(note,levels);}effects->process(instrumentAudio,current->kitEpoch,playHead,nonRealtime);}mixEffects(output,base,count);}
     }
     publishPlaybackHeads();
     freePhase+=output.getNumSamples()/hostRate;

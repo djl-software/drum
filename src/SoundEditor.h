@@ -16,7 +16,7 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void visibilityChanged() override;
-    std::function<void()> close;
+    std::function<void()> close,showNotes,exportInstrument,controlsChanged;
     bool isInterestedInFileDrag(const juce::StringArray& files) override { return chain.isInterestedInFileDrag(files) || (files.size()==1 && !files[0].endsWithIgnoreCase(".vst3")); }
     void filesDropped(const juce::StringArray&,int,int) override;
 private:
@@ -74,7 +74,9 @@ private:
     bool updating=false,chainPresent=false;
     int page=0,note=21;
     ChainEditor chain;
-    juce::TextButton back,reset;
+    std::unique_ptr<juce::DocumentWindow> returnWindow;
+    juce::String returnWindowKit;int returnWindowIndex=-1;
+    juce::TextButton back,reset,notesButton,exportButton,soloButton;
     juce::Label noteIndicator;
     juce::TextButton slice;
     juce::ToggleButton attackOnly{"Attack waveform only"};

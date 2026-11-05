@@ -18,6 +18,13 @@ class LinkTests(unittest.TestCase):
         self.assertEqual(names[0],"A-1");self.assertEqual(names[3],"C0");self.assertEqual(names[-1],"C7")
         rack=Item(view=Item(is_collapsed=False));self.assertTrue(p.compact_rack(rack));self.assertTrue(rack.view.is_collapsed)
         self.assertFalse(p.compact_rack(Item()))
+    def test_unmapped_macros_compacted_without_routing_changes(self):
+        class Rack:
+            def __init__(self,mapped=False): self.has_macro_mappings=mapped; self.visible_macro_count=8; self.calls=0; self.view=Item(is_collapsed=False)
+            def remove_macro(self): self.calls+=1; self.visible_macro_count-=1
+        rack=Rack();self.assertTrue(p.compact_rack(rack));self.assertEqual(rack.visible_macro_count,1);self.assertEqual(rack.calls,7)
+        mapped=Rack(True);p.compact_rack(mapped);self.assertEqual(mapped.visible_macro_count,8);self.assertEqual(mapped.calls,0)
+
     def test_invalid_and_stale(self):
         for kind in ("stale","foreign","duplicate","outside","identity"):
             data=self.payload()

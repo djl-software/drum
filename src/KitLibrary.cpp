@@ -47,6 +47,7 @@ bool compactKeyboard(Kit& kit)
             if(effect.sidechainNote<0)effect.sidechainMute=false;
         }
     }
+    for(auto& ret:kit.returns)for(auto& effect:ret.effects)if(effect.sidechainNote>=0){effect.sidechainNote=moved[(size_t)effect.sidechainNote];if(effect.sidechainNote<0)effect.sidechainMute=false;}
     return true;
 }
 std::array<juce::String,128> keyboardLayout(const Kit* kit)
@@ -88,18 +89,25 @@ bool validate(const State& state)
         for(const auto& pattern:kit.patterns){
             if(!validId(pattern.id) || !validName(pattern.name) || (pattern.steps<1 || pattern.steps>4096) || pattern.hits.size()>8192 || !std::isfinite(pattern.loopStart) || !std::isfinite(pattern.loopEnd) || pattern.loopStart<0 || pattern.loopFinish()<=pattern.loopStart || pattern.loopFinish()>pattern.end() || pattern.numerator<1 || pattern.numerator>32 || (pattern.denominator!=1 && pattern.denominator!=2 && pattern.denominator!=4 && pattern.denominator!=8 && pattern.denominator!=16))return false;
             std::set<juce::String> noteIds;
-            for(const auto& hit:pattern.hits)if(!findInstrument(kit,hit.instrumentId) || !std::isfinite(hit.start) || !std::isfinite(hit.duration) || !std::isfinite(hit.chance) || hit.beat()<0 || hit.beat()>=pattern.end() || hit.duration<=0 || hit.duration>pattern.end() || hit.beat()+hit.duration>pattern.end()+1.e-8 || hit.chance<0 || hit.chance>1 || hit.groupMode<0 || hit.groupMode>2 || hit.chanceGroup.length()>64 || (hit.groupMode>0 && hit.chanceGroup.isEmpty()) || hit.deviation<0 || hit.deviation>127 || hit.releaseVelocity<0 || hit.releaseVelocity>127 || hit.velocity<1 || hit.velocity>127 || hit.id.isEmpty() || hit.id.length()>64 || !noteIds.insert(hit.id).second)return false;
+            for(const auto& hit:pattern.hits)if(returnIndex(hit.instrumentId)>=0 || !findInstrument(kit,hit.instrumentId) || !std::isfinite(hit.start) || !std::isfinite(hit.duration) || !std::isfinite(hit.chance) || hit.beat()<0 || hit.beat()>=pattern.end() || hit.duration<=0 || hit.duration>pattern.end() || hit.beat()+hit.duration>pattern.end()+1.e-8 || hit.chance<0 || hit.chance>1 || hit.groupMode<0 || hit.groupMode>2 || hit.chanceGroup.length()>64 || (hit.groupMode>0 && hit.chanceGroup.isEmpty()) || hit.deviation<0 || hit.deviation>127 || hit.releaseVelocity<0 || hit.releaseVelocity>127 || hit.velocity<1 || hit.velocity>127 || hit.id.isEmpty() || hit.id.length()>64 || !noteIds.insert(hit.id).second)return false;
         }
+        if(!validReturnRouting(kit.returnRouting))return false;
+        for(const auto& ret:kit.returns)if(!validName(ret.name) || ret.name.containsAnyOf("\r\n\t"))return false;
+        for(const auto& name:kit.macroNames)if(name.length()>64 || name.containsAnyOf("\r\n\t"))return false;
         std::set<int> notes;
         for (const auto& group : kit.groups)
         {
             if (!validId(group.id) || !validName(group.name) || group.colour < 0 || group.colour >= 8) return false;
             for (const auto& instrument : group.instruments)
             {
-                if (!validId(instrument.id) || !validName(instrument.name) || instrument.note < firstNote
+                if (!validId(instrument.id) || returnIndex(instrument.id)>=0 || !validName(instrument.name) || instrument.note < firstNote
                     || instrument.note >= firstNote + maxInstruments || !notes.insert(instrument.note).second
-                    || !validControls(instrument.controls) || instrument.samplePath.length() > 32767
+                    || !validControls(instrument.controls) || instrument.notes.length()>65536 || instrument.samplePath.length() > 32767
                     || (instrument.samplePath.isNotEmpty() && !juce::File::isAbsolutePath(instrument.samplePath))) return false;
+
+            }
+        }
+        for(const auto* target:effectTargets(kit)){const auto& instrument=*target;
                 if(instrument.effects.size()>maxEffects)return false;
                 for(const auto& effect:instrument.effects)
                 {
@@ -111,7 +119,6 @@ bool validate(const State& state)
                     effectStorage+=effect.description.getNumBytesAsUTF8()+effect.state.getNumBytesAsUTF8();
                     if(effectStorage>maxEffectStorage)return false;
                 }
-            }
         }
     }
     return true;
@@ -128,7 +135,7 @@ const Group* findGroup(const Kit& kit, const juce::String& id) { for (auto& g : 
 const Instrument* findInstrument(const Kit& kit, const juce::String& id)
 {
     for (auto& g : kit.groups) for (auto& i : g.instruments) if (i.id == id) return &i;
-    return nullptr;
+    const int send=returnIndex(id);return send>=0?&kit.returns[(size_t)send]:nullptr;
 }
 juce::String noteName(int note)
 {
@@ -186,6 +193,7 @@ Result KitLibrary::duplicateKit(const juce::String& id)
         if (!source) return Result::fail("Kit no longer exists.");
         if (s.kits.size() == maxKits) return Result::fail("All 8 kit slots are in use.");
         auto copy = *source; copy.id = newId(); copy.name = copy.name.substring(0, 59) + " copy";
+        for(auto& ret:copy.returns)for(auto& effect:ret.effects)effect.id=newId();
         for (auto& group : copy.groups) { group.id = newId(); for (auto& i : group.instruments) { auto old=i.id;i.id = newId();for(auto& pattern:copy.patterns)for(auto& hit:pattern.hits)if(hit.instrumentId==old)hit.instrumentId=i.id;for(auto& effect:i.effects)effect.id=newId(); } }
         for(auto& pattern:copy.patterns)pattern.id=newId();
         s.activeKit = copy.id; s.kits.push_back(copy); return Result::success(copy.id);
@@ -385,9 +393,9 @@ Result KitLibrary::importGroupedInstrument(const juce::String& kitId,const Group
         destination->instruments.push_back(std::move(copy));return Result::success(destination->instruments.back().id);
     });
 }
-Result KitLibrary::importInstrument(const juce::String& kitId,const juce::String& groupId,const Instrument& source)
+Result KitLibrary::importInstrument(const juce::String& kitId,const juce::String& groupId,const Instrument& source,bool preserveSidechains)
 {
-    return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit)return Result::fail("Track no longer exists.");auto* group=find(kit->groups,groupId);if(!group)return Result::fail("Track group no longer exists.");int note=freeNote(*kit);if(note<0)return Result::fail("This track already has 88 sounds.");auto copy=source;copy.id=newId();copy.note=note;for(auto& effect:copy.effects){effect.id=newId();effect.sidechainNote=-1;effect.sidechainMute=false;}group->instruments.push_back(copy);return Result::success(copy.id);});
+    return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit)return Result::fail("Track no longer exists.");auto* group=find(kit->groups,groupId);if(!group)return Result::fail("Track group no longer exists.");int note=freeNote(*kit);if(note<0)return Result::fail("This track already has 88 sounds.");auto copy=source;copy.id=newId();copy.note=note;for(auto& effect:copy.effects){effect.id=newId();if(!preserveSidechains){effect.sidechainNote=-1;effect.sidechainMute=false;}}group->instruments.push_back(copy);return Result::success(copy.id);});
 }
 Result KitLibrary::addSampleInstrument(const juce::String& kitId, const juce::String& groupId, const juce::String& path)
 {
@@ -427,10 +435,31 @@ Result KitLibrary::sliceInstrument(const juce::String& kitId,const juce::String&
         return Result::success(target.id);
     });
 }
+Result KitLibrary::setReturnLevel(const juce::String& kitId,int source,int destination,double db)
+{
+    return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit || source<0 || source>=6 || destination<0 || destination>=6 || source==destination)return Result::fail("Choose another send as the destination.");auto routes=kit->returnRouting;routes[(size_t)source].sends[(size_t)destination]=db;if(!validReturnRouting(routes))return Result::fail("This route would create a circular connection, or its level is out of range.");kit->returnRouting=routes;return Result::success();});
+}
+Result KitLibrary::setReturnMain(const juce::String& kitId,int source,bool enabled)
+{
+    return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit || source<0 || source>=6)return Result::fail("Send no longer exists.");kit->returnRouting[(size_t)source].main=enabled;return Result::success();});
+}
+Result KitLibrary::setReturnName(const juce::String& kitId,int index,const juce::String& text)
+{
+    return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit || index<0 || index>=6)return Result::fail("Send no longer exists.");auto name=text.trim();if(name.isEmpty())name="Send "+juce::String::charToString((juce::juce_wchar)('A'+index));if(!validName(name) || name.containsAnyOf("\r\n\t"))return Result::fail("Use a single-line send name of up to 64 characters.");kit->returns[(size_t)index].name=name;return Result::success(kit->returns[(size_t)index].id);});
+}
+Result KitLibrary::setMacroName(const juce::String& kitId,int index,const juce::String& name)
+{
+    return edit([&](State& state){auto* kit=find(state.kits,kitId);if(!kit || index<0 || index>=numMacros)return Result::fail("Macro no longer exists.");kit->macroNames[(size_t)index]=name.trim();return Result::success();});
+}
+Result KitLibrary::setNotes(const juce::String& kitId,const juce::String& instrumentId,const juce::String& notes)
+{
+    return edit([&](State& state){auto* kit=find(state.kits,kitId);auto* group=kit?containing(*kit,instrumentId):nullptr;if(!group)return Result::fail("Instrument no longer exists.");if(notes.length()>65536)return Result::fail("Notes are limited to 65,536 characters.");find(group->instruments,instrumentId)->notes=notes;return Result::success(instrumentId);});
+}
 Result KitLibrary::setEffects(const juce::String& kitId,const juce::String& instrumentId,const std::vector<EffectSlot>& effects)
 {
     return edit([&](State& state) {
         auto* kit=find(state.kits,kitId);if(!kit)return Result::fail("Kit no longer exists.");
+        const int send=returnIndex(instrumentId);if(send>=0){kit->returns[(size_t)send].effects=effects;return Result::success(instrumentId);}
         auto* group=containing(*kit,instrumentId);if(!group)return Result::fail("Instrument no longer exists.");
         find(group->instruments,instrumentId)->effects=effects;return Result::success(instrumentId);
     });
@@ -438,10 +467,11 @@ Result KitLibrary::setEffects(const juce::String& kitId,const juce::String& inst
 std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
 {
     const auto s = snapshot(); auto xml = std::make_unique<juce::XmlElement>("DrumState");
-    xml->setAttribute("schemaVersion", 17); xml->setAttribute("activeKit", s.activeKit);
+    xml->setAttribute("schemaVersion", 22); xml->setAttribute("activeKit", s.activeKit);
     for (auto& k : s.kits)
     {
-        auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);kit->setAttribute("groupBoundary",k.groupBoundary);
+        auto* kit = xml->createNewChildElement("Kit"); kit->setAttribute("id", k.id); kit->setAttribute("name", k.name);kit->setAttribute("groupBoundary",k.groupBoundary);for(int n=0;n<numMacros;++n)kit->setAttribute("macroName"+juce::String(n+1),k.macroNames[(size_t)n]);
+
         for(const auto& p:k.patterns){auto* pattern=kit->createNewChildElement("Pattern");pattern->setAttribute("id",p.id);pattern->setAttribute("name",p.name);pattern->setAttribute("steps",p.steps);pattern->setAttribute("loopStart",p.loopStart);pattern->setAttribute("loopEnd",p.loopEnd);pattern->setAttribute("looping",p.looping);pattern->setAttribute("numerator",p.numerator);pattern->setAttribute("denominator",p.denominator);for(const auto& hit:p.hits){auto* note=pattern->createNewChildElement("Hit");note->setAttribute("instrument",hit.instrumentId);note->setAttribute("step",hit.step);note->setAttribute("velocity",hit.velocity);note->setAttribute("id",hit.id);note->setAttribute("start",hit.start);note->setAttribute("duration",hit.duration);note->setAttribute("chance",hit.chance);note->setAttribute("deviation",hit.deviation);note->setAttribute("releaseVelocity",hit.releaseVelocity);note->setAttribute("enabled",hit.enabled);note->setAttribute("chanceGroup",hit.chanceGroup);note->setAttribute("groupMode",hit.groupMode);}}
         for (auto& g : k.groups)
         {
@@ -450,7 +480,7 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
             {
                 auto* instrument = group->createNewChildElement("Instrument"); instrument->setAttribute("id", i.id);
                 instrument->setAttribute("name", i.name); instrument->setAttribute("note", i.note);
-                instrument->setAttribute("samplePath", i.samplePath);
+                instrument->setAttribute("samplePath", i.samplePath);instrument->setAttribute("notes",i.notes);
                 instrument->setAttribute("volumeDb",i.controls.volumeDb); instrument->setAttribute("pan",i.controls.pan);
                 instrument->setAttribute("tuning",i.controls.tuning); instrument->setAttribute("mute",i.controls.mute?1:0);
                 instrument->setAttribute("solo",i.controls.solo?1:0); instrument->setAttribute("choke",i.controls.choke);
@@ -488,6 +518,7 @@ std::unique_ptr<juce::XmlElement> KitLibrary::toXml() const
                 }
             }
         }
+        for(int n=0;n<6;++n){auto* ret=kit->createNewChildElement("Return");ret->setAttribute("index",n);ret->setAttribute("name",k.returns[(size_t)n].name);ret->setAttribute("main",k.returnRouting[(size_t)n].main);for(int target=0;target<6;++target)ret->setAttribute("send"+juce::String(target),k.returnRouting[(size_t)n].sends[(size_t)target]);for(const auto& effect:k.returns[(size_t)n].effects){auto* node=ret->createNewChildElement("Effect");node->setAttribute("id",effect.id);node->setAttribute("bypassed",effect.bypassed);node->setAttribute("sidechainNote",effect.sidechainNote);node->setAttribute("sidechainGain",effect.sidechainGain);node->setAttribute("sidechainMix",effect.sidechainMix);node->setAttribute("sidechainMute",effect.sidechainMute);node->addChildElement(juce::parseXML(effect.description).release());node->createNewChildElement("State")->addTextElement(effect.state);}}
     }
     return xml;
 }
@@ -500,15 +531,17 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         KitLibrary initial; auto fresh = initial.snapshot(); const juce::ScopedLock guard(lock);
         fresh.revision = state.revision + 1; fresh.kitEpoch = state.kitEpoch + 1; state = std::move(fresh); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;
     }
-    if (version < 2 || version > 17) return false;
+    if (version < 2 || version > 22) return false;
     State candidate; candidate.activeKit = xml.getStringAttribute("activeKit");
     for (auto* k : xml.getChildIterator())
     {
         if (!k->hasTagName("Kit") || candidate.kits.size() == maxKits) return false;
         Kit kit { k->getStringAttribute("id"), k->getStringAttribute("name"), {} };kit.groupBoundary=version>=16?k->getIntAttribute("groupBoundary",0):0;
-        int count = 0;
+        if(version>=20)for(int n=0;n<numMacros;++n)kit.macroNames[(size_t)n]=k->getStringAttribute("macroName"+juce::String(n+1));
+        int count = 0;std::array<bool,6> seenReturns{};
         for (auto* g : k->getChildIterator())
         {
+            if(version>=18 && g->hasTagName("Return")){int n=integerAttribute(*g,"index");if(n<0 || n>=6 || seenReturns[(size_t)n] || g->getNumChildElements()>maxEffects)return false;seenReturns[(size_t)n]=true;if(version>=22){kit.returnRouting[(size_t)n].main=g->getBoolAttribute("main",true);for(int target=0;target<6;++target)kit.returnRouting[(size_t)n].sends[(size_t)target]=g->getDoubleAttribute("send"+juce::String(target),sendFloor);}if(version>=21)kit.returns[(size_t)n].name=g->getStringAttribute("name",kit.returns[(size_t)n].name);for(auto* e:g->getChildIterator()){auto* description=e->getChildByName("PLUGIN");auto* saved=e->getChildByName("State");if(!e->hasTagName("Effect") || !description || !saved || e->getNumChildElements()!=2)return false;auto encoded=saved->getAllSubText();juce::MemoryBlock decoded;if(encoded.length()>24*1024*1024 || (encoded.isNotEmpty() && !decoded.fromBase64Encoding(encoded)))return false;EffectSlot slot{e->getStringAttribute("id"),description->toString(),encoded,e->getBoolAttribute("bypassed")};slot.sidechainNote=e->getIntAttribute("sidechainNote",-1);slot.sidechainGain=e->getDoubleAttribute("sidechainGain",0);slot.sidechainMix=e->getDoubleAttribute("sidechainMix",1);slot.sidechainMute=e->getBoolAttribute("sidechainMute");kit.returns[(size_t)n].effects.push_back(std::move(slot));}continue;}
             if(version>=13 && g->hasTagName("Pattern")){
                 Pattern pattern{g->getStringAttribute("id"),g->getStringAttribute("name"),integerAttribute(*g,"steps"),{}};
                 if(kit.patterns.size()>=16 || g->getNumChildElements()>8192)return false;
@@ -521,6 +554,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
             {
                 if (!i->hasTagName("Instrument") || ++count > maxInstruments || (version<7 && i->getNumChildElements()!=0)) return false;
                 group.instruments.push_back({ i->getStringAttribute("id"), i->getStringAttribute("name"), integerAttribute(*i, "note"), version >= 3 ? i->getStringAttribute("samplePath") : juce::String() });
+                if(version>=19)group.instruments.back().notes=i->getStringAttribute("notes");
                 if(version>=4)
                 {
                     auto mute=integerAttribute(*i,"mute"),solo=integerAttribute(*i,"solo");
@@ -582,6 +616,7 @@ bool KitLibrary::restore(const juce::XmlElement& xml)
         }
         candidate.kits.push_back(std::move(kit));
     }
+    if(version<18)for(auto& kit:candidate.kits)for(auto& group:kit.groups)for(auto& i:group.instruments){for(auto member:{&SoundParameters::sendA,&SoundParameters::sendB,&SoundParameters::sendC,&SoundParameters::sendD,&SoundParameters::sendE,&SoundParameters::sendF})if(i.controls.sound.*member<=-60)i.controls.sound.*member=sendFloor;for(auto& m:i.controls.macros)if(m.target>0 && juce::String(macroTargets[(size_t)m.target].name).startsWith("Send ")){if(m.minimum<=-60)m.minimum=sendFloor;if(m.maximum<=-60)m.maximum=sendFloor;}}
     if (!validate(candidate)) return false;
     for(auto& kit:candidate.kits)if(!compactKeyboard(kit))return false;
     const juce::ScopedLock guard(lock); candidate.revision = state.revision + 1; candidate.kitEpoch = state.kitEpoch + 1; state = std::move(candidate); activeEpoch.store(state.kitEpoch); if(afterRestore)afterRestore(); return true;

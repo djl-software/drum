@@ -10,7 +10,7 @@ The waveform stays above the scrolling controls on all eight tabs. The view sele
 
 - **Edited** (default): one hit rendered through Drum's current trim/reverse, gain/normalise, tuning, envelopes, tone filter, eight-band EQ, LFO, instrument mixer and macro settings. It updates after control edits, host macro changes and host tempo changes, without playing audio. At Y 1x its amplitude scale is Â±1 (0 dBFS). Vertical zoom magnifies the display without changing gain; values beyond the chosen scale meet the display edge. The header reports the actual signal peak in dBFS. This is display clipping only.
 - **Source:** unprocessed audio displayed in the selected playback direction, with Start/End and loop markers. Reverse flips the display; START is the audible beginning of reverse playback. Choose this to drag trim markers. This view scales to the source peak and does not show processing. Numeric Start/End controls also work while Edited is selected.
-- **Send Aâ€“F:** the selected post-fader send signal, including its send level and macro mappings, before effects added in the DAW. An off send shows a flat line. These previews show the signal independently of whether its host output bus is enabled.
+- **Send Aâ€“F:** the selected post-fader send signal, including its send level and macro mappings, before shared return effects. An off send shows a flat line. These previews show the signal independently of whether its host output bus is enabled.
 
 The preview uses the same voice DSP as playback, at the host sample rate and tempo, with 80% velocity and a one-second gate, matching manual Play. Trigger ignores note-off; Gate and Envelope release after one second. It shows the instrument before destination routing and external DAW effects. Mute/solo suppression is reflected; polyphony, retrigger and choke need overlapping notes to show a difference. Pitch bend is centred. Random modulation uses a repeatable example and a free-running LFO starts at phase zero, so a live performance can differ.
 
@@ -88,9 +88,9 @@ Sine, triangle, square, rising/falling saw and random waveforms modulate volume,
 
 To hear modulation and see it in Edited, choose **LFO: On** and raise at least one depth. Filter depth also requires Filter On. A slow LFO or a long fade-in can make little visible difference to a short hit; time zoom helps inspect subtle changes.
 
-## Attack layer
+## Attack
 
-Turn **Attack layer** On to add a centred transient independently of the sample envelopes:
+Tick **Attack** to add a centred transient independently of the sample envelopes:
 
 - **Click:** a short tonal click with an extra harmonic for a sharper front edge.
 - **Pulse:** a short sine burst; lower tone adds a knock, higher tone adds a tick.
@@ -120,15 +120,15 @@ Stereo and mono audio effects are supported; required sidechains, MIDI-effect in
 
 ## Outputs and sends
 
-Route each instrument to Main or Out 2â€“16. Send Aâ€“F provide six additional stereo outputs, with per-instrument post-fader send levels; -60 dB is off. They contain audio for effects on DAW tracks, not internal reverb/delay engines. A disabled instrument output falls back to Main. A disabled send stays silent. On hosts that enable every output, selecting an auxiliary output removes that instrument from Main even if no receiving track is connected.
+Sends A-F are six local shared effects returns per kit. Each instrument sends a post-fader, post-pan, post-Chain copy into a shared return. All instruments feeding the same letter are summed before its effects, then mixed into Drum Main. The dry Main/Out 2-16 destination stays independent.
 
-In Live, create a receiving audio track, select the Drum MIDI track as **Audio From**, and select the required plug-in output in the second chooser. Set monitoring to In and put the desired audio effects on that track. Route its audio to Main. Host output labels can include channel numbers as well as Drum's bus names. Validate routing before recording; organisational groups do not automatically create audio buses.
+Use Edit A-F in the routing diagram to add built-in or VST3 effects, open their editors, reorder, bypass or remove them. Each return supports up to 16 effects and saves with the kit and DAW session. For shared ambience, send both Woods to A, add Room to A, and set Room Mix to 100%. Empty or bypassed return chains pass the send through, adding another dry copy to Main.
 
-### Ableton effects on individual instruments
+Send controls range from minus infinity (displayed as the infinity sign) to 0 dB. The bottom position produces exact silence. Double-click resets to silence; typing -inf also turns a send off. Macro send targets use the same range. Legacy -60 dB off settings migrate to silence.
 
-Live's native devices, such as EQ Eight and Compressor, run in Live's device chains and cannot be dragged into Drum's VST3. Assign the kick to Out 2, the snare to Out 3, and so on, then put the desired Live effects on their receiving audio tracks. All instruments sharing an output share that external effect chain. Main plus Out 2â€“16 provide 16 destinations; this is not 88 independent effect chains. Six sends can feed shared external effects. Live saves those devices and their routing in the Set; Drum saves its output/send choices. External effects are after Drum's waveform preview and are not drawn in it. See [Ableton's routing manual](https://www.ableton.com/en/manual/routing-and-i-o/).
+The diagram shows edited sound -> instrument Chain -> dry destination and six parallel sends -> return effects -> Main sum -> DAW. Lit wires show enabled routes, respecting mute/solo and macro send settings. A return-to-Main connection can stay lit when another instrument feeds that return. This indicates routing rather than instantaneous audio metering. Disabled auxiliary dry destinations fall back to Main.
 
-Third-party VST3 audio effects can run in the per-instrument Chain tab. They use no extra Live tracks; MIDI stays on the Drum track. Native Live devices still require Live routing.
+No receiving DAW tracks or enabled auxiliary send outputs are needed. Old host send bus positions remain as silent placeholders to preserve saved output ordering. Main and Out 2-16 remain available for external processing. Native Live effects require external DAW routing; built-in Drum effects and VST3 audio effects can run in local return chains.
 
 ## Macros
 
@@ -140,7 +140,7 @@ Targets include the instrument mixer, sample gain, cutoff/resonance, envelope ti
 
 Schema 11 adds ordered VST3 effect slots, bypass and opaque plugin state; older projects receive empty chains. Schema 10 adds attack Position, defaulting to 0 ms for older projects. The attack now bypasses the sample envelopes for all projects, including existing Attack On presets. Schema 9 adds weighted curves; earlier envelope states retain their previous curvature. Schema 8 adds eight EQ bands, bypass and output gain, with EQ off for older states. Schema 7 adds custom point/curve envelopes and manual key labels. Schema 6 and earlier preserve their ADSR sound without custom points; key analysis defaults to Auto. Current state saves every editing field, macro mapping and macro value. Schema 5 preserves all its existing editing settings and defaults to Stereo with attack Off. Schemas 1â€“4 load with neutral editing defaults. Invalid or incomplete new state is rejected without replacing the current kit. Editing does not embed or collect audio files.
 
-The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered instrument chains, native Live device hosting, built-in effect returns, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21â€“108.
+The reference is the [Ableton Racks manual](https://www.ableton.com/en/live-manual/12/instrument-drum-and-effect-racks/) and [Simpler documentation](https://www.ableton.com/en/live-manual/12/live-instrument-reference/#simpler). Complete parity remains broader: Warp/time-stretch, transient/manual/beat slicing, key tracking, glide/spread, envelope looping, filter circuit models, layered instrument chains, native Live device hosting, macro names/variations and Live preset import are not implemented. Drum currently uses one audio sample per instrument and unique MIDI notes 21â€“108.
 
 ## Compact editing and level warnings (0.12.1)
 
@@ -296,7 +296,7 @@ The final editing tabs are ordered Chain, Outputs & Sends, Macros. Audio passes 
 
 LFO replaces the sample waveform with an editable single cycle, shown from 0% to 100%. Choose a standard waveform or draw points and curves to switch to Custom. Custom LFO shapes are stored with the instrument and repeat at the chosen free or tempo-synchronised rate. Graph Reset gives a flat centre line and turns the LFO off; Undo/Redo restores shape edits. Random displays an illustrative cycle because playback generates fresh random values.
 
-Ableton routing: Drum sends are separate plug-in outputs and do not automatically feed Live returns with matching letters. Drum now lists Main, Out 2–10, Send A–F, then Out 11–16, so all six sends are within Live’s first 16 stereo outputs. Saved instrument destinations retain their names; existing receiving tracks using auxiliary outputs should have their source selection checked after this output-order change. To feed Live return D, create an audio receiving track, choose the Drum track in Audio From and Drum’s Send D in its second chooser, set Monitor to In, Audio To to Sends Only, then raise that track’s Live send D. Raise Drum’s Send D per instrument.
+
 
 Stereo Width is an optional instrument-chain effect. Delay sets a 0–30 ms Haas offset on the chosen Left/Right side. Protect bass keeps the low band centred below Bass below. Pan balances the output left/right; Mix is last on the right and defaults to zero, so adding the effect initially leaves the sound unchanged.
 
@@ -308,7 +308,7 @@ All effects are optional additions to each instrument’s chain and process in til
 
 - **Dynamic EQ:** a focused dynamic bell, with Frequency and Q choosing the region, Threshold deciding when it reacts, signed Range setting maximum cut/boost, and Attack/Release setting response speed. Use a negative Range to reduce ringing or harshness only on strong hits. Range starts at zero; the static 16-band EQ remains available separately, and multiple Dynamic EQ tiles can target different regions. The graph shows output spectrum and current dynamic gain.
 - **Bitcrusher:** Bits reduces amplitude resolution; Sample rate holds values between updates. Drive feeds the quantiser harder; Output sets the resulting level. Mix blends the degraded sound with the original. Useful for rough snares and vintage digital textures.
-- **Tempo Delay:** Time sets free-running milliseconds. Sync and Division select host-tempo timing; dotted divisions are included. Feedback repeats echoes, Low/High cut darken or thin them, and Ping pong crosses feedback between channels. Mix starts dry; use 100% on a dedicated send path. Without a host tempo it uses 120 BPM. Long feedback settings can create long tails.
+- **Delay:** Time sets free-running milliseconds. Sync and Division select host-tempo timing; dotted divisions are included. Feedback repeats echoes, Low/High cut darken or thin them, and Ping pong crosses feedback between channels. Mix starts dry; use 100% on a dedicated send path. Without a host tempo it uses 120 BPM. Long feedback settings can create long tails.
 - **Ducker:** choose another instrument in the chain tile’s sidechain source selector. Threshold detects that source; Depth sets attenuation; Attack, Hold and Release shape recovery. Mix blends the ducked result. No external source means no ducking. For example, select the kick as source on a percussion instrument to leave space for kick hits. The source is tapped before its effects, as with other chain sidechains.
 - **Room:** Predelay separates the hit from its ambience. Room size changes the reverb network’s decay; Damping softens high frequencies, and Low cut removes bass from the room feed. Share it on a send when several sounds should occupy the same space.
 - **Resonator:** Frequency sets the ringing pitch, Decay sets its approximate 60 dB decay time, Damping filters the excitation, and Drive changes how strongly the hit excites it. Blend with Mix for metallic or pitched percussion.
@@ -319,3 +319,69 @@ Saturation now offers **Soft**, asymmetric **Tube**, and **Hard** characters; So
 Every built-in editor has **Level match**, an audition **Bypass**, and **A/B**. Level match compares rolling RMS levels and compensates processed level within ±12 dB; silence does not trigger unlimited gain. Bypass crossfades to latency-aligned dry audio while processing continues. A/B first copies the current settings into B; edit B and switch back to compare with A. These listening controls are temporary and turn off on editor close; only active effect parameters are saved. A/B snapshots remain in the loaded instance and are not stored in presets. The chain tile’s normal Bypass remains a separate processing switch.
 
 EQ frequency, gain and Q edits now retain filter history and interpolate coefficients over 20 ms. This avoids repeatedly restarting the filters while dragging points. Band enable, filter type and stage-count changes crossfade between filter topologies.
+
+## Instrument notes and portable instrument files
+
+Volume and Pan on the right-hand instrument panel use rotary dials. Drag vertically, type a value below the dial, or double-click to restore 0 dB / centre. Pan has a bipolar arc from the centre position. Existing volume and pan ranges are preserved.
+
+Open Notes from the right panel, the instrument tile's right-click menu, or the instrument editor. Notes save as you type, remain attached to that instrument when selection changes, and are included in the kit/library, DAW session, copies and instrument exports.
+
+Import and Export are available in both Library and Kit views: use the right-panel buttons or right-click an instrument tile. The instrument editor also has Export and Notes buttons. A .druminstrument file contains the original sample audio, instrument name, notes, mixer and sound controls, envelopes, EQ, attack layer, LFO, macro mappings, output/send settings, and live built-in/VST3 effect chain settings. It is a single portable file; no sibling Samples folder is needed when moving it.
+
+Import adds an independent instrument to the selected group without replacing a tile. New instrument/effect identities and the destination group's next keyboard position are assigned automatically. The included audio is collected into Drum's configured Samples folder. Missing samples prevent export without overwriting a previous export. An instrument with no assigned sample can still be saved and imported.
+
+Shared return chains and global macro values belong to the destination kit, so the imported instrument uses that kit's sends and macro values. Its own send levels and macro mappings are retained. External sidechain sources reconnect by matching instrument identity or a unique name; unresolved sources become No Input and are reported after import. Self-sidechains follow the imported copy. Third-party VST3 processors must be available on the destination system.
+
+## Standard rotary controls (0.22.0)
+
+Mixer and built-in effect dials use the same grey face, white pointer, mint value arc and editable readout below. Bipolar controls show an arc from zero. Slow wheel scrolling makes fine adjustments; sustained faster scrolling increases sensitivity. A pause or direction reversal restores fine movement. Shift gives another tenfold precision reduction. Fractional trackpad input accumulates, inertial coast is ignored, and parameter bounds/steps and logarithmic mappings are retained.
+
+Finger and stylus control uses direct vertical dragging; tap the value for exact numeric entry. Wheel acceleration applies to mouse/trackpad scrolling. Direct touch dragging retains fixed sensitivity and has not been device-validated in this update.
+
+## Control standard and named macros (0.23.0)
+
+Continuous parameter bars are now rotary dials across editing pages, EQ, envelope amounts, sends, macro values/ranges and chain sidechain controls. Binary Off/On selectors are tick boxes labelled with the function; genuine choices remain dropdowns. One isolated slow wheel notch changes the smallest displayed denomination (e.g. 0.1 dB, 1 Hz or 0.01 Q), including high in logarithmic ranges. Faster scrolling still accelerates.
+
+In Edit > Macros, edit the name at the top of a macro card and press Enter or click away. The name is shared across that kit's instruments and saved with the kit/session. Clearing it restores Macro N. Drum notifies VST3 hosts of a parameter-title change; the stable macro IDs, automation assignments and values remain unchanged. Live controls caching of names in existing Configure panels, so a host may require refreshing its device view.
+
+DJL Link is a native Live rack. Its unused visible macro count is minimized and its panel remains collapsed, without changing its 88 note chains or MIDI routing. Existing mapped rack macros are preserved. Live's published API does not provide per-parameter hiding for its native chain activation/speaker controls, so those automation entries cannot be removed safely by Drum. Live's Show Automated Parameters Only chooser option can filter unautomated helper entries after musical automation is created.
+
+
+## Bypass, availability and playback feedback (0.23.1)
+
+Turning a section off bypasses it and greys its dependent controls without resetting their values or graph shapes. Re-enable it to resume with the same settings. Attack, LFO, the tone filter and individual EQ bands follow this rule. Explicit Reset still restores defaults. Loop controls require Envelope playback and Loop enabled; Fade in applies in Trigger/Gate; Fade out also controls the sample-end fade in Envelope mode, so it stays available. Free LFO rate and host beat division are enabled only in their respective clock modes. Tempo Delay Time/Division and Stereo Width bass protection controls follow their dependencies too.
+
+Every new MIDI note-on retriggers the Kit tile pulse, including repeated hits while a note remains held and hits released within one audio block. Held notes retain a quieter highlight. Library remains an independent preview. EQ point drags update Frequency, Gain and Q readouts, including after a dial previously held keyboard focus. The instrument EQ analyser rechecks its capture binding when the editor is refreshed or reopened.
+
+
+## Spectrum levels and signal peak (0.23.2)
+
+The spectrum shows the strongest stereo channel's FFT amplitudes, with a narrow 1/12-octave peak envelope for drawing on the logarithmic frequency axis. This replaces averaging dB values across neighbouring bins, which could suppress narrow high-frequency peaks. There is no frequency tilt or artificial gain compensation. A steady, bin-centred sine at 0 dBFS reads approximately 0 dBFS at its frequency; tones between bins can read about 1.4 dB lower because of the Hann window.
+
+The separate Signal peak readout measures the largest absolute sample in either channel, holds for one second and then falls. It captures brief hits without averaging them across the FFT window. A short broadband wood hit can peak at +2 dBFS while its spectrum reads -20 dBFS or less: its energy is spread across frequencies and time. The spectrum uses an 8192-sample FFT (about 171 ms at 48 kHz), and is not a full-band output peak meter.
+
+Instrument pre-chain identifies the selected instrument after its sound controls, EQ and mixer gain/balance, before its effect Chain and shared sends. The main output can differ because it also includes those effects, sends, other instruments and downstream host processing. A built-in EQ editor instead labels its own EQ output. Adjusting the display does not change the audio or prevent an output overload.
+
+
+## Solo from every instrument tab (0.23.3)
+
+Solo is always available in the instrument editor header, immediately before Notes, in the same position on all nine tabs. It controls the same saved instrument Solo state as the main instrument panel: changes from either button update both. Multiple instruments can remain soloed together, and Mute continues to take priority.
+
+
+## Named sends (0.23.4)
+
+Click a send name in Outputs & Sends > routing diagram, type a name such as Ambience, and press Enter or click away. Its letter remains visible (A: Ambience) on the diagram and pot caption. Names also appear in waveform choices, macro target choices and return effect window titles. Names belong to the kit, so every instrument shares them; kit/library files, Live Set state and duplicated kits retain them. Clear a name to restore Send A-F. Existing send levels, processing, IDs and automation mappings are retained.
+
+
+## Utility Pan (0.23.4)
+
+Utility includes a bipolar Pan dial, matching the instrument balance control: C preserves the stereo level, turning left attenuates the right channel, and turning right attenuates the left. It follows Utility's channel selection, width, inversion and gain stages, with smoothing while moving it. Double-click restores C. The value saves with the effect in kits, instrument exports and chain presets. Existing Utility settings load with Pan centred.
+
+
+## Send-to-send routing and Echo (0.23.4)
+
+Open Edit A-F from the routing diagram to edit a send's effects and destinations. Main is a tick box; the six destination dials send that return's processed output into other return chains, from minus infinity (silent) to 0 dB. Main and other sends can work together. Main off retains every send level. Self feeds and connections that would create a circular path are unavailable. Routing is saved with the kit and recalled in Live Sets; older kits keep each return feeding Main with its other destinations silent.
+
+The diagram shows directed send-to-send connections on coloured rails. Enabled paths light up through successive returns; a return's Main wire stays grey when Main is unticked. The effect graph handles summing and latency compensation across serial and parallel paths. For example, route Delay on A into Room on B for reverberated repeats, with A's Main tick box choosing whether to include the delay directly as well.
+
+The existing Tempo Delay is now labelled Delay. Its controls, saved IDs and sound remain the same: free milliseconds or host Sync, beat Division, Feedback, Low/High cut, Ping pong and Mix. Echo is a separate effect with darker default filtering, Drive for soft saturation and Wow/Wow rate for gentle timing modulation. Drive uses a bounded feedback stage; feedback is limited to 95%. Both effects can be added to instrument or shared send chains. Use 100% Mix on shared sends for a wet return.

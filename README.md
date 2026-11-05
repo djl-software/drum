@@ -1,5 +1,13 @@
 # DJL Drum
 
+Version 0.23.4 adds per-kit send names, editable in the routing diagram and shown on pots, waveform choices, macro targets and return effect windows. Attack layer is now labelled Attack, Utility gains a centred Pan dial, sends can feed other sends and/or Main, and Delay is joined by a separate coloured Echo effect.
+
+Version 0.23.3 adds a fixed Solo button beside Notes in every instrument editor tab, linked to the main instrument Solo state.
+
+Version 0.23.2 corrects frequency-dependent spectrum display attenuation using a narrow peak envelope, measures the stronger stereo channel and adds a one-second signal-peak readout. Instrument analysis is labelled pre-chain; spectral levels remain distinct from the total waveform peak. Audio processing is unchanged.
+
+Version 0.23.1 retriggers the Kit tile pulse on every MIDI hit, keeps EQ dials in sync with dragged points and refreshes the live analyser binding. Unavailable controls grey out; disabling Attack, LFO, Filter or EQ retains their values for re-enabling.
+
 Version 0.19.0 adds Dynamic EQ, Bitcrusher, Tempo Delay, sidechain Ducker, Room, Resonator and Frequency Shifter to the per-instrument chain. Built-in processors gain temporary level-matched bypass and A/B comparison. Saturation has Soft/Tube/Hard characters, Compressor has detector filtering and a reduction meter, and EQ point moves retain filter history with 20 ms smoothing.
 
 Version 0.18.0 links edits between instances using the same saved kit in one host process, adds instrument dragging onto group rows, shows pan as L/C/R, and explains unsupported Ableton Content AIFF files with an assisted rendered-WAV import. Conversion must be performed in Live; no Ableton samples are bundled.
@@ -186,3 +194,15 @@ Tests write `drum-layout.png`, `drum-layout-minimum.png`, `drum-layout-compact.p
 0.17.4: Right-aligned transport on the navigation row with typed BPM. Setup offers separate active Kit and Library group boundaries: 0 continuous, 0.5 C/F# and 1 C. Boundaries are saved with the collection; overflow beyond MIDI 108 is rejected.
 
 0.17.5: Meter-sized high-quality DJL logo and app title; version in Setup > About Drum. Group boundaries are None, Half octave and Octave. Update is replaced by Setup > Reconnect to Ableton; ordinary edits sync automatically.
+
+### Local shared sends
+
+Sends A-F feed shared internal return chains, then Drum Main. In Outputs & Sends, use Edit A-F to add built-in or VST3 effects. Two Woods sent to A share the same ambience processor; set reverb/delay Mix to 100% wet. Sends range from minus infinity (silent) to 0 dB. The routing diagram lights enabled connections, including returns fed by other instruments. Return chains save with the kit and session. Old host send buses remain as silent placeholders for output-order compatibility.
+
+### Instrument files and notes (0.21.0)
+
+Library and Kit both support .druminstrument import/export from the right panel and each tile's right-click menu. Export is also available in the instrument editor. Files include sample audio, instrument settings, effect state, macro mappings and notes. Imports add independent instruments to the selected group. Notes save as you type. The right-hand Volume and Pan controls now use rotary dials with editable values and double-click reset.
+
+### UI standard and named automation (0.23.0)
+
+Parameter bars across Drum now use the shared rotary controls. Off/On dropdowns are tick boxes, while real choices remain dropdowns. A slow wheel notch nudges one displayed denomination; sustained faster scrolling accelerates. Macro names can be edited on their cards and save with the kit/session; VST3 parameter IDs and existing automation remain stable. The DJL Link helper minimizes unused visible macros without changing its MIDI chains. Native Live chain automation entries remain controlled by Live.

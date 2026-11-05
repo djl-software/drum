@@ -67,6 +67,8 @@ void runPadTests()
     midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)100),12);midi.addEvent(juce::MidiMessage::noteOff(1,21),24);processor.processBlock(output,midi);tick();
     check(pixels(grid,area)!=idlePad && pixels(piano,piano.getLocalBounds())!=idlePiano,"Single-block MIDI hit was invisible");
     for(int n=0;n<7;++n)tick();check(pixels(grid,area)==idlePad,"Short hit flash never cleared");
+    // Repeated note-ons must pulse even while the held-note bit stays active.
+    midi.addEvent(juce::MidiMessage::noteOn(2,21,(juce::uint8)110),0);processor.processBlock(output,midi);tick();auto struck=pixels(grid,area);tick();tick();auto fading=pixels(grid,area);check(struck!=fading,"Held tile pulse did not decay");midi.addEvent(juce::MidiMessage::noteOn(2,21,(juce::uint8)110),0);processor.processBlock(output,midi);tick();check(pixels(grid,area)!=fading,"Repeated note-on failed to retrigger tile pulse");midi.addEvent(juce::MidiMessage::noteOff(2,21),0);processor.processBlock(output,midi);engine.stop();processor.processBlock(output,midi);for(int n=0;n<8;++n)tick();
     // A mouse key must select and sound the corresponding pad too.
     juce::Point<float> keyPoint{piano.getWidth()/104.0f,piano.getHeight()*0.9f};
     piano.mouseDown(mouse(piano,keyPoint));processor.processBlock(output,midi);check(output.getMagnitude(0,256)>0.15f,"Piano press did not play");
@@ -102,6 +104,10 @@ void runPadTests()
         }
         check(find(editor,"kit-2").getWidth()<find(editor,"kit-0").getWidth(),"Short kit name wastes tab width");
         capture(editor,size.x==1280?"drum-kit-names.png":"drum-kit-names-compact.png");
+    }
+    {
+        DrumAudioProcessor track(true);track.newKit();auto state=track.getLibrary().snapshot();auto kit=state.activeKit,group=state.kits[0].groups[0].id,id=track.getLibrary().addInstrument(kit,group).id;track.getSampleEngine().requestLoad(kit,id,file);check(track.getSampleEngine().waitForLoading(10000),"Kit playback test did not load");track.prepareToPlay(48000,256);DrumAudioProcessorEditor ui(track);ui.setSize(1280,900);ui.addToDesktop(0);ui.setVisible(true);tick();auto& tiles=find(ui,"instrument-grid");auto baseline=pixels(tiles,tiles.getLocalBounds());juce::AudioBuffer<float> sound(2,256);juce::MidiBuffer notes;notes.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);notes.addEvent(juce::MidiMessage::noteOff(1,21),10);track.processBlock(sound,notes);tick();check(pixels(tiles,tiles.getLocalBounds())!=baseline,"Actual MIDI Kit workspace failed to flash short note");
+        dynamic_cast<juce::TextButton&>(find(ui,"open-sound-editor")).onClick();dynamic_cast<juce::TextButton&>(find(ui,"edit-tab-2")).onClick();tick();tick();auto& tap=track.getSampleEngine().eqSpectrum;check(tap.enabled.load(),"Visible Kit EQ did not enable live capture");for(int n=0;n<8;++n)track.processBlock(sound,notes);check(tap.consume([](float,float){})>0,"Playing Kit sent no audio to EQ spectrum");dynamic_cast<juce::TextButton&>(find(ui,"close-sound-editor")).onClick();tick();tick();check(!tap.enabled.load(),"Hidden EQ kept capture enabled");dynamic_cast<juce::TextButton&>(find(ui,"open-sound-editor")).onClick();tick();tick();check(tap.enabled.load(),"Reopened EQ lost spectrum capture");for(int n=0;n<8;++n)track.processBlock(sound,notes);check(tap.consume([](float,float){})>0,"Reopened Kit EQ lost its live audio feed");
     }
     std::cout<<"Six-across pads, mouse/piano playback, MIDI hold/flash, channel isolation and Stop passed\n";
 }

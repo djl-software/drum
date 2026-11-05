@@ -18,6 +18,30 @@ void capture(juce::Component& c,const char* name)
 }
 void runEqualizerTests()
 {
+    // Calibrated FFT levels must not sink as the log display spans more bins.
+    for(double sampleRate:{44100.0,48000.0,96000.0})for(int bin:{17,170,1000})for(float expected:{-18.f,0.f,2.f})
+    {
+        drum::SpectrumTap tap;tap.enabled=true;tap.rate=sampleRate;auto storage=std::make_unique<drum::SpectrumAnalysis>();auto& display=*storage;
+        const float amplitude=juce::Decibels::decibelsToGain(expected);
+        for(int block=0;block<3;++block){for(int n=0;n<display.size;++n){float value=amplitude*(float)std::sin(juce::MathConstants<double>::twoPi*bin*n/display.size);tap.push(value,-value);}display.update(tap);}
+        const float measured=display.levelAt(bin*sampleRate/display.size,sampleRate);
+        if(sampleRate==48000 && bin==1000 && expected==0){float oldLevel=0;for(int n=-4;n<=4;++n){double b=bin*std::pow(2.0,n/96.0);int lo=(int)b;oldLevel+=(5.f-std::abs(n))*(display.db[(size_t)lo]+(float)(b-lo)*(display.db[(size_t)lo+1]-display.db[(size_t)lo]));}std::cout<<"0 dBFS high-tone display: prior dB averaging "<<oldLevel/25<<" dBFS, peak envelope "<<measured<<" dBFS\n";}
+
+        check(std::abs(measured-expected)<.1f,"Spectrum tone calibration varies with frequency, level or sample rate");
+        check(std::abs(display.signalPeakDb-expected)<.1f,"Spectrum signal peak differs from waveform peak");
+    }
+    {
+        drum::SpectrumTap tap;tap.enabled=true;auto storage=std::make_unique<drum::SpectrumAnalysis>();auto& display=*storage;
+        for(int n=0;n<display.size;++n)tap.push((float)std::sin(juce::MathConstants<double>::twoPi*1700.49*n/display.size),0);
+        display.update(tap);check(display.levelAt(1700.49*48000/display.size,48000)>-1.6f,"Off-bin high tone or one-sided stereo peak understated");
+        display.clear(tap);const float impulse=juce::Decibels::decibelsToGain(2.f);
+        for(int n=0;n<display.size;++n)tap.push(n==display.size/2?impulse:0,0);
+        display.update(tap);check(std::abs(display.signalPeakDb-2.f)<.001f,"Short hit peak missed");
+        check(*std::max_element(display.db.begin(),display.db.end())<-40,"Per-frequency spectrum falsely equals broadband transient peak");
+        for(int n=0;n<15;++n)display.update(tap);check(std::abs(display.signalPeakDb-2.f)<.001f,"Signal peak hold too short");display.update(tap);check(std::abs(display.signalPeakDb+1.f)<.001f,"Signal peak decay did not follow display decay");
+        display.clear(tap);check(display.signalPeakDb==-100,"Spectrum clear retained an old signal peak");
+    }
+
     {drum::Equalizer settings;settings.enabled=true;settings.bands[0]={true,3,1000,12,8};drum::VoiceEqualizer moving,reference;moving.reset(settings,48000);reference.reset(settings,48000);double error=0;for(int n=0;n<48000;++n){if(n>=12000 && n%16==0){settings.bands[0].frequency=n%32?1000.01:1000;moving.update(settings,48000);}float input=.1f*(float)std::sin(juce::MathConstants<double>::twoPi*1000*n/48000),a=input,b=input,c=input,d=input;moving.process(a,b);reference.process(c,d);if(n>=12000)error=std::max(error,(double)std::abs(a-c));}check(error<.02,"Small repeated EQ moves reset filter history or distort steady audio");}
     for(double rate:{44100.0,48000.0,96000.0})for(int type=0;type<8;++type)for(double bandGain:{9.0,-60.0})
     {
@@ -62,8 +86,8 @@ void runEqualizerTests()
     const auto prior=restored.toXml()->toString();check(!restored.restore(*xml) && restored.toXml()->toString()==prior,"Invalid EQ partially restored");
     xml=library.toXml();stripChainEffects(*xml);xml->setAttribute("schemaVersion",7);check(restored.restore(*xml),"Version 7 migration failed");recalled=restored.snapshot();
     check(drum::findInstrument(*drum::activeKit(recalled),id)->controls.sound.equalizer==drum::Equalizer{},"Old state acquired EQ processing");
-    processor.getSampleEngine().requestLoad(kit,id,juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav"));check(processor.getSampleEngine().waitForLoading(10000),"EQ sample load failed");processor.getSampleEngine().prepare(48000);
-    auto legacy=library.toXml();legacy->setAttribute("schemaVersion",14);drum::KitLibrary legacyRecall;check(legacyRecall.restore(*legacy),"Legacy eight-band state rejected");auto legacyState=legacyRecall.snapshot();check(!drum::findInstrument(*drum::activeKit(legacyState),id)->controls.sound.equalizer.bands[15].enabled,"Legacy kit acquired extra enabled bands");
+    processor.getSampleEngine().requestLoad(kit,id,juce::File::getCurrentWorkingDirectory().getChildFile("playback-test-data/Preview percussion.wav"));check(processor.getSampleEngine().waitForLoading(10000),"EQ sample load failed");processor.prepareToPlay(48000,512);
+    auto legacy=library.toXml();for(auto* kit:legacy->getChildIterator())kit->deleteAllChildElementsWithTagName("Return");legacy->setAttribute("schemaVersion",14);drum::KitLibrary legacyRecall;check(legacyRecall.restore(*legacy),"Legacy eight-band state rejected");auto legacyState=legacyRecall.snapshot();check(!drum::findInstrument(*drum::activeKit(legacyState),id)->controls.sound.equalizer.bands[15].enabled,"Legacy kit acquired extra enabled bands");
     c=current();c.sound.equalizer={};check(library.setControls(kit,id,c).ok,"Reset EQ failed");
     DrumAudioProcessorEditor editor(processor);editor.setVisible(true);editor.setSize(1280,900);click(editor,"open-sound-editor");click(editor,"edit-tab-2");
     auto& graph=control<EqualizerEditor>(editor,"eight-band-eq");check(graph.isVisible(),"EQ graph hidden");check(!control<juce::Component>(editor,"sample-waveform").isVisible() && graph.graphBounds().translated(graph.getX(),graph.getY())==control<juce::Component>(editor,"sample-waveform").getBounds(),"EQ did not replace full waveform area");
@@ -75,7 +99,19 @@ void runEqualizerTests()
     control<juce::ComboBox>(editor,"eq-type").setSelectedId(4,juce::sendNotificationSync);
     const juce::Point<float> bottom{target.x,(float)graph.getHeight()-53};
     graph.mouseDown(event(graph,target,target));graph.mouseDrag(event(graph,bottom,target));graph.mouseUp(event(graph,bottom,target));
+    check(std::abs(control<juce::Slider>(editor,"eq-frequency").getValue()-current().sound.equalizer.bands[(size_t)selected].frequency)<=.51 && std::abs(control<juce::Slider>(editor,"eq-gain").getValue()-current().sound.equalizer.bands[(size_t)selected].gain)<=.051,"EQ pots did not follow dragged point");
     check(current().sound.equalizer.bands[(size_t)selected].gain==-60,"EQ drag cannot reach -60 dB");
+    auto retained=current().sound.equalizer;
+    control<juce::ToggleButton>(editor,"eq-enabled").setToggleState(false,juce::sendNotificationSync);
+    auto bypassed=retained;bypassed.enabled=false;
+    check(current().sound.equalizer==bypassed && !control<juce::Slider>(editor,"eq-frequency").isEnabled() && !control<juce::Slider>(editor,"eq-output").isEnabled(),"EQ bypass discarded settings or kept controls active");
+    control<juce::ToggleButton>(editor,"eq-enabled").setToggleState(true,juce::sendNotificationSync);
+    check(current().sound.equalizer==retained && control<juce::Slider>(editor,"eq-frequency").isEnabled(),"EQ re-enable did not retain settings");
+    control<juce::ToggleButton>(editor,("eq-enable-"+juce::String(selected)).toRawUTF8()).setToggleState(false,juce::sendNotificationSync);
+    bypassed=retained;bypassed.bands[(size_t)selected].enabled=false;
+    check(current().sound.equalizer==bypassed && !control<juce::Slider>(editor,"eq-frequency").isEnabled(),"Band bypass discarded settings or kept controls active");
+    control<juce::ToggleButton>(editor,("eq-enable-"+juce::String(selected)).toRawUTF8()).setToggleState(true,juce::sendNotificationSync);
+    check(current().sound.equalizer==retained,"Band re-enable lost settings");
     auto deepState=library.toXml();drum::KitLibrary deepRecall;check(deepRecall.restore(*deepState),"Deep EQ cut cannot be restored");
     auto deepSnapshot=deepRecall.snapshot();check(drum::findInstrument(*drum::activeKit(deepSnapshot),id)->controls.sound.equalizer.bands[(size_t)selected].gain==-60,"Deep EQ cut changed on recall");
     control<juce::Slider>(editor,"eq-q").setValue(2,juce::sendNotificationSync);check(current().sound.equalizer.bands[(size_t)selected].q==2,"EQ Q edit failed");

@@ -31,10 +31,14 @@ struct SoundEditor::Field final : juce::Component
     const drum::SoundParameter& parameter;
     ResetSlider slider;
     juce::ComboBox combo;
+    juce::ToggleButton tick;
+    bool binary=false;juce::String sendCaption;
     explicit Field(const drum::SoundParameter& p,SoundEditor& editor) : parameter(p)
     {
         const auto id=juce::String("edit-")+p.key;
-        if(juce::String(p.choices).isNotEmpty())
+        binary=juce::String(p.choices)=="Off|On" || juce::String(p.choices)=="On|Off";
+        if(binary){addAndMakeVisible(tick);tick.setComponentID(id);tick.setName(p.label);tick.setButtonText(p.label);tick.setColour(juce::ToggleButton::textColourId,ink);tick.onClick=[this,&editor]{editor.change(parameter,juce::String(parameter.choices)=="On|Off"?!tick.getToggleState():tick.getToggleState());};}
+        else if(juce::String(p.choices).isNotEmpty())
         {
             addAndMakeVisible(combo); combo.addItemList(juce::StringArray::fromTokens(p.choices,"|",""),1);
             combo.setComponentID(id); combo.setName(p.label);
@@ -43,9 +47,10 @@ struct SoundEditor::Field final : juce::Component
         else
         {
             addAndMakeVisible(slider); slider.setComponentID(id); slider.setName(p.label);
-            useValueBar(slider); slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,92,26);
+            useValueBar(slider);
             slider.setRange(p.minimum*p.scale,p.maximum*p.scale,p.step*p.scale);
-            slider.setTextValueSuffix(p.unit); slider.setDoubleClickReturnValue(true,p.initial*p.scale);
+            slider.setTextValueSuffix(p.unit);
+            if(juce::String(p.key).startsWith("send")){slider.textFromValueFunction=[](double value){return value<=drum::sendFloor?juce::String::fromUTF8("\xe2\x88\x92\xe2\x88\x9e"):juce::String(value,1);};slider.valueFromTextFunction=[](const juce::String& value){return value.contains(juce::String::fromUTF8("\xe2\x88\x9e")) || value.containsIgnoreCase("inf")?drum::sendFloor:juce::jlimit(drum::sendFloor,0.0,value.getDoubleValue());};slider.setTooltip("Post-fader send to Drum's shared internal return. Minimum is silence; maximum is 0 dB. Double-click resets to silence.");} slider.setDoubleClickReturnValue(true,p.initial*p.scale);
             if(p.maximum>=1000 && p.scale==1) slider.setSkewFactorFromMidPoint(p.minimum==20?1000:juce::jmin(500.0,p.maximum*0.1));
             slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f)); slider.setColour(juce::Slider::thumbColourId,mint);
             slider.setColour(juce::Slider::textBoxTextColourId,ink); slider.setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);
@@ -60,19 +65,21 @@ struct SoundEditor::Field final : juce::Component
     }
     juce::String label() const
     {
+        if(sendCaption.isNotEmpty())return sendCaption;
         const juce::String key(parameter.key);
         if(key=="fadeOut")return "Fade out";if(key=="snap")return "Zero snap";
         if(key=="keyOverride")return "Key label";if(key=="mono")return "Channels";
         return parameter.label;
     }
-    void paint(juce::Graphics& g) override { drawControlLabel(g,label(),{0,0,labelWidth(),getHeight()}); }
+    void paint(juce::Graphics& g) override {if(!binary){g.setColour(ink.withMultipliedAlpha(isEnabled()?1.f:.35f));g.setFont(juce::FontOptions(12));g.drawFittedText(label(),{0,0,getWidth(),22},juce::Justification::centred,1);}}
     int labelWidth() const {return juce::jlimit(80,145,(int)(getWidth()*.43));}
-    void resized() override {const int x=labelWidth()+4;if(parameter.page<=1)slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,juce::jmin(78,getWidth()-x),26);slider.setBounds(x,1,getWidth()-x,26);combo.setBounds(x,1,getWidth()-x,26); }
+    void resized() override {slider.setBounds((getWidth()-104)/2,22,104,88);combo.setBounds(4,34,getWidth()-8,44);tick.setBounds(4,32,getWidth()-8,44);}
+
     void update(double v,bool newSelection)
     {
         if(newSelection) slider.hideTextBox(true);
         if(newSelection || (!slider.isMouseButtonDown() && !slider.hasKeyboardFocus(true))) slider.setValue(v*parameter.scale,juce::dontSendNotification);
-        combo.setSelectedId((int)v+1,juce::dontSendNotification);
+        combo.setSelectedId((int)v+1,juce::dontSendNotification);tick.setToggleState(juce::String(parameter.choices)=="On|Off"?v==0:v!=0,juce::dontSendNotification);
     }
 };
 struct SoundEditor::MacroField final : juce::Component
@@ -81,13 +88,16 @@ struct SoundEditor::MacroField final : juce::Component
     int index;
     ResetSlider value,minimum,maximum;
     juce::ComboBox target;
+    juce::TextEditor name;
     explicit MacroField(SoundEditor& e,int n):editor(e),index(n)
     {
         addAndMakeVisible(target); target.setComponentID("macro-target-"+juce::String(n)); target.setName("Macro "+juce::String(n+1)+" mapping");
         for(int t=0;t<(int)std::size(drum::macroTargets);++t) target.addItem(drum::macroTargets[(size_t)t].name,t+1);
+        addAndMakeVisible(name);name.setComponentID("macro-name-"+juce::String(n));name.setInputRestrictions(64);name.setTextToShowWhenEmpty("Macro "+juce::String(n+1),muted);name.setTooltip("Rename this kit's shared macro. Live receives the same name; its automation ID stays unchanged.");
+        auto rename=[this]{if(editor.updating)return;auto result=editor.processor.renameMacro(index,name.getText());if(!result.ok)editor.message=result.message;};name.onReturnKey=[this,rename]{rename();name.giveAwayKeyboardFocus();};name.onFocusLost=rename;
         for(auto* slider:{&value,&minimum,&maximum})
         {
-            addAndMakeVisible(*slider); useValueBar(*slider);slider->setTextBoxStyle(juce::Slider::TextBoxRight,false,74,23);
+            addAndMakeVisible(*slider); useValueBar(*slider);
             slider->setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider->setColour(juce::Slider::thumbColourId,mint);slider->setColour(juce::Slider::textBoxTextColourId,ink);slider->setColour(juce::Slider::textBoxBackgroundColourId,juce::Colours::transparentBlack);
         }
         value.setDoubleClickReturnValue(true,50);value.setRange(0,100,0.1);value.setTextValueSuffix(" %");value.setName("Macro "+juce::String(n+1));value.setComponentID("macro-value-"+juce::String(n));
@@ -120,6 +130,7 @@ struct SoundEditor::MacroField final : juce::Component
             if(changed) slider->hideTextBox(true);
             slider->setRange(t.minimum,t.maximum,0.001);slider->setEnabled(m.target!=0);
         }
+        if(changed || !name.hasKeyboardFocus(true))name.setText(editor.processor.macro(index).getName(64),false);
         minimum.setDoubleClickReturnValue(true,t.minimum);maximum.setDoubleClickReturnValue(true,t.maximum);
         if(changed || (!minimum.isMouseButtonDown() && !minimum.hasKeyboardFocus(true))) minimum.setValue(m.minimum,juce::dontSendNotification);
         if(changed || (!maximum.isMouseButtonDown() && !maximum.hasKeyboardFocus(true))) maximum.setValue(m.maximum,juce::dontSendNotification);
@@ -127,14 +138,14 @@ struct SoundEditor::MacroField final : juce::Component
     void paint(juce::Graphics& g) override
     {
         g.setColour(juce::Colour(0xff202d3c));g.fillRoundedRectangle(getLocalBounds().toFloat(),7);g.setColour(mint.withAlpha(.35f));g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1),7,1);
-        drawControlLabel(g,"Macro "+juce::String(index+1),{0,0,84,24});
-        drawControlLabel(g,"Min",{0,82,34,24});drawControlLabel(g,"Max",{getWidth()/2+4,82,34,24});
+        const char* captions[]{"Value","Min","Max"};for(int n=0;n<3;++n){g.setColour(ink);g.setFont(juce::FontOptions(12));g.drawText(captions[n],n*getWidth()/3,72,getWidth()/3,20,juce::Justification::centred);}
     }
     void resized() override
     {
-        value.setBounds(90,0,getWidth()-90,24);target.setBounds(0,34,getWidth(),30);
-        minimum.setBounds(40,82,getWidth()/2-48,25);maximum.setBounds(getWidth()/2+44,82,getWidth()/2-44,25);
+        name.setBounds(8,6,getWidth()-16,26);target.setBounds(8,38,getWidth()-16,30);
+        juce::Slider* dials[]{&value,&minimum,&maximum};for(int n=0;n<3;++n)dials[n]->setBounds(n*getWidth()/3+(getWidth()/3-102)/2,94,102,94);
     }
+
 };
 class SoundEditor::Waveform final : public juce::Component,public juce::SettableTooltipClient
 {
@@ -155,7 +166,7 @@ public:
         view.addItem("Source",1);view.addItem("Edited",2);
         for(int n=0;n<6;++n)view.addItem("Send "+juce::String::charToString((juce::juce_wchar)('A'+n)),n+3);
         view.setSelectedId(2,juce::dontSendNotification);
-        view.setTooltip("Edited shows one hit after Drum's controls. Source shows unprocessed audio in the playback direction with draggable trim markers. Sends show the signal before DAW effects.");
+        view.setTooltip("Edited shows one hit after Drum's controls. Source shows unprocessed audio in the playback direction with draggable trim markers. Sends show the signal before the shared return effects.");
         view.onChange=[this]{zoom=1;offset=0;rendered={};setDisplay(sourceMode()?original:nullptr);owner.refreshPreview();};
         addAndMakeVisible(status);status.setComponentID("waveform-status");status.setFont(juce::FontOptions(11));status.setColour(juce::Label::textColourId,muted);
         addAndMakeVisible(verticalZoom);verticalZoom.setComponentID("waveform-vertical-zoom");verticalZoom.setName("Waveform vertical display zoom");
@@ -171,6 +182,7 @@ public:
         channelView.setTooltip("Display only. Auto shows mono or identical L/R signals in one lane. Stereo keeps both lanes; Left or Right uses the full height for that channel. Audio is unchanged.");
         channelView.onChange=[this]{cachedWidth=0;repaint();};
     }
+    void setSendNames(const drum::Kit& kit){for(int n=0;n<6;++n)view.changeItemText(n+3,drum::sendLabel(kit,n));}
     bool sourceMode() const {return view.getSelectedId()==1;}
     bool reversed() const {return sourceMode() && owner.sound.reverse!=0;}
     double trimStart() const {return markerValue(owner.sound,&drum::SoundParameters::start);}
@@ -467,24 +479,39 @@ public:
 };
 class SoundEditor::RoutingView final : public juce::Component {
 public:
-    drum::SoundParameters settings;juce::String instrument;bool hasChain=false;std::array<bool,22> enabled{};
+    drum::SoundParameters settings;juce::String instrument;bool hasChain=false,audible=true;std::array<bool,22> enabled{};
+    std::array<bool,6> returnActive{};std::array<drum::ReturnRouting,6> returnRoutes{};std::array<juce::String,6> descriptions;
+    std::array<juce::TextButton,6> edit;std::array<juce::Label,6> names;std::array<juce::String,6> rawNames;std::function<void(int)> openReturn;std::function<void(int,const juce::String&)> renameReturn;
+    void setNames(const drum::Kit& kit){for(int n=0;n<6;++n){rawNames[(size_t)n]=kit.returns[(size_t)n].name;if(!names[(size_t)n].isBeingEdited())names[(size_t)n].setText(drum::sendLabel(kit,n),juce::dontSendNotification);}}
+    RoutingView(){for(int n=0;n<6;++n){addAndMakeVisible(edit[(size_t)n]);edit[(size_t)n].setButtonText("Edit "+juce::String::charToString((juce::juce_wchar)('A'+n)));edit[(size_t)n].setComponentID("edit-return-"+juce::String(n));edit[(size_t)n].onClick=[this,n]{if(openReturn)openReturn(n);};auto& name=names[(size_t)n];addAndMakeVisible(name);name.setComponentID("send-name-"+juce::String(n));name.setEditable(true,true,false);name.setFont(juce::FontOptions(12));name.setColour(juce::Label::textColourId,ink);name.setTooltip("Click to rename this shared send. Clear the name to restore Send "+juce::String::charToString((juce::juce_wchar)('A'+n))+".");name.onEditorShow=[this,n]{names[(size_t)n].getCurrentTextEditor()->setText(rawNames[(size_t)n],false);names[(size_t)n].getCurrentTextEditor()->selectAll();};name.onTextChange=[this,n]{if(renameReturn)renameReturn(n,names[(size_t)n].getText());};}}
+    void resized() override {const float row=(getHeight()-52)/7.f;for(int n=0;n<6;++n){edit[(size_t)n].setBounds((int)(getWidth()*.66f),(int)(24+row*(n+1)+2),juce::jmin(64,(int)(getWidth()*.08f)-4),juce::jmax(18,(int)row-6));names[(size_t)n].setBounds((int)(getWidth()*.47f)+4,(int)(24+row*(n+1)),(int)(getWidth()*.18f)-8,juce::jmax(14,(int)(row*.5f)));}}
     void paint(juce::Graphics& g) override {
         g.setColour(bg);g.fillRoundedRectangle(getLocalBounds().toFloat(),8);
-        const float w=(float)getWidth(),h=(float)getHeight(),row=(h-50)/7,left=18,boxWidth=w*.22f,chainX=w*.29f,junction=w*.59f,destX=w*.66f;
-        auto box=[&](juce::Rectangle<float> r,const juce::String& title,juce::Colour c){g.setColour(c.withAlpha(.12f));g.fillRoundedRectangle(r,6);g.setColour(c);g.drawRoundedRectangle(r,6,1.5f);g.setFont(juce::FontOptions(14));g.drawFittedText(title,r.reduced(8,2).toNearestInt(),juce::Justification::centred,2);};
-        auto wire=[&](float x1,float y1,float x2,float y2,juce::Colour c){g.setColour(c);g.drawLine(x1,y1,x2,y2,2);};
-        const float centre=h*.5f;
-        box({left,centre-30,boxWidth,60},instrument+"\nEdited sound",waveColour);
-        wire(left+boxWidth,centre,chainX,centre,mint);box({chainX,centre-30,w*.23f,60},hasChain?"Instrument chain\nEffects in order":"Instrument chain\nPass-through",mint);
-        wire(chainX+w*.23f,centre,junction,centre,mint);wire(junction,25+row*.5f,junction,25+row*6.5f,mint.withAlpha(.6f));
+        const float w=(float)getWidth(),h=(float)getHeight(),row=(h-52)/7,split=w*.40f,ret=w*.47f,main=w*.82f,centre=24+row*3.5f;
+        auto box=[&](juce::Rectangle<float> r,const juce::String& title,juce::Colour c){g.setColour(c.withAlpha(.12f));g.fillRoundedRectangle(r,5);g.setColour(c);g.drawRoundedRectangle(r,5,1);g.setFont(juce::FontOptions(12));g.drawFittedText(title,r.reduced(5,1).toNearestInt(),juce::Justification::centred,2);};
+        auto wire=[&](float x1,float y1,float x2,float y2,bool active,juce::Colour colour){g.setColour(active?colour:muted.withAlpha(.22f));g.drawLine(x1,y1,x2,y2,active?2.5f:1.f);if(x2>x1){juce::Path arrow;arrow.addTriangle(x2,y2,x2-5,y2-3,x2-5,y2+3);g.fillPath(arrow);}};
+        box({12,centre-24,w*.14f,48},instrument+"\nEdited sound",audible?waveColour:muted);
+        wire(12+w*.14f,centre,w*.19f,centre,audible,mint);box({w*.19f,centre-24,w*.17f,48},hasChain?"Instrument chain":"Chain: pass-through",audible?mint:muted);
+        wire(w*.36f,centre,split,centre,audible,mint);
+        const int destination=(int)settings.output;const bool mainDry=destination==0 || !enabled[(size_t)destination];
+        wire(split,24+row*.5f,split,24+row*6.5f,audible,mint);
+        const float dryY=24+row*.5f;wire(split,dryY,ret,dryY,audible,mint);
+        box({ret,24,w*.27f,row-4},mainDry?(destination?"Dry: Main (fallback)":"Dry: Main"):"Dry: Out "+juce::String(destination+1),audible?mint:muted);
+        if(mainDry)wire(w*.74f,dryY,main,dryY,audible,mint);else {wire(w*.74f,dryY,w-12,dryY,audible,mint);text(g,"DAW",{(int)(w*.90f),3,65,18},11,muted);}
         const double sends[]{settings.sendA,settings.sendB,settings.sendC,settings.sendD,settings.sendE,settings.sendF};
-        for(int n=0;n<7;++n){const int bus=n==0?(int)settings.output:15+n;const bool on=n==0 || sends[n-1]>-60;const bool connected=enabled[(size_t)bus];const auto c=!on?muted:n==0?mint:spectrumColour;const float y=25+row*n;
-            wire(junction,y+row*.5f,destX,y+row*.5f,c.withAlpha(on?.9f:.25f));
-            juce::String title=n==0?(bus==0?"Main output":"Out "+juce::String(bus+1)):"Send "+juce::String::charToString((juce::juce_wchar)('A'+n-1))+"   "+(on?juce::String(sends[n-1],1)+" dB":"Off");
-            title+="\n";title+=connected?"To DAW":n==0?"Main fallback":"Enable output in DAW";
-            box({destX,y,w-destX-18,row-5},title,c);
+        for(int n=0;n<6;++n){const bool on=audible && sends[n]>drum::sendFloor;const float y=24+row*(n+1),mid=y+row*.5f;wire(split,mid,ret,mid,on,spectrumColour);
+            const auto level=sends[n]<=drum::sendFloor?juce::String::fromUTF8("\xe2\x88\x92\xe2\x88\x9e"):juce::String(sends[n],1)+" dB";
+            box({ret,y,w*.27f,row-4},{},returnActive[(size_t)n]?spectrumColour:muted);
+            juce::String destinations=returnRoutes[(size_t)n].main?"M":"";for(int target=0;target<6;++target)if(returnRoutes[(size_t)n].sends[(size_t)target]>drum::sendFloor)destinations+=juce::String::charToString((juce::juce_wchar)('A'+target));if(destinations.isEmpty())destinations="None";
+            text(g,level+" | "+descriptions[(size_t)n]+" | "+juce::String::charToString(0x2192)+destinations,{(int)ret+6,(int)(y+row*.5f),(int)(w*.18f)-10,(int)(row*.5f)-3},12,returnActive[(size_t)n]?spectrumColour:muted);
+            wire(w*.74f,mid,main,mid,returnActive[(size_t)n] && returnRoutes[(size_t)n].main,spectrumColour);
         }
-        text(g,"Parallel sends carry copies of the signal after the instrument chain.",{18,getHeight()-22,getWidth()-36,18},11,muted);
+        static const juce::uint32 routeColours[]{0xff68b6ff,0xffffbd69,0xff8cda83,0xffed91d1,0xffb49bff,0xff59d9cd};
+        for(int source=0;source<6;++source)for(int target=0;target<6;++target)if(returnRoutes[(size_t)source].sends[(size_t)target]>drum::sendFloor){const float x=w*.74f,lane=w*(.754f+source*.009f),from=24+row*(source+1.5f)+4,to=24+row*(target+1.5f)-4;const bool active=returnActive[(size_t)source];g.setColour(active?juce::Colour(routeColours[source]):muted.withAlpha(.25f));juce::Path route;route.startNewSubPath(x,from);route.lineTo(lane,from);route.lineTo(lane,to);route.lineTo(x,to);g.strokePath(route,juce::PathStrokeType(active?2.f:1.f));juce::Path arrow;arrow.addTriangle(x,to,x+5,to-3,x+5,to+3);g.fillPath(arrow);}
+        bool anyMain=mainDry && audible;for(int n=0;n<6;++n)anyMain|=returnActive[(size_t)n] && returnRoutes[(size_t)n].main;
+        wire(main,dryY,main,24+row*6.5f,anyMain,mint);
+        box({main+8,centre-28,w-main-20,56},"Main sum\nTo DAW",mint);wire(main,centre,main+8,centre,anyMain,mint);
+        text(g,"Selected instrument levels; lit shared routes. Click names to rename; Edit for destinations.",{12,getHeight()-23,getWidth()-24,20},11,muted);
     }
 };
 namespace { void neutralEnvelope(drum::SoundParameters&,int,double); }
@@ -494,6 +521,17 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     addAndMakeVisible(noteIndicator);noteIndicator.setComponentID("note-indicator");noteIndicator.setFont(juce::FontOptions(11));noteIndicator.setColour(juce::Label::textColourId,mint);
     noteIndicator.setTooltip("MIDI trigger is the pad assignment. Preview pitch/key is calculated from processed audio, before external effects. A single drum note cannot establish major/minor key. Manual key labels are saved per instrument.");
     auto button=[this](juce::TextButton& b,const char* title,const char* id) {addAndMakeVisible(b); b.setButtonText(title); b.setComponentID(id);};
+    button(soloButton,"Solo","editor-instrument-solo");soloButton.setClickingTogglesState(true);
+    soloButton.setTooltip("Solo this instrument. Linked to the main instrument Solo; mute takes priority.");
+    soloButton.onClick=[this]{
+        auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);if(!kit || kit->id!=kitId)return;
+        auto* instrument=drum::findInstrument(*kit,instrumentId);if(!instrument)return;
+        auto controls=instrument->controls;controls.solo=soloButton.getToggleState();
+        if(processor.getLibrary().setControls(kitId,instrumentId,controls).ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));
+        refresh();if(controlsChanged)controlsChanged();
+    };
+    button(notesButton,"Notes","editor-instrument-notes");notesButton.onClick=[this]{if(showNotes)showNotes();};
+    button(exportButton,"Export...","editor-instrument-export");exportButton.onClick=[this]{if(exportInstrument)exportInstrument();};
     button(back,"Exit","close-sound-editor"); back.onClick=[this]{if(close)close();};
     button(reset,"Reset page","reset-edit-page"); reset.onClick=[this]{
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
@@ -506,14 +544,16 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
         if(result.ok){for(int n=0;n<3;++n)if(page==1)recordEnvelope(n,i->controls,c);processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}
         message=result.ok?"Page reset. The source file is unchanged.":result.message; refresh();
     };
-    const char* names[]{"Sample","Envelopes","Filter","LFO","Outputs & Sends","Macros","Attack layer","Chain","Tune"};
+    const char* names[]{"Sample","Envelopes","Filter","LFO","Outputs & Sends","Macros","Attack","Chain","Tune"};
     lfoGraph=std::make_unique<EnvelopeEditor>("lfo-cycle","LFO cycle",mint);addAndMakeVisible(*lfoGraph);lfoGraph->setCycleMode();lfoGraph->setTimeLimit(1000);
     lfoGraph->onShape=[this](const auto& shape,bool){changeLfo(shape);};lfoGraph->onReset=[this]{drum::EnvelopeShape flat;flat.count=2;flat.hold=0;flat.points[0]={0,.5};flat.points[1]={1000,.5};changeLfo(flat,true);};
     lfoGraph->onBeginGesture=[this]{lfoGesture=true;lfoRecorded=false;};lfoGraph->onEndGesture=[this]{lfoGesture=lfoRecorded=false;};lfoGraph->onUndo=[this]{undoLfo(false);};lfoGraph->onRedo=[this]{undoLfo(true);};
     routing=std::make_unique<RoutingView>();addAndMakeVisible(*routing);routing->setComponentID("output-routing");
+    routing->renameReturn=[this](int n,const juce::String& name){auto result=processor.getLibrary().setReturnName(kitId,n,name);if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));else message=result.message;refresh();};
+    routing->openReturn=[this](int n){returnWindowKit=kitId;returnWindowIndex=n;auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);if(!kit)return;class ReturnWindow final:public juce::DocumentWindow{public:ReturnWindow(juce::String title):DocumentWindow(title,juce::Colour(0xff19212e),closeButton){setUsingNativeTitleBar(true);}void closeButtonPressed() override{setVisible(false);}};auto editor=std::make_unique<ChainEditor>(processor.getLibrary(),processor.getEffects());editor->select(kitId,"return-"+juce::String(n));editor->setSize(1000,500);returnWindow=std::make_unique<ReturnWindow>("Drum shared "+drum::sendLabel(*kit,n));returnWindow->setContentOwned(editor.release(),true);returnWindow->setResizable(true,false);returnWindow->centreWithSize(1020,540);returnWindow->setVisible(true);};
     addAndMakeVisible(attackOnly);attackOnly.setComponentID("attack-waveform-only");attackOnly.setTooltip("Show only the generated attack layer in the waveform. Playback still includes the sample.");attackOnly.onClick=[this]{waveform->showEdited();refreshPreview();};
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
-    auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);useValueBar(slider);slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,95,28);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,juce::Colours::white);label.setFont(juce::FontOptions(14));label.setJustificationType(juce::Justification::centredRight);slider.onValueChange=[this]{changeKeyTuning();};};
+    auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);useValueBar(slider);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,juce::Colours::white);label.setFont(juce::FontOptions(14));label.setJustificationType(juce::Justification::centredRight);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
     keyCoarse.setTooltip("Transpose this instrument in semitones. Uses the same tuning as its main controls; playback speed changes.");keyFine.setTooltip("Fine tuning in cents: 100 cents is one semitone. Applies to the instrument across all tabs.");addAndMakeVisible(keyStatus);keyStatus.setComponentID("tune-key");keyStatus.setColour(juce::Label::textColourId,ink);keyStatus.setFont(juce::FontOptions(20));
     for(int n=0;n<(int)tabs.size();++n) {addAndMakeVisible(tabs[(size_t)n]); tabs[(size_t)n].setButtonText(names[n]); tabs[(size_t)n].setComponentID("edit-tab-"+juce::String(n)); tabs[(size_t)n].onClick=[this,n]{setPage(n);};}
@@ -566,12 +606,14 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
 SoundEditor::~SoundEditor() {stopTimer();viewport.setViewedComponent(nullptr,false);}
 void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
 {
+    processor.refreshMacroNames();
     const bool changed=kitId!=kit || instrumentId!=(i?i->id:juce::String());
     processor.getSampleEngine().analyserNote.store(i?i->note:-1);
-    if(changed)equalizer.setSpectrum(&processor.getSampleEngine().eqSpectrum);
+    equalizer.setSpectrum(&processor.getSampleEngine().eqSpectrum,"Instrument pre-chain",changed);
     if(changed){lfoUndo.clear();lfoRedo.clear();lfoGesture=lfoRecorded=false;}
     if(changed || path!=(i?i->samplePath:juce::String()))envelopeHistory={};
     updating=true; kitId=kit; instrumentId=i?i->id:juce::String(); name=i?i->name:"No instrument selected"; path=i?i->samplePath:juce::String(); note=i?i->note:21; sound=i?i->controls.sound:drum::SoundParameters{};
+    soloButton.setEnabled(i!=nullptr);soloButton.setToggleState(i && i->controls.solo,juce::dontSendNotification);
     chainPresent=i && !i->effects.empty();chain.select(kitId,instrumentId);
     if(changed) {waveform->zoom=1;waveform->offset=0;message.clear();}
     for(auto& field:fields)
@@ -580,7 +622,16 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
         for(int n=0;n<3;++n)for(auto member:envelopeMembers[(size_t)n])if(field->parameter.member==member)custom=sound.envelopes[(size_t)n].count!=0;
         if(oppositeMarker(field->parameter.member)!=field->parameter.member)
             field->slider.setTooltip(sound.reverse!=0?"Position measured from the reversed beginning. Start is where reverse playback begins; the original file is unchanged.":"Position measured from the forward beginning of the source. Loop positions are relative to the trimmed region.");
-        field->setEnabled(i!=nullptr && !custom && !(field->parameter.member==&drum::SoundParameters::fadeIn && sound.mode==2));
+        bool available=true;const auto member=field->parameter.member;
+        if(field->parameter.page==6 && member!=&drum::SoundParameters::attackOn)available=sound.attackOn!=0;
+        if(field->parameter.page==3 && member!=&drum::SoundParameters::lfoOn)available=sound.lfoOn!=0;
+        if(field->parameter.page==2 && member!=&drum::SoundParameters::filterOn)available=sound.filterOn!=0;
+        if(member==&drum::SoundParameters::lfoRate)available&=sound.lfoSync==0;
+        if(member==&drum::SoundParameters::lfoDivision)available&=sound.lfoSync!=0;
+        if(member==&drum::SoundParameters::loop)available=sound.mode==2;
+        if(member==&drum::SoundParameters::loopStart || member==&drum::SoundParameters::loopEnd || member==&drum::SoundParameters::loopFade)available=sound.loop!=0 && sound.mode==2;
+        if(member==&drum::SoundParameters::fadeIn)available=sound.mode!=2;
+        field->setEnabled(i!=nullptr && !custom && available);
         if(field->parameter.member==&drum::SoundParameters::fadeIn)field->slider.setTooltip(sound.mode==2?"Envelope playback uses the amplitude graph for its attack. Fade in applies in Trigger/Gate.":"Fade the beginning of a Trigger/Gate hit. View Edited to see the result.");
     }
     for(int n=0;n<drum::numMacros;++n)
@@ -597,7 +648,8 @@ void SoundEditor::select(const juce::String& kit,const drum::Instrument* i)
     bool mappedCoarse=false,mappedFine=false;for(const auto& m:selectedControls.macros){mappedCoarse|=m.target==3;if(m.target>3)mappedFine|=drum::macroTargets[(size_t)m.target].member==&drum::SoundParameters::detune;}
     keyCoarse.setEnabled(i && !mappedCoarse);keyFine.setEnabled(i && !mappedFine);
     equalizer.setEnabled(i!=nullptr);equalizer.update(sound.equalizer,processor.getSampleEngine().previewSampleRate());
-    auto libraryState=processor.getLibrary().snapshot();
+    auto libraryState=processor.getLibrary().snapshot();if(const auto* kit=drum::activeKit(libraryState)){routing->setNames(*kit);routing->returnRoutes=kit->returnRouting;waveform->setSendNames(*kit);for(auto& macro:macroFields)for(int t=0;t<(int)std::size(drum::macroTargets);++t){juce::String title=drum::macroTargets[(size_t)t].name;if(title.startsWith("Send "))macro->target.changeItemText(t+1,drum::sendLabel(*kit,title.getLastCharacter()-'A'));}for(auto& field:fields){auto key=juce::String(field->parameter.key);if(key.startsWith("send")){int n=key.getLastCharacter()-'A';field->sendCaption=drum::sendLabel(*kit,n);field->slider.setName(field->sendCaption);field->repaint();}}if(returnWindow && returnWindowKit==kit->id && returnWindowIndex>=0)returnWindow->setName("Drum shared "+drum::sendLabel(*kit,returnWindowIndex));}
+
     if(i && !i->controls.solo)for(auto& group:drum::activeKit(libraryState)->groups)for(auto& other:group.instruments)
         if(other.controls.solo)selectedControls.mute=true;
     waveform->setSample(selectedSample,changed);
@@ -636,7 +688,7 @@ void SoundEditor::refreshEnvelopes(bool newSelection)
         if(history.known && history.expected!=actual)history={};
         history.known=true;history.expected=actual;
         graph.setTimeLimit(envelopeLimit());
-        graph.update({effective.*members[0],effective.*members[1],effective.*members[2],effective.*members[3]},effective.envelopes[(size_t)n],controlled.isNotEmpty(),amount,n==0?"%":n==1?"st":"oct",active,status,newSelection,amountMapped);
+        graph.update({effective.*members[0],effective.*members[1],effective.*members[2],effective.*members[3]},effective.envelopes[(size_t)n],controlled.isNotEmpty(),amount,n==0?"%":n==1?"st":"oct",active,status,newSelection,amountMapped,n!=2 || sound.filterOn!=0);
         graph.setHistory(!history.undo.empty(),!history.redo.empty());
         graph.setActivation(controlled.isNotEmpty()?"Unlink timing":n==0 && !active?"Use Envelope":"");
     }
@@ -787,6 +839,7 @@ void SoundEditor::refreshPreview()
     drum::EnvelopeShape cycle=sound.envelopes[3];if(sound.lfoShape!=6 || cycle.count<2){cycle={};cycle.count=sound.lfoShape==6?2:9;cycle.hold=0;for(int n=0;n<cycle.count;++n){const double phase=(double)n/(cycle.count-1);double level=.5;switch((int)sound.lfoShape){case 0:level=.5+.5*std::sin(phase*juce::MathConstants<double>::twoPi);break;case 1:level=1-2*std::abs(phase-.5);break;case 2:level=phase<.5?1:0;break;case 3:level=phase;break;case 4:level=1-phase;break;case 5:level=std::fmod(std::sin(std::floor(phase*8)+1)*43758.5453,1.0);if(level<0)level+=1;break;}cycle.points[(size_t)n]={phase*1000,level};}if(sound.lfoShape==0)for(int n=1;n<cycle.count;++n){const double phase=(n-.5)/(cycle.count-1);drum::bendEnvelopeSegment(cycle.points[(size_t)n-1].level,cycle.points[(size_t)n],.5,.5+.5*std::sin(phase*juce::MathConstants<double>::twoPi));}}
     lfoGraph->update({},cycle,false,1,"%",true,"One cycle / click to add / drag line to curve / Shift: fine",false);lfoGraph->setHistory(!lfoUndo.empty(),!lfoRedo.empty());
     routing->settings=selectedControls.sound;for(int n=0;n<drum::numMacros;++n){const auto& mapping=selectedControls.macros[(size_t)n];if(mapping.target>3)routing->settings.*(drum::macroTargets[(size_t)mapping.target].member)=mapping.minimum+(mapping.maximum-mapping.minimum)*processor.macro(n).get();}
+    routing->returnActive.fill(false);auto routingState=processor.getLibrary().snapshot();if(const auto* kit=drum::activeKit(routingState)){bool solo=false;for(const auto& g:kit->groups)for(const auto& i:g.instruments)solo|=i.controls.solo;for(const auto& g:kit->groups)for(const auto& i:g.instruments){if(i.controls.mute || (solo && !i.controls.solo))continue;auto sound=i.controls.sound;for(int m=0;m<drum::numMacros;++m){const auto& map=i.controls.macros[(size_t)m];if(map.target>3)sound.*(drum::macroTargets[(size_t)map.target].member)=map.minimum+(map.maximum-map.minimum)*processor.macro(m).get();}const double levels[]{sound.sendA,sound.sendB,sound.sendC,sound.sendD,sound.sendE,sound.sendF};for(int n=0;n<6;++n)routing->returnActive[(size_t)n]|=levels[n]>drum::sendFloor;}for(int step=0;step<6;++step)for(int a=0;a<6;++a)if(routing->returnActive[(size_t)a])for(int b=0;b<6;++b)if(kit->returnRouting[(size_t)a].sends[(size_t)b]>drum::sendFloor)routing->returnActive[(size_t)b]=true;routing->audible=!selectedControls.mute && (!solo || selectedControls.solo);for(int n=0;n<6;++n){const auto& slots=kit->returns[(size_t)n].effects;int active=0;for(const auto& slot:slots)if(!slot.bypassed)++active;routing->descriptions[(size_t)n]=active?juce::String(active)+" FX":"Pass-through";}}
     routing->instrument=name;routing->hasChain=chainPresent;for(int n=0;n<22;++n){auto* bus=processor.getBus(false,drum::outputBusIndex(n));routing->enabled[(size_t)n]=bus && bus->isEnabled();}if(page==4)routing->repaint();
     syncEnvelopeOverlay();
 }
@@ -871,13 +924,13 @@ void SoundEditor::setPage(int value)
 void SoundEditor::paint(juce::Graphics& g)
 {
     g.fillAll(panel);
-    text(g,name,{18,12,getWidth()-410,30},22);
+    text(g,name,{18,12,getWidth()-524,30},22);
     static const char* help[]{
         "Choose Source to drag trim markers; Edited previews the sound. Scroll pans; Ctrl + scroll zooms X; Shift + scroll zooms Y.",
         "Click line: add point. Drag point: move. Drag line: curve. Double-click point: remove. Right-click: hold at S.",
         "16-band EQ. Select and enable bands below. Drag a point for frequency/gain; wheel adjusts Q.",
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
-        "Sends are plug-in audio outputs, not Live return tracks. Connect a receiving audio track in your DAW.",
+        "Sends A-F feed shared local effects, then Main. Edit A-F to add effects; set reverb/delay to 100% wet.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
         "Add Click, Pulse or Noise independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note.",
         "Drag VST3 effects into this instrument\'s chain. Audio flows left to right. The waveform shows the sound before this chain.",
@@ -888,6 +941,8 @@ void SoundEditor::paint(juce::Graphics& g)
 void SoundEditor::resized()
 {
     noteIndicator.setBounds(18,46,getWidth()-36,22);
+    soloButton.setBounds(getWidth()-496,15,78,32);
+    notesButton.setBounds(getWidth()-410,15,78,32);exportButton.setBounds(getWidth()-324,15,86,32);
     back.setBounds(getWidth()-230,15,125,32); reset.setBounds(getWidth()-95,15,80,32);
     const int tabWidth=(getWidth()-36-8*((int)tabs.size()-1))/(int)tabs.size();
     constexpr int order[]{0,1,2,6,3,8,7,4,5};
@@ -898,30 +953,31 @@ void SoundEditor::resized()
     int graphHeight=0;
     const int graphWidth=getWidth()-36;
     const int waveTop=150;
-    const int reserved=(page==0 || page==1 || page==2 || page==8)?148:page==7?310:160;
+    const int reserved=(page==1 || page==0)?246:page==2?220:page==8?180:page==7?326:230;
     const int minimumWaveHeight=page==7?160:184;
-    const int height=juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),(page==0 || page==1 || page==2 || page==8)?getHeight():waveformHeight);
+    const int height=page==4?juce::jmax(250,juce::jmin(330,getHeight()-waveTop-195)):juce::jlimit(minimumWaveHeight,juce::jmax(minimumWaveHeight,getHeight()-waveTop-reserved-49-(graphHeight?graphHeight+8:0)),(page==0 || page==1 || page==2 || page==8)?getHeight():waveformHeight);
     lfoGraph->setBounds(18,waveTop,graphWidth,height);
     routing->setBounds(18,waveTop,graphWidth,height);
     waveform->setBounds(18,waveTop,juce::jmax(1,getWidth()-36),height);
     waveformDivider->setBounds(18,waveTop+height,juce::jmax(1,getWidth()-36),12);
     const int graphTop=waveTop+12+height;
-    if(page==1){graphHeight=52;for(int n=0;n<3;++n)envelopes[(size_t)n]->setBounds(18,waveTop,graphWidth,height+64);}
+    if(page==1){graphHeight=108;for(int n=0;n<3;++n)envelopes[(size_t)n]->setBounds(18,waveTop,graphWidth,height+120);}
     if(page==2)equalizer.setBounds(18,waveTop,graphWidth,height+equalizer.controlsHeight());
     const int controlsTop=graphTop+(graphHeight?graphHeight+8:0);
-    if(page==8){keySpectrum->setBounds(18,waveTop,graphWidth,height);int row=controlsTop;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,60,30);keyCoarse.setBounds(80,row,half-62,30);keyFineLabel.setBounds(34+half,row,45,30);keyFine.setBounds(81+half,row,half-47,30);keyStatus.setBounds(18,row+36,graphWidth,30);}
+    if(page==8){keySpectrum->setBounds(18,waveTop,graphWidth,height);int row=controlsTop;int half=(graphWidth-16)/2;keyCoarseLabel.setBounds(18,row,half,20);keyCoarseLabel.setJustificationType(juce::Justification::centred);keyCoarse.setBounds(18+(half-104)/2,row+20,104,90);keyFineLabel.setBounds(34+half,row,half,20);keyFineLabel.setJustificationType(juce::Justification::centred);keyFine.setBounds(34+half+(half-104)/2,row+20,104,90);keyStatus.setBounds(18,row+114,graphWidth,26);}
+
     chain.setBounds(18,controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-controlsTop-37));
     viewport.setBounds(18,page==5?waveTop:controlsTop,juce::jmax(1,getWidth()-36),juce::jmax(1,getHeight()-(page==5?waveTop:controlsTop)-37));
-    const int width=juce::jmax(1,viewport.getWidth()-12),columns=page==0?4:page==1?4:width>=1000?3:2,gap=page==1?10:16,cell=(width-gap*(columns-1))/columns;
-    const int rowHeight=page==1?28:34;
+    const int width=juce::jmax(1,viewport.getWidth()-12),columns=juce::jmax(2,width/152),gap=page==1?10:16,cell=(width-gap*(columns-1))/columns;
+    const int rowHeight=116;
     int top=page==1?2:6;
     int n=0; for(auto& field:fields) if(field->isVisible())
-    {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*rowHeight,cell,28); ++n;}
+    {field->setBounds((n%columns)*(cell+gap),top+(n/columns)*rowHeight,cell,112); ++n;}
     int bottom=top+((n+columns-1)/columns)*rowHeight+(page==1?2:6);
-    if(page==0) {sliceCount.setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28);++n;slice.setBounds((n%columns)*(cell+gap),top+(n/columns)*34,cell,28);++n;bottom=top+((n+columns-1)/columns)*34+6;}
+    if(page==0) {sliceCount.setBounds((n%columns)*(cell+gap),top+(n/columns)*rowHeight,cell,30);++n;slice.setBounds((n%columns)*(cell+gap),top+(n/columns)*rowHeight,cell,30);++n;bottom=top+((n+columns-1)/columns)*rowHeight+6;}
     if(page==5)
     {
-        const int cellWidth=(width-30)/2,macroRow=juce::jmax(124,viewport.getHeight()/4);
+        const int cellWidth=(width-30)/2,macroRow=206;
         for(int index=0;index<drum::numMacros;++index) macroFields[(size_t)index]->setBounds((index%2)*(cellWidth+30),(index/2)*macroRow,cellWidth,macroRow-10);
         bottom=(drum::numMacros/2)*macroRow;
     }
@@ -930,11 +986,13 @@ void SoundEditor::resized()
 }
 void SoundEditor::timerCallback()
 {
+    processor.refreshMacroNames();
     if(!isVisible()) return;
     refreshPreview();
     refreshEnvelopes();syncEnvelopeOverlay();
     for(int n=0;n<drum::numMacros;++n)
     {
+        if(!macroFields[(size_t)n]->name.hasKeyboardFocus(true))macroFields[(size_t)n]->name.setText(processor.macro(n).getName(64),false);
         auto& slider=macroFields[(size_t)n]->value;
         if(!slider.isMouseButtonDown() && !slider.hasKeyboardFocus(true)) slider.setValue(processor.macro(n).get()*100,juce::dontSendNotification);
     }

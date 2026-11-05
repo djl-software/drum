@@ -43,7 +43,7 @@ struct Setup
         auto routes=processor.getBusesLayout();routes.outputBuses.set(1,juce::AudioChannelSet::stereo());routes.outputBuses.set(2,juce::AudioChannelSet::stereo());routes.outputBuses.set(drum::outputBusIndex(16),juce::AudioChannelSet::stereo());
         check(processor.setBusesLayout(routes),"Chain output layout failed");processor.prepareToPlay(48000,64);
         auto& engine=processor.getSampleEngine();engine.requestLoad(kit,a,sampleFile("kick",0.25f));engine.requestLoad(kit,b,sampleFile("snare",0.5f));check(engine.waitForLoading(10000),"Chain sources failed");
-        drum::InstrumentControls c;c.sound.output=1;c.sound.sendA=-6.020599913;processor.getLibrary().setControls(kit,a,c);c.sound.output=2;c.sound.sendA=-60;processor.getLibrary().setControls(kit,b,c);
+        drum::InstrumentControls c;c.sound.output=1;c.sound.sendA=-6.020599913;processor.getLibrary().setControls(kit,a,c);c.sound.output=2;c.sound.sendA=drum::sendFloor;processor.getLibrary().setControls(kit,b,c);
         settle();
     }
     void settle(){processor.getEffects().sync();check(processor.getSampleEngine().waitForLoading(10000),"Chain bank timeout");}
@@ -60,6 +60,19 @@ void parameter(drum::EffectRack& rack,const juce::String& slot,int index,float v
 void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
 {
     {
+        Setup routes;auto& rack=routes.processor.getEffects();auto& library=routes.processor.getLibrary();
+        check(rack.returnMain(routes.kit,0,false).ok && rack.returnSend(routes.kit,0,1,0).ok,"Return A to B routing failed");routes.settle();auto audio=routes.hit(2048);near(audio.getSample(0,1500),.125f,"Empty serial return did not pass signal");
+        check(rack.returnMain(routes.kit,1,false).ok && rack.returnSend(routes.kit,1,2,-6.020599913).ok,"Return B to C routing failed");auto gain=rack.add(routes.kit,"return-2",drum::builtinDescription(drum::BuiltinKind::utility));check(gain.ok,"Serial return effect failed");auto* utility=dynamic_cast<drum::BuiltinEffect*>(rack.instance(gain.id));utility->controls[0]->setValueNotifyingHost(utility->controls[0]->convertTo0to1(-6.020599913f));routes.settle();audio=routes.hit(2048);near(audio.getSample(0,1500),.03125f,"Serial send levels or effect order incorrect");near(audio.getSample(2,1500),.25f,"Return routing changed direct instrument output");
+        auto before=library.toXml()->toString();check(!rack.returnSend(routes.kit,2,0,0).ok && library.toXml()->toString()==before,"Circular return route accepted or changed state");check(!rack.returnSend(routes.kit,0,0,0).ok,"Self return route accepted");
+        auto xml=library.toXml();drum::KitLibrary recall;check(recall.restore(*xml),"Return routing recall failed");auto state=recall.snapshot();check(!drum::activeKit(state)->returnRouting[0].main && drum::activeKit(state)->returnRouting[0].sends[1]==0,"Return routing lost on recall");
+        auto* firstReturn=xml->getChildByName("Kit")->getChildByName("Return");auto* thirdReturn=firstReturn->getNextElementWithTagName("Return")->getNextElementWithTagName("Return");thirdReturn->setAttribute("send0",0);check(!recall.restore(*xml),"Cyclic return state accepted on load");
+        check(rack.returnMain(routes.kit,0,true).ok,"Parallel Main route failed");routes.settle();audio=routes.hit(2048);near(audio.getSample(0,1500),.15625f,"Main plus serial return did not sum correctly");
+        check(rack.returnSend(routes.kit,0,1,drum::sendFloor).ok,"Disabling serial send failed");routes.settle();audio=routes.hit(2048);near(audio.getSample(0,1500),.125f,"Disabled return connection still passed audio");
+        ChainEditor routingEditor(library,rack);routingEditor.select(routes.kit,"return-0");routingEditor.setSize(1000,500);auto* dial=dynamic_cast<juce::Slider*>(find(routingEditor,"return-send-1"));check(dial && !find(routingEditor,"return-send-0")->isEnabled(),"Return routing controls missing or self route enabled");dial->setValue(-12,juce::sendNotificationSync);auto* main=dynamic_cast<juce::ToggleButton*>(find(routingEditor,"return-to-main"));main->setToggleState(false,juce::sendNotificationSync);auto uiState=library.snapshot();check(!drum::activeKit(uiState)->returnRouting[0].main && drum::activeKit(uiState)->returnRouting[0].sends[1]==-12,"Main off lost the return level");capture(routingEditor,"drum-return-routing.png");
+        routingEditor.select(routes.kit,"return-2");check(!find(routingEditor,"return-send-0")->isEnabled(),"Circular return destination not greyed out");
+    }
+
+    {
         Setup mixed;auto& rack=mixed.processor.getEffects();auto found=rack.discover(juce::File(effectPath));check(!found.isEmpty(),"Mixed-chain fixture missing");
         auto utility=rack.add(mixed.kit,mixed.a,drum::builtinDescription(drum::BuiltinKind::utility));
         auto external=rack.add(mixed.kit,mixed.a,*found[0]);check(utility.ok && external.ok,"Mixed built-in/VST3 chain failed");
@@ -75,6 +88,32 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
         rack.replaceChain(mixed.kit,mixed.a,{});rack.add(mixed.kit,mixed.a,drum::builtinDescription(drum::BuiltinKind::utility));mixed.settle();
         mixed.processor.getSampleEngine().setAuditionBpm(120);mixed.processor.getSampleEngine().setAuditionLoop(21);juce::AudioBuffer<float> loop(8,48001);juce::MidiBuffer noMidi;mixed.processor.processBlock(loop,noMidi);near(loop.getSample(2,24000),.2f,"Effect blocks delayed audition beat");near(loop.getSample(2,48000),.2f,"Effect blocks accumulated audition drift");
     }
+    {
+        Setup serial;auto& rack=serial.processor.getEffects();auto found=rack.discover(juce::File(effectPath));check(!found.isEmpty(),"Serial delay fixture missing");for(int n=0;n<2;++n){auto slot=rack.add(serial.kit,"return-"+juce::String(n),*found[0]);check(slot.ok,"Serial latency effect missing");parameter(rack,slot.id,0,.5f);parameter(rack,slot.id,2,.5f);}
+        check(rack.returnMain(serial.kit,0,false).ok && rack.returnSend(serial.kit,0,1,0).ok,"Serial latency routes failed");serial.processor.releaseResources();serial.processor.prepareToPlay(48000,64);serial.settle();check(serial.processor.getLatencySamples()==64,"Serial return latency did not add");auto audio=serial.hit(256,8);near(audio.getSample(0,71),0,"Serial return arrived early");near(audio.getSample(0,72),.125f,"Serial return latency or gain incorrect");near(audio.getSample(2,71),0,"Dry path not aligned to serial return");near(audio.getSample(2,72),.25f,"Dry path alignment to serial return failed");
+    }
+    {
+        Setup reverse;auto controls=reverse.instrument(reverse.a).controls;controls.sound.sendA=drum::sendFloor;controls.sound.sendF=-6.020599913;check(reverse.processor.getLibrary().setControls(reverse.kit,reverse.a,controls).ok,"Reverse send source failed");auto& rack=reverse.processor.getEffects();check(rack.returnMain(reverse.kit,5,false).ok && rack.returnSend(reverse.kit,5,0,0).ok,"F to A route failed");reverse.settle();auto audio=reverse.hit(2048);near(audio.getSample(0,1500),.125f,"Reverse-order return graph lost signal");
+    }
+    {
+        Setup shared;auto& rack=shared.processor.getEffects();auto& library=shared.processor.getLibrary();
+        auto a=shared.instrument(shared.a).controls,b=shared.instrument(shared.b).controls;a.sound.sendA=0;b.sound.sendA=-6.020599913;
+        check(library.setControls(shared.kit,shared.a,a).ok && library.setControls(shared.kit,shared.b,b).ok,"Shared send levels failed");
+        auto utility=rack.add(shared.kit,"return-0",drum::builtinDescription(drum::BuiltinKind::utility));check(utility.ok,"Cannot add return effect");
+        auto* p=dynamic_cast<drum::BuiltinEffect*>(rack.instance(utility.id));check(p!=nullptr,"Return effect not instantiated");p->controls[0]->setValueNotifyingHost(p->controls[0]->convertTo0to1(-6.020599913f));shared.settle();
+        auto audio=shared.hit(2048);near(audio.getSample(0,1500),.25f,"Two instruments did not share one processed return");near(audio.getSample(2,1500),.25f,"Return altered dry A");near(audio.getSample(4,1500),.5f,"Return altered dry B");near(audio.getSample(6,1500),0.f,"Local send leaked to host output");
+        juce::MemoryBlock state;shared.processor.getStateInformation(state);shared.processor.setStateInformation(state.getData(),(int)state.getSize());shared.settle();audio=shared.hit(2048);near(audio.getSample(0,1500),.25f,"Return state did not recall");
+        check(rack.bypass(shared.kit,"return-0",utility.id,true).ok,"Return bypass failed");shared.settle();audio=shared.hit(2048);near(audio.getSample(0,1500),.5f,"Return bypass did not pass summed dry send");
+        a.sound.sendA=drum::sendFloor;b.sound.sendA=drum::sendFloor;library.setControls(shared.kit,shared.a,a);library.setControls(shared.kit,shared.b,b);shared.settle();audio=shared.hit(2048);near(audio.getMagnitude(0,0,audio.getNumSamples()),0.f,"Minus infinity send is not silent");
+        check(drum::sendGain(-69.9)>0 && drum::sendGain(drum::sendFloor)==0 && drum::sendGain(0)==1,"Send endpoints incorrect");
+    }
+    {
+        Setup delayed;auto& rack=delayed.processor.getEffects();auto& library=delayed.processor.getLibrary();auto found=rack.discover(juce::File(effectPath));check(!found.isEmpty(),"Return fixture missing");auto slot=rack.add(delayed.kit,"return-0",*found[0]);check(slot.ok,"VST3 return failed");parameter(rack,slot.id,0,.5f);parameter(rack,slot.id,2,.5f);parameter(rack,slot.id,3,.5f);
+        delayed.hit();rack.sync();delayed.processor.releaseResources();delayed.processor.prepareToPlay(48000,64);delayed.settle();check(delayed.processor.getLatencySamples()==32,"Return latency not reported");auto audio=delayed.hit(192,8);near(audio.getSample(0,39),0,"Return arrived before latency");near(audio.getSample(0,40),.125f,"Return latency/gain incorrect");near(audio.getSample(2,39),0,"Dry not aligned with return");near(audio.getSample(2,40),.25f,"Dry timing differs from return");near(audio.getSample(4,40),.5f,"Unsent instrument not aligned with return");
+        delayed.processor.getSampleEngine().requestLoad(delayed.kit,delayed.a,sampleFile("return-short",.25f,8));delayed.settle();audio=delayed.hit(192);check(audio.getMagnitude(0,64,64)>.001f,"Return tail stopped after source ended");check(rack.tailSeconds()>=1,"Return tail not reported");
+        rack.capture();auto before=library.toXml()->toString();auto invalid=library.toXml();auto* ret=invalid->getChildByName("Kit")->getChildByName("Return");ret->getChildByName("Effect")->setAttribute("sidechainGain",100);check(!library.restore(*invalid) && library.toXml()->toString()==before,"Invalid return state partially restored");
+        auto copy=library.duplicateKit(delayed.kit);check(copy.ok,"Kit with returns did not duplicate");auto state=library.snapshot();auto* kit=drum::activeKit(state);check(kit->returns[0].effects.size()==1 && kit->returns[0].effects[0].id!=slot.id,"Copied kit shares return effect identity");
+    }
     Setup setup;auto& rack=setup.processor.getEffects();auto& library=setup.processor.getLibrary();
     auto found=rack.discover(juce::File(effectPath));check(found.size()==1,"External VST3 fixture not discovered");auto description=*found[0];
     auto empty=setup.hit();near(empty.getSample(2,0),0.25f,"Empty chain changed audio");near(empty.getSample(4,0),0.5f,"Empty second chain changed audio");
@@ -89,7 +128,7 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
     rack.sidechain(setup.kit,setup.a,first.id,22,0,0.5,false);setup.settle();sideAudio=setup.hit();near(sideAudio.getSample(2,0),0.375f,"Sidechain mix incorrect");near(sideAudio.getSample(4,0),0.5f,"Sidechain source did not unmute");
     rack.sidechain(setup.kit,setup.a,first.id,-1,0,1,false);parameter(rack,first.id,4,0);rack.bypass(setup.kit,setup.a,second.id,false);setup.settle();
     parameter(rack,second.id,0,0.5f);parameter(rack,second.id,1,0.6f);
-    auto audio=setup.hit();near(audio.getSample(2,0),0.225f,"Serial chain order incorrect");near(audio.getSample(6,0),0.1125f,"Sends do not receive chain output");near(audio.getSample(4,0),0.5f,"Effect leaked into another instrument");
+    auto audio=setup.hit();near(audio.getSample(2,0),0.225f,"Serial chain order incorrect");near(audio.getSample(0,0),0.1125f,"Local sends do not receive chain output");near(audio.getSample(6,0),0.f,"Local send leaked to host output");near(audio.getSample(4,0),0.5f,"Effect leaked into another instrument");
     check(rack.move(setup.kit,setup.a,second.id,0).ok,"Reorder failed");setup.settle();audio=setup.hit();near(audio.getSample(2,0),0.175f,"Reordering did not change processing order");
     check(rack.bypass(setup.kit,setup.a,first.id,true).ok,"Bypass failed");setup.settle();audio=setup.hit();near(audio.getSample(2,0),0.35f,"Bypass changed dry signal");
     check(rack.bypass(setup.kit,setup.a,second.id,true).ok,"Second bypass failed");setup.settle();audio=setup.hit();near(audio.getSample(2,0),0.25f,"Fully bypassed chain not transparent");

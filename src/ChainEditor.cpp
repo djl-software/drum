@@ -28,7 +28,7 @@ public:
         for(const auto& group:kit->groups)for(const auto& i:group.instruments)source.addItem(i.name+" ("+drum::noteName(i.note)+")",i.note+2);
         source.setSelectedId(slot.sidechainNote<0?1:slot.sidechainNote+2,juce::dontSendNotification);
         source.setTooltip("Sidechain source: another instrument, before its effects. No Input supplies silence to the external sidechain.");
-        for(auto* slider:{&gain,&mix}){addAndMakeVisible(*slider);useValueBar(*slider);slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,64,20);}
+        for(auto* slider:{&gain,&mix}){addAndMakeVisible(*slider);useValueBar(*slider);slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,76,20);}
         gain.setRange(-60,24,0.1);gain.setTextValueSuffix(" dB");gain.setValue(slot.sidechainGain);gain.setDoubleClickReturnValue(true,0);
         mix.setRange(0,100,0.1);mix.setTextValueSuffix(" %");mix.setValue(slot.sidechainMix*100);mix.setDoubleClickReturnValue(true,100);
         gain.setComponentID("chain-sidechain-gain-"+juce::String(position));mix.setComponentID("chain-sidechain-mix-"+juce::String(position));
@@ -55,7 +55,7 @@ public:
         g.setColour(slot.bypassed?muted:mint);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1),7,1);
         g.setFont(juce::FontOptions(12,juce::Font::bold));g.drawText(juce::String(position+1)+". "+title,8,3,getWidth()-22,23,juce::Justification::centredLeft,true);
         g.setFont(juce::FontOptions(11));g.setColour(muted);
-        if(source.isVisible()){drawControlLabel(g,"Gain",{8,80,38,26});drawControlLabel(g,"Mix",{8,110,38,26});}
+        if(source.isVisible()){g.setColour(ink);g.setFont(juce::FontOptions(12));g.drawText("Gain",8,77,66,20,juce::Justification::centred);g.drawText("Mix",88,77,66,20,juce::Justification::centred);}
         else g.drawFittedText(info+"\nUse Open for plugin controls",8,63,144,80,juce::Justification::centred,3);
         const auto peaks=owner.effects.peaks(slot.id);
         for(int c=0;c<2;++c){
@@ -69,18 +69,21 @@ public:
     void resized() override
     {
         edit.setBounds(8,29,64,21);bypass.setBounds(78,29,76,21);source.setBounds(8,53,146,21);
-        gain.setBounds(52,80,102,26);mix.setBounds(52,110,102,26);mute.setBounds(8,140,146,20);
-        earlier.setBounds(8,164,24,20);later.setBounds(36,164,24,20);remove.setBounds(66,164,88,20);retry.setBounds(8,54,146,22);
+        gain.setBounds(4,98,78,82);mix.setBounds(84,98,78,82);mute.setBounds(8,182,146,20);
+        earlier.setBounds(8,208,24,20);later.setBounds(36,208,24,20);remove.setBounds(66,208,88,20);retry.setBounds(8,54,146,22);
     }
     void mouseDrag(const juce::MouseEvent& e) override {if(e.getDistanceFromDragStart()>5 && e.getMouseDownY()<33 && !owner.isDragAndDropActive())owner.startDragging("slot:"+slot.id,this);}
 private:
     ChainEditor& owner;drum::EffectSlot slot;int position;juce::String title,info;
-    juce::ComboBox source;juce::Slider gain,mix;
+    juce::ComboBox source;ResetSlider gain,mix;
     juce::TextButton edit{"Open"},bypass{"Bypass"},earlier{"<"},later{">"},remove{"Remove"},retry{"Retry loading"},mute{"Mute source"};
 };
 ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library(model),effects(rack)
 {
     setComponentID("plugin-chain");
+    addAndMakeVisible(toMain);toMain.setComponentID("return-to-main");toMain.setTooltip("Also send this return's processed output to Main. Other send levels are retained when this is unticked.");toMain.onClick=[this]{if(!routingUpdate){auto result=effects.returnMain(kitId,drum::returnIndex(instrumentId),toMain.getToggleState());status.setText(result.ok?"Return routing saved with the kit.":result.message,juce::dontSendNotification);refresh();}};
+    for(int n=0;n<6;++n){auto& dial=returnSends[(size_t)n];addAndMakeVisible(dial);dial.setLookAndFeel(&returnLook);useValueBar(dial);dial.setComponentID("return-send-"+juce::String(n));dial.setRange(drum::sendFloor,0,.1);dial.setTextValueSuffix(" dB");dial.setDoubleClickReturnValue(true,drum::sendFloor);dial.textFromValueFunction=[](double db){return db<=drum::sendFloor?juce::String::charToString(0x2212)+juce::String::charToString(0x221e):juce::String(db,1);};dial.valueFromTextFunction=[](const juce::String& text){return text.contains(juce::String::charToString(0x221e)) || text.containsIgnoreCase("inf")?drum::sendFloor:text.getDoubleValue();};dial.onValueChange=[this,n]{if(!routingUpdate){auto result=effects.returnSend(kitId,drum::returnIndex(instrumentId),n,returnSends[(size_t)n].getValue());status.setText(result.ok?"Return routing saved with the kit.":result.message,juce::dontSendNotification);refresh();}};auto& label=returnLabels[(size_t)n];addAndMakeVisible(label);label.setColour(juce::Label::textColourId,ink);label.setJustificationType(juce::Justification::centred);label.setFont(juce::FontOptions(12));}
+
     addAndMakeVisible(builtin);builtin.setComponentID("chain-add-builtin");
     builtin.onClick=[this]{juce::PopupMenu menu;for(int n=0;n<drum::builtinCount;++n)menu.addItem(n+1,drum::builtinName((drum::BuiltinKind)n));menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&builtin),[safe=juce::Component::SafePointer<ChainEditor>(this)](int choice){if(safe && choice>0 && choice<=drum::builtinCount)safe->apply(safe->effects.add(safe->kitId,safe->instrumentId,drum::builtinDescription((drum::BuiltinKind)(choice-1))));});};
     addAndMakeVisible(presets);presets.setComponentID("chain-presets");presets.onClick=[this]{showChainMenu();};
@@ -102,11 +105,14 @@ ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library
 ChainEditor::~ChainEditor(){stopTimer();browserBridge.reset();viewport.setViewedComponent(nullptr,false);}
 void ChainEditor::select(const juce::String& kit,const juce::String& instrument)
 {
-    if(kitId==kit && instrumentId==instrument)return;kitId=kit;instrumentId=instrument;slots.clear();cards.clear();refresh();
+    if(kitId==kit && instrumentId==instrument)return;kitId=kit;instrumentId=instrument;slots.clear();cards.clear();refresh();resized();
 }
 void ChainEditor::refresh()
 {
     const auto state=library.snapshot();const auto* kit=drum::activeKit(state);const auto* instrument=kit->id==kitId?drum::findInstrument(*kit,instrumentId):nullptr;
+    const int source=drum::returnIndex(instrumentId);routingUpdate=true;toMain.setVisible(source>=0);if(source>=0 && kit->id==kitId)toMain.setToggleState(kit->returnRouting[(size_t)source].main,juce::dontSendNotification);
+    for(int n=0;n<6;++n){auto& dial=returnSends[(size_t)n];auto& label=returnLabels[(size_t)n];dial.setVisible(source>=0);label.setVisible(source>=0);if(source>=0 && kit->id==kitId){label.setText(drum::sendLabel(*kit,n),juce::dontSendNotification);dial.setName("To "+drum::sendLabel(*kit,n));auto candidate=kit->returnRouting;candidate[(size_t)source].sends[(size_t)n]=0;const bool available=source!=n && drum::validReturnRouting(candidate);dial.setEnabled(available);label.setAlpha(available?1.f:.35f);dial.setTooltip(source==n?"A send cannot feed itself.":available?"Post-effect feed to "+drum::sendLabel(*kit,n):"This connection would form a circular route.");bool typing=false;for(auto* child:dial.getChildren())if(auto* text=dynamic_cast<juce::Label*>(child))typing|=text->isBeingEdited();if(!dial.isMouseButtonDown() && !typing)dial.setValue(kit->returnRouting[(size_t)source].sends[(size_t)n],juce::dontSendNotification);}}
+    routingUpdate=false;
     auto next=instrument?instrument->effects:std::vector<drum::EffectSlot>{};
     // Parameter-state capture should not recreate the UI under the pointer.
     auto appearance=[](const auto& a,const auto& b){if(a.size()!=b.size())return false;for(size_t i=0;i<a.size();++i)if(a[i].id!=b[i].id || a[i].description!=b[i].description || a[i].bypassed!=b[i].bypassed)return false;return true;};
@@ -121,8 +127,9 @@ void ChainEditor::refresh()
 }
 void ChainEditor::paint(juce::Graphics& g)
 {
+    g.fillAll(juce::Colour(0xff19212e));
     g.setColour(ink);g.setFont(juce::FontOptions(13));
-    g.drawText("Instrument chain: Drum effects + VST3, processed left to right",0,0,getWidth(),22,juce::Justification::centredLeft);
+    g.drawText(drum::returnIndex(instrumentId)>=0?"Shared send: summed input -> effects -> Main and/or other sends":"Instrument chain: Drum effects + VST3, processed left to right",0,0,getWidth(),22,juce::Justification::centredLeft);
     if(cards.empty())
     {
         g.setColour(bg);g.fillRoundedRectangle(viewport.getBounds().toFloat().reduced(3),6);g.setColour(muted);
@@ -132,8 +139,9 @@ void ChainEditor::paint(juce::Graphics& g)
 void ChainEditor::resized()
 {
     builtin.setBounds(0,24,112,25);load.setBounds(120,24,112,25);presets.setBounds(240,24,96,25);
-    viewport.setBounds(0,58,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-91));
-    const int height=190;flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*188+40),height);
+    const bool isReturn=drum::returnIndex(instrumentId)>=0;toMain.setBounds(350,24,110,25);for(int n=0;n<6;++n){const int width=getWidth()/6;returnLabels[(size_t)n].setBounds(n*width,58,width,20);returnSends[(size_t)n].setBounds(n*width+(width-104)/2,78,104,88);}
+    const int top=isReturn?178:58;viewport.setBounds(0,top,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-top-33));
+    const int height=234;flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*188+40),height);
     for(size_t i=0;i<cards.size();++i)cards[i]->setBounds((int)i*188,0,176,height);
     status.setBounds(0,getHeight()-29,getWidth(),27);
 }

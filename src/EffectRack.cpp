@@ -4,6 +4,19 @@
 
 namespace drum
 {
+class EffectRack::SendSplitter final : public juce::AudioProcessor
+{
+public:
+    SendSplitter(EffectRack& r,int i):AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true).withOutput("Dry and sends",juce::AudioChannelSet::discreteChannels(14),true)),rack(r),index(i){}
+    void prepareToPlay(double,int) override{} void releaseResources() override{}
+    void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer&) override {for(int n=0;n<6;++n){const float gain=(index<maxInstruments && rack.mutedSidechainSources[(size_t)index].load())?0:rack.sendLevels[(size_t)index][(size_t)n].load(std::memory_order_relaxed);for(int c=0;c<2;++c){audio.copyFrom(2+n*2+c,0,audio,c,0,audio.getNumSamples());audio.applyGain(2+n*2+c,0,audio.getNumSamples(),gain);}}if(index>=maxInstruments && !rack.returnMainEnabled[(size_t)(index-maxInstruments)].load()){audio.clear(0,0,audio.getNumSamples());audio.clear(1,0,audio.getNumSamples());}}
+    const juce::String getName() const override{return "Post-fader send split";}
+    bool acceptsMidi() const override{return false;}bool producesMidi() const override{return false;}double getTailLengthSeconds() const override{return 0;}
+    bool hasEditor() const override{return false;}juce::AudioProcessorEditor* createEditor() override{return nullptr;}
+    int getNumPrograms() override{return 1;}int getCurrentProgram() override{return 0;}void setCurrentProgram(int) override{}const juce::String getProgramName(int) override{return {};}
+    void changeProgramName(int,const juce::String&) override{}void getStateInformation(juce::MemoryBlock&) override{}void setStateInformation(const void*,int) override{}
+private: EffectRack& rack;int index;
+};
 class EffectRack::HostedProcessor final : public juce::AudioProcessor
 {
 public:
@@ -92,6 +105,7 @@ EffectRack::EffectRack(KitLibrary& model,std::function<void()> callback,std::fun
     graph.setPlayConfigDetails(channels,channels,44100,512);
     input=graph.addNode(std::make_unique<Graph::AudioGraphIOProcessor>(Graph::AudioGraphIOProcessor::audioInputNode),{},Graph::UpdateKind::none);
     output=graph.addNode(std::make_unique<Graph::AudioGraphIOProcessor>(Graph::AudioGraphIOProcessor::audioOutputNode),{},Graph::UpdateKind::none);
+    for(int n=0;n<maxInstruments+6;++n)splitters[(size_t)n]=graph.addNode(std::make_unique<SendSplitter>(*this,n),{},Graph::UpdateKind::none);
     graph.addListener(this);noMidi.ensureSize(8192);startTimerHz(10);
 }
 EffectRack::~EffectRack()
@@ -120,8 +134,8 @@ void EffectRack::capture()
     const juce::ScopedLock guard(managementLock);
     if(restored.load())return;
     const auto state=library.snapshot();
-    for(const auto& kit:state.kits)for(const auto& group:kit.groups)for(const auto& instrument:group.instruments)
-    {
+    for(const auto& kit:state.kits)for(const auto* target:effectTargets(kit))
+    {const auto& instrument=*target;
         auto slots=instrument.effects;bool updated=false;
         for(auto& slot:slots)if(auto it=nodes.find(slot.id);it!=nodes.end())
         {
@@ -160,8 +174,9 @@ void EffectRack::sync()
     if(!reload && graphEpoch.load()!=state.kitEpoch){capture();state=library.snapshot();}
     seenRevision=state.revision;const auto* kit=activeKit(state);
     std::vector<std::pair<int,std::vector<EffectSlot>>> next;
-    for(const auto& group:kit->groups)for(const auto& instrument:group.instruments)if(!instrument.effects.empty())next.push_back({instrument.note,instrument.effects});
-    if(!reload && next==layout && graphEpoch.load()==state.kitEpoch && !latencyChanged)return;
+    for(const auto* instrument:effectTargets(*kit))if(!instrument->effects.empty())next.push_back({instrument->note,instrument->effects});
+    bool topologyChanged=false;for(int a=0;a<6;++a){returnMainEnabled[(size_t)a].store(kit->returnRouting[(size_t)a].main);for(int b=0;b<6;++b){const double value=kit->returnRouting[(size_t)a].sends[(size_t)b];topologyChanged|=(value>sendFloor)!=(returnRouting[(size_t)a].sends[(size_t)b]>sendFloor);sendLevels[(size_t)(maxInstruments+a)][(size_t)b].store(sendGain(value));}}returnRouting=kit->returnRouting;
+    if(!reload && next==layout && graphEpoch.load()==state.kitEpoch && !latencyChanged && !topologyChanged)return;
     std::set<juce::String> wanted;for(const auto& [note,slots]:next)for(const auto& slot:slots)wanted.insert(slot.id);
     for(auto it=nodes.begin();it!=nodes.end();)
     {
@@ -173,8 +188,8 @@ void EffectRack::sync()
         }
         else ++it;
     }
-    for(const auto& group:kit->groups)for(const auto& instrument:group.instruments)for(const auto& slot:instrument.effects)
-    {
+    for(const auto* target:effectTargets(*kit))for(const auto& slot:target->effects)
+    {const auto& instrument=*target;
         auto& runtime=nodes[slot.id];
         if(runtime && (runtime->saved.description!=slot.description || runtime->saved.state!=slot.state))
         {
@@ -219,9 +234,9 @@ void EffectRack::sync()
         if(auto* p=runtime->processor()){p->setLatencySamples(p->plugin->getLatencySamples());p->suspendProcessing(slot.bypassed);p->sidechainGain.store(juce::Decibels::decibelsToGain((float)slot.sidechainGain));p->sidechainMix.store((float)slot.sidechainMix);}
     }
     for(const auto& connection:graph.getConnections())graph.removeConnection(connection,Graph::UpdateKind::none);
-    bool any=false;double longestTail=0;
+    bool any=true;double longestTail=0,instrumentTail=0;std::array<Graph::NodeID,6> returnInputs;std::array<double,6> returnTails{};
     for(auto& muted:mutedSidechainSources)muted.store(false);
-    for(int note=firstNote;note<firstNote+maxInstruments;++note)
+    for(int note=firstNote;note<firstNote+maxInstruments+6;++note)
     {
         Graph::NodeID previous=input->nodeID;int previousChannel=(note-firstNote)*2;double chainTail=0;
         for(const auto& [assigned,slots]:next)if(assigned==note)for(const auto& slot:slots)
@@ -236,10 +251,23 @@ void EffectRack::sync()
             previous=r.node->nodeID;previousChannel=0;
             const double seconds=r.processor()->plugin->getTailLengthSeconds();chainTail+=std::isfinite(seconds)?juce::jlimit(0.0,3600.0,seconds):3600;
         }
+        if(note<firstNote+maxInstruments){auto split=splitters[(size_t)(note-firstNote)];for(int c=0;c<2;++c)graph.addConnection({{previous,previousChannel+c},{split->nodeID,c}},Graph::UpdateKind::none);previous=split->nodeID;previousChannel=0;instrumentTail=juce::jmax(instrumentTail,chainTail);}
+        else {
+            const int send=note-firstNote-maxInstruments;
+            auto split=splitters[(size_t)(maxInstruments+send)];
+            for(int c=0;c<2;++c)graph.addConnection({{previous,previousChannel+c},{split->nodeID,c}},Graph::UpdateKind::none);
+            Graph::NodeID target=split->nodeID;
+            for(const auto& [assigned,slots]:next)if(assigned==note)for(const auto& slot:slots){const auto& r=*nodes.at(slot.id);if(!slot.bypassed && r.node){target=r.node->nodeID;break;}}
+            for(const auto& connection:graph.getConnections())if(connection.source.nodeID==input->nodeID && (connection.source.channelIndex==(note-firstNote)*2 || connection.source.channelIndex==(note-firstNote)*2+1))graph.removeConnection(connection,Graph::UpdateKind::none);
+            for(int n=0;n<maxInstruments;++n)for(int c=0;c<2;++c)graph.addConnection({{splitters[(size_t)n]->nodeID,2+send*2+c},{target,c}},Graph::UpdateKind::none);
+            returnInputs[(size_t)send]=target;returnTails[(size_t)send]=chainTail;previous=split->nodeID;previousChannel=0;
+        }
         for(int c=0;c<2;++c)graph.addConnection({{previous,previousChannel+c},{output->nodeID,(note-firstNote)*2+c}},Graph::UpdateKind::none);
-        longestTail=juce::jmax(longestTail,chainTail);
+        if(note>=firstNote+maxInstruments)longestTail=juce::jmax(longestTail,chainTail);
     }
-    graph.rebuild();layout=std::move(next);graphEpoch.store(state.kitEpoch);hasEffects.store(any);tail.store(longestTail);latency(graph.getLatencySamples());
+    for(int a=0;a<6;++a)for(int b=0;b<6;++b)if(returnRouting[(size_t)a].sends[(size_t)b]>sendFloor)for(int c=0;c<2;++c)graph.addConnection({{splitters[(size_t)(maxInstruments+a)]->nodeID,2+b*2+c},{returnInputs[(size_t)b],c}},Graph::UpdateKind::none);
+    auto pathTails=returnTails;for(int step=0;step<6;++step)for(int a=0;a<6;++a)for(int b=0;b<6;++b)if(returnRouting[(size_t)a].sends[(size_t)b]>sendFloor)pathTails[(size_t)b]=juce::jmax(pathTails[(size_t)b],pathTails[(size_t)a]+returnTails[(size_t)b]);for(double seconds:pathTails)longestTail=juce::jmax(longestTail,seconds);
+    graph.rebuild();layout=std::move(next);graphEpoch.store(state.kitEpoch);hasEffects.store(any);tail.store(longestTail+instrumentTail);latency(graph.getLatencySamples());
 }
 void EffectRack::process(juce::AudioBuffer<float>& audio,uint64_t epoch,juce::AudioPlayHead* playHead,bool nonRealtime)
 {
@@ -263,6 +291,8 @@ Result EffectRack::edit(const juce::String& kit,const juce::String& instrument,c
     auto saved=library.setEffects(kit,instrument,slots);if(!saved.ok)return saved;
     sync();changed();return result;
 }
+Result EffectRack::returnSend(const juce::String& kit,int source,int destination,double db){auto result=library.setReturnLevel(kit,source,destination,db);if(result.ok){sync();changed();}return result;}
+Result EffectRack::returnMain(const juce::String& kit,int source,bool enabled){auto result=library.setReturnMain(kit,source,enabled);if(result.ok){sync();changed();}return result;}
 Result EffectRack::add(const juce::String& kit,const juce::String& instrument,const juce::PluginDescription& description,int position)
 {
     if((!isBuiltin(description) && description.pluginFormatName!="VST3") || description.isInstrument || description.name=="DJL Drum")return Result::fail("Choose a VST3 audio effect.");

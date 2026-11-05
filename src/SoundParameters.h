@@ -7,6 +7,9 @@
 
 namespace drum
 {
+inline constexpr double sendFloor=-70;
+inline float sendGain(double db){return db<=sendFloor?0.f:(float)std::pow(10.0,db/20.0);}
+
 // Keep all six sends in the first 16 host-visible stereo buses.
 // Logical outputs retain their saved identities; this mapping is its own inverse.
 inline int outputBusIndex(int bus){return bus>=10 && bus<16?bus+6:bus>=16 && bus<22?bus-6:bus;}
@@ -69,13 +72,13 @@ inline int outputBusIndex(int bus){return bus>=10 && bus<16?bus+6:bus>=16 && bus
  X(lfoPan,"Pan depth",0,0,1,0.001," %",3,"",100) \
  X(lfoFilter,"Filter depth",0,0,8,0.01," oct",3,"",1) \
  X(output,"Audio output",0,0,15,1,"",4,"Main|Out 2|Out 3|Out 4|Out 5|Out 6|Out 7|Out 8|Out 9|Out 10|Out 11|Out 12|Out 13|Out 14|Out 15|Out 16",1) \
- X(sendA,"Send A",-60,-60,0,0.1," dB",4,"",1) \
- X(sendB,"Send B",-60,-60,0,0.1," dB",4,"",1) \
- X(sendC,"Send C",-60,-60,0,0.1," dB",4,"",1) \
- X(sendD,"Send D",-60,-60,0,0.1," dB",4,"",1) \
- X(sendE,"Send E",-60,-60,0,0.1," dB",4,"",1) \
- X(sendF,"Send F",-60,-60,0,0.1," dB",4,"",1) \
- X(attackOn,"Attack layer",0,0,1,1,"",6,"Off|On",1) \
+ X(sendA,"Send A",-70,-70,0,0.1," dB",4,"",1) \
+ X(sendB,"Send B",-70,-70,0,0.1," dB",4,"",1) \
+ X(sendC,"Send C",-70,-70,0,0.1," dB",4,"",1) \
+ X(sendD,"Send D",-70,-70,0,0.1," dB",4,"",1) \
+ X(sendE,"Send E",-70,-70,0,0.1," dB",4,"",1) \
+ X(sendF,"Send F",-70,-70,0,0.1," dB",4,"",1) \
+ X(attackOn,"Attack",0,0,1,1,"",6,"Off|On",1) \
  X(attackType,"Attack sound",0,0,2,1,"",6,"Click|Pulse|Noise",1) \
  X(attackLevel,"Attack level",-18,-60,0,0.1," dB",6,"",1) \
  X(attackTone,"Attack tone",1800,30,16000,1," Hz",6,"",1) \
@@ -149,9 +152,9 @@ inline constexpr MacroTarget macroTargets[] {
     {"Filter envelope",&SoundParameters::filterAmount,-8,8},{"Pitch envelope",&SoundParameters::pitchAmount,-48,48},
     {"LFO rate",&SoundParameters::lfoRate,0.01,30},{"LFO pitch",&SoundParameters::lfoPitch,0,24},
     {"LFO volume",&SoundParameters::lfoVolume,0,1},
-    {"Send A",&SoundParameters::sendA,-60,0},{"Send B",&SoundParameters::sendB,-60,0},
-    {"Send C",&SoundParameters::sendC,-60,0},{"Send D",&SoundParameters::sendD,-60,0},
-    {"Send E",&SoundParameters::sendE,-60,0},{"Send F",&SoundParameters::sendF,-60,0}
+    {"Send A",&SoundParameters::sendA,-70,0},{"Send B",&SoundParameters::sendB,-70,0},
+    {"Send C",&SoundParameters::sendC,-70,0},{"Send D",&SoundParameters::sendD,-70,0},
+    {"Send E",&SoundParameters::sendE,-70,0},{"Send F",&SoundParameters::sendF,-70,0}
 };
 inline bool validMapping(const MacroMapping& m)
 {

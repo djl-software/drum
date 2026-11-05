@@ -135,7 +135,7 @@ void runChannelAttackTests()
     writer->writeFromAudioSampleBuffer(sample->audio,0,sample->audio.getNumSamples());writer.reset();
     auto& engine=processor.getSampleEngine();engine.requestLoad(kit,id,file);check(engine.waitForLoading(10000),"Channel fixture timed out");
     controls={};check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Channel reset failed");
-    engine.prepare(48000);juce::AudioBuffer<float> audio(2,512);juce::MidiBuffer midi;midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);engine.process(audio,midi);
+    processor.prepareToPlay(48000,512);juce::AudioBuffer<float> audio(2,512);juce::MidiBuffer midi;midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);engine.process(audio,midi);
     controls.sound.mono=1;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Channel change failed");midi.clear();engine.process(audio,midi);
     near(audio.getSample(0,300),0.375f,"Sounding voice did not become mono");
     check(std::abs(audio.getSample(0,0)-0.25f)<0.001f,"Channel switch is abrupt");
@@ -144,7 +144,7 @@ void runChannelAttackTests()
     controls.sound.attackLevel=0;controls.sound.attackPosition=150;controls.sound.attackDecay=40;
     check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Delayed playback setup failed");
     check(engine.tailSeconds()>=0.19,"Host tail omitted delayed attack");
-    engine.prepare(48000);audio.setSize(2,512);midi.clear();midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);midi.addEvent(juce::MidiMessage::noteOff(1,21),48);engine.process(audio,midi);midi.clear();
+    processor.prepareToPlay(48000,512);audio.setSize(2,512);midi.clear();midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);midi.addEvent(juce::MidiMessage::noteOff(1,21),48);engine.process(audio,midi);midi.clear();
     controls.sound.attackPosition=0;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Live Position edit failed");
     float delayedPeak=0;for(int block=1;block<19;++block){engine.process(audio,midi);if(block>=14)delayedPeak=juce::jmax(delayedPeak,audio.getMagnitude(0,512));else if(block>=2)check(audio.getMagnitude(0,512)==0,"Position moved an already scheduled hit");}
     check(delayedPeak>0.1f,"Note-off or sample end cancelled delayed attack");
@@ -152,7 +152,7 @@ void runChannelAttackTests()
     for(int cancel=0;cancel<3;++cancel)
     {
         controls.mute=false;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Cancel test setup failed");
-        engine.prepare(48000);midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);engine.process(audio,midi);midi.clear();
+        processor.prepareToPlay(48000,512);midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);engine.process(audio,midi);midi.clear();
         if(cancel==0)engine.stop();
         else if(cancel==1)midi.addEvent(juce::MidiMessage::allSoundOff(1),0);
         else {controls.mute=true;check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Mute update failed");}
@@ -163,7 +163,7 @@ void runChannelAttackTests()
     check(library.setControls(kit,id,controls).ok && engine.waitForLoading(10000),"Rate calibration setup failed");
     for(double rate:{8000.0,48000.0,96000.0,44100.0})
     {
-        engine.prepare(rate);midi.clear();midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);
+        processor.prepareToPlay(rate,512);midi.clear();midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)127),0);
         float peak=0;for(int block=0;block<(int)std::ceil(rate*0.18/512);++block)
         {engine.process(audio,midi);midi.clear();if(block*512>=rate*0.11)peak=juce::jmax(peak,audio.getMagnitude(0,512));}
         check(peak==1.0f,"Host-rate change left attack calibration stale");

@@ -11,6 +11,7 @@ static void require(bool condition, const char* message)
 void runManagementTests();
 void runPlaybackTests();
 void runControlTests();
+void runRotaryControlTests();
 void runEditingTests();
 void runWaveformTests();
 void runPreviewTests();
@@ -22,6 +23,7 @@ void runChainTests(const juce::String&,const juce::String&);
 void runBuiltinTests();
 void runCreativeTests();
 void runTrackLibraryTests();
+void runInstrumentFileTests();
 void runPatternTests();
 void runChainSmoke(const juce::String&);
 void runVst3PlaybackTest(const juce::String&);
@@ -38,6 +40,8 @@ int main(int argc, char** argv)
     juce::ScopedJuceInitialiser_GUI initialiseJuce;
     try
     {
+        if(argc==2 && juce::String(argv[1])=="--rotary-controls"){runRotaryControlTests();return 0;}
+        if(argc==2 && juce::String(argv[1])=="--instrument-files"){runInstrumentFileTests();return 0;}
         if(argc==3 && juce::String(argv[1])=="--vst3") { runVst3PlaybackTest(argv[2]); return 0; }
         if(argc==4 && juce::String(argv[1])=="--chains") { runChainTests(argv[2],argv[3]);return 0; }
         if(argc==3 && juce::String(argv[1])=="--chain-smoke") { runChainSmoke(argv[2]);return 0; }
@@ -104,6 +108,7 @@ int main(int argc, char** argv)
         runBuiltinTests();
         runCreativeTests();
         runTrackLibraryTests();
+        runInstrumentFileTests();
         runPatternTests();
         std::cout << "Drum processor tests passed\n";
         return 0;
