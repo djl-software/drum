@@ -1,5 +1,34 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "BuiltinEffects.h"
+
+namespace {
+void normaliseLibraryEffects(juce::XmlElement& xml)
+{
+    if(xml.hasTagName("Effect"))
+    {
+        auto* description=xml.getChildByName("PLUGIN");auto* state=xml.getChildByName("State");
+        juce::PluginDescription plugin;juce::MemoryBlock saved;
+        if(description && state && plugin.loadFromXml(*description) && drum::isBuiltin(plugin)
+            && saved.fromBase64Encoding(state->getAllSubText()) && saved.getSize()>0)
+        {
+            auto effect=drum::createBuiltin(plugin);effect->setStateInformation(saved.getData(),(int)saved.getSize());
+            juce::MemoryBlock canonical;effect->getStateInformation(canonical);
+            state->deleteAllChildElements();state->addTextElement(canonical.toBase64Encoding());
+        }
+    }
+    for(auto* child:xml.getChildIterator())normaliseLibraryEffects(*child);
+}
+bool equivalentLibraryContent(const juce::XmlElement& current,const juce::XmlElement& baseline)
+{
+    if(current.isEquivalentTo(&baseline,true))return true;
+    // Built-in state versions add defaults without changing the saved sound.
+    // Compare both through the current reader; external effect states remain exact.
+    juce::XmlElement a(current),b(baseline);normaliseLibraryEffects(a);normaliseLibraryEffects(b);
+    return a.isEquivalentTo(&b,true);
+}
+}
+
 
 DrumAudioProcessor::DrumAudioProcessor(bool track)
     : AudioProcessor([] {
@@ -323,7 +352,7 @@ bool DrumAudioProcessor::libraryDocumentDirty(const juce::String& id) const
     if(closedLibraries)return false;auto revision=library.currentRevision();
     if(revision!=libraryDirtyRevision){
         libraryDirtyCache.clear();auto xml=library.toXml();
-        for(auto* item:xml->getChildIterator()){auto key=item->getStringAttribute("id");auto found=libraryDocuments.find(key);libraryDirtyCache[key]=found==libraryDocuments.end() || !found->second.baseline || !item->isEquivalentTo(found->second.baseline.get(),true);}
+        for(auto* item:xml->getChildIterator()){auto key=item->getStringAttribute("id");auto found=libraryDocuments.find(key);libraryDirtyCache[key]=found==libraryDocuments.end() || !found->second.baseline || !equivalentLibraryContent(*item,*found->second.baseline);}
         libraryDirtyRevision=revision;
     }
     auto found=libraryDirtyCache.find(id);return found!=libraryDirtyCache.end() && found->second;

@@ -41,6 +41,7 @@ int main(int argc, char** argv)
     try
     {
         if(argc==2 && juce::String(argv[1])=="--rotary-controls"){runRotaryControlTests();return 0;}
+        if(argc==2 && juce::String(argv[1])=="--library-management"){runManagementTests();return 0;}
         if(argc==2 && juce::String(argv[1])=="--instrument-files"){runInstrumentFileTests();return 0;}
         if(argc==3 && juce::String(argv[1])=="--vst3") { runVst3PlaybackTest(argv[2]); return 0; }
         if(argc==4 && juce::String(argv[1])=="--chains") { runChainTests(argv[2],argv[3]);return 0; }

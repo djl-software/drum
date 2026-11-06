@@ -84,6 +84,27 @@ void runManagementTests()
         auto eight=restored.getLibrary().snapshot();for(const auto& item:eight.kits)good(restored.closeLibraryDocument(item.id));check(restored.librariesEmpty(),"Closing all tabs failed");good(restored.newLibraryDocument());check(!restored.librariesEmpty() && restored.libraryDocumentsDirty(),"New after Close all failed");
     }
     {
+        DrumAudioProcessor documents;
+        auto state=documents.getLibrary().snapshot();auto id=state.activeKit;
+        auto sound=documents.getLibrary().addInstrument(id,state.kits[0].groups[0].id);good(sound);
+        drum::BuiltinEffect clipper(drum::BuiltinKind::clipper);juce::MemoryBlock bytes;
+        clipper.getStateInformation(bytes);
+        auto legacy=juce::AudioProcessor::getXmlFromBinary(bytes.getData(),(int)bytes.getSize());
+        legacy->setAttribute("version",2);juce::AudioProcessor::copyXmlToBinary(*legacy,bytes);
+        drum::EffectSlot slot{juce::Uuid().toString(),drum::builtinDescription(drum::BuiltinKind::clipper).createXml()->toString(),bytes.toBase64Encoding(),false};
+        good(documents.getLibrary().setEffects(id,sound.id,{slot}));
+        auto file=juce::File::getCurrentWorkingDirectory().getChildFile("library-version-"+juce::Uuid().toString()+"/Saved.drumlib");
+        good(documents.saveDocument(file));check(!documents.libraryDocumentDirty(id),"Saving a legacy effect library left it dirty");
+        documents.getEffects().sync();documents.getEffects().capture();
+        check(!documents.libraryDocumentDirty(id),"Effect state version upgrade was mistaken for an edit");
+        auto workspace=documents.libraryWorkspaceState();DrumAudioProcessor recalled;
+        check(recalled.restoreLibraryWorkspace(*workspace) && !recalled.libraryDocumentDirty(id),"Unchanged migrated library became dirty after recall");
+        clipper.controls[1]->setValueNotifyingHost(clipper.controls[1]->convertTo0to1(-6.f));clipper.getStateInformation(bytes);slot.state=bytes.toBase64Encoding();
+        good(recalled.getLibrary().setEffects(id,sound.id,{slot}));check(recalled.libraryDocumentDirty(id),"Effect migration comparison suppressed an actual parameter edit");
+        good(recalled.saveDocument(file));recalled.getEffects().sync();recalled.getEffects().capture();
+        check(!recalled.libraryDocumentDirty(id),"Saved effect changes did not clear dirty state");
+    }
+    {
         struct GestureProbe final : juce::AudioProcessorParameter::Listener {
             int values=0, starts=0, ends=0;
             void parameterValueChanged(int,float) override {++values;}

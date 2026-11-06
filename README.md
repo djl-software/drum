@@ -1,5 +1,7 @@
 # DJL Drum
 
+Version 0.23.5 fixes false unsaved-library markers and repeated save prompts caused by built-in effect state version upgrades. Actual sound and library edits still require saving.
+
 Version 0.23.4 adds per-kit send names, editable in the routing diagram and shown on pots, waveform choices, macro targets and return effect windows. Attack layer is now labelled Attack, Utility gains a centred Pan dial, sends can feed other sends and/or Main, and Delay is joined by a separate coloured Echo effect.
 
 Version 0.23.3 adds a fixed Solo button beside Notes in every instrument editor tab, linked to the main instrument Solo state.
