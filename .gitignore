@@ -1,4 +1,5 @@
 # Build output
+test_builds/
 build/
 build-*/
 dist/
@@ -36,3 +37,6 @@ CMakeCache.txt
 output/
 tmp/
 *.log
+
+# Local macOS validation scratch files
+Mac/work/

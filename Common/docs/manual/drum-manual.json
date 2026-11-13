@@ -1,0 +1,1134 @@
+{
+  "product": "DRUM",
+  "version": "0.26.2",
+  "date": "10 November 2026",
+  "platform": "macOS VST3",
+  "scope": "BUILD  /  SHAPE  /  MIX  /  REUSE",
+  "cover_caption": "0.26.2 development build  |  How, why and practical examples",
+  "footer": "DRUM 0.26.2  |  macOS VST3",
+  "logo": "../../assets/DJLLogoWhite.png",
+  "cover_image": "assets/mixer-instruments.png",
+  "publisher": "DJL Software",
+  "chapters": [
+    {
+      "title": "Welcome: build a kit, shape its space, mix it",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "DRUM is a sample-based drum instrument for a VST3-compatible DAW. This guide covers development build 0.26.2 for macOS. The Mac package is universal for Apple Silicon and Intel, with macOS 11 as the build deployment target. Runtime checks described here were run on Apple Silicon. Windows source exists, but this guide does not claim a newly verified Windows binary."
+        },
+        {
+          "type": "p",
+          "text": "A Library is your reusable collection. A Kit is what the current track plays. A Group gathers related instruments and now has real mixer controls. Each instrument holds one sample, its sound design, MIDI trigger and effect chain. A collection supports up to eight library/kit records; each contains up to 16 groups and 88 instruments. A track plays one active kit, not eight simultaneous kits."
+        },
+        {
+          "type": "why",
+          "text": "The new workflow lets you preserve a punchy main sound while giving its reverb or delay a different envelope, tone and pitch. You can then balance instruments within groups, groups against each other and shared return effects in one mixer."
+        },
+        {
+          "type": "p",
+          "text": "The latest changes include an instrument/group/return mixer, six independent send-shaping paths per instrument, free envelope shapes, unified waveform Fit and wheel zoom, floating windows, settings-only presets and more reliable linked-kit control changes. They are explained with actions, reasons and starting examples."
+        },
+        {
+          "type": "p",
+          "text": "This is a development build, not a claim of complete Drum Rack, Battery or Simpler equivalence. Supply your own samples. Hosted third-party effects require their own compatible installations and licences. Save test projects under new names before updating a working production session."
+        }
+      ]
+    },
+    {
+      "title": "Install and set up Ableton Live",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Close Live before installing the updated Mac package from test_builds. Reopen Live and let it scan VST3 plug-ins.",
+            "Load DJL Drum on a MIDI track. Start with a new kit or open a saved .drumkit.",
+            "For Live integration, enable DJL_Drum_Link in Live Settings > Link, Tempo & MIDI > Control Surface. The installer places the script in the active User Library under Remote Scripts/DJL_Drum_Link. Restart Live after a script update.",
+            "Keep Auto-Hide Plug-In Windows ON in Live Settings > Plug-Ins. Enable Multiple Plug-In Windows if you want several windows visible together."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Auto-Hide lets normal editors follow track selection. DRUM creates its own independent window only when Float Window is checked, so you do not need to expose every plug-in window in the project."
+        },
+        {
+          "type": "p",
+          "text": "Do not confuse DJL Drum Link with Ableton Link tempo networking. The DRUM companion supports track metadata, note/helper integration and per-track instance handling; normal VST3 sample playback still belongs to the track receiving MIDI."
+        },
+        {
+          "type": "p",
+          "text": "If the script is absent, check Live's actual User Library location rather than assuming a OneDrive or default folder. Keep the installer, plug-in and companion script from the same build. This package is a development installer; distribution signing/notarization and broader host/Intel verification remain separate release tasks."
+        }
+      ]
+    },
+    {
+      "title": "Your first playable kit",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Use File > New kit, or open an existing kit. Give it a meaningful name.",
+            "Choose Library to browse your sound collection. Select a group and instrument, then add it to the kit; or load/drop audio onto an instrument in the kit.",
+            "Choose Kit to return to the played collection. Select a tile and audition from its keyboard/pad or the shared play controls. Incoming MIDI comes from this instance's DAW track.",
+            "Open the instrument editor. Begin in Source to trim the hit; use Edited to inspect the processed result.",
+            "Choose Mixer. Balance instruments inside each group, then balance the groups. Save the kit and the Live Set."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Start with levels and a small set of sounds. A carefully chosen kick, snare, closed hat and open hat make it easier to hear envelopes, choke behaviour and send changes than a crowded kit."
+        },
+        {
+          "type": "p",
+          "text": "Example: make Kick, Snare and Hats groups. Put closed/open hats in the same choke group. Add a small amount of snare to a shared Room return, keeping the kick mostly dry. The next chapters explain each operation."
+        }
+      ]
+    },
+    {
+      "title": "Navigation, selection and window behaviour",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The equal-width toolbar runs File, Library, Kit, Mixer, a gap, then Setup. The active page button looks pressed. Library and Kit navigate directly; use File for new/open/save operations, or right-click Library/Kit for that context's file menu. The assigned Live track name appears in the header beside the KIT/LIBRARY area, not in the native window title."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Select a tile to choose the instrument you want to edit. Use its context menu/right panel for available management actions.",
+            "Scroll the instrument list using the right-hand scroll bar. It is inactive when everything fits.",
+            "Mouse-wheel navigation of instrument tiles is available while a tile is selected/highlighted; empty background does not act as an unrestricted instrument scroller.",
+            "Check Float Window under BPM to keep an independent DRUM window visible when selecting other tracks. Uncheck it to return to Live-managed hiding."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A floating mixer can stay beside your arrangement while you work on vocals or bass. A normal editor should disappear with its unselected track, reducing clutter. Float does not mean permanently above every other application."
+        },
+        {
+          "type": "p",
+          "text": "With Drum Link active, multiple tracks can each have their own DRUM window and Float setting. The companion detects duplicate DRUM devices on the same Live track, disables the extra device and removes duplicates when playback is stopped. Do not rely on this track-specific guard in an unsupported host or without the companion."
+        }
+      ]
+    },
+    {
+      "title": "Libraries, kits, groups and instrument order",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Libraries store reusable grouped sounds; kits hold the sounds played by a particular track. Adding a library instrument to a kit makes an independent instrument copy. Editing that kit sound does not rewrite the source library. Shared return effects and global macro values belong to the destination kit."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Open/create a library through File and name its groups. Use library tabs to switch collections.",
+            "Add instruments from libraries to the kit. Matching group names can be combined; inspect the destination group after adding.",
+            "Rename and colour groups to make the kit easy to scan. Reorder groups/instruments deliberately.",
+            "Check MIDI clips after changing instrument order: the contiguous keyboard map follows group and instrument order from MIDI note 21."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Organisational order affects the note map. Grouping hats together is useful visually and in the mixer, but moving them after programming MIDI can change which sound a key triggers."
+        },
+        {
+          "type": "p",
+          "text": "An unsaved-change marker on a tab/name is a reminder to save that document. Opening a kit replaces the current kit; opening a library can replace a collection with the same identity. Save first when you need to keep both versions. Explicitly duplicate/save under a new identity when you want an independent variant; linked instances of the same kit identity can share edits."
+        }
+      ]
+    },
+    {
+      "title": "Saving, portable audio and project safety",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Save the Live Set for the host session and plug-in state. Also save important kits/libraries as their own DRUM documents. Opening another kit asks you to save first only when the current kit has unsaved content changes. An untouched new/opened/saved kit does not trigger that prompt.",
+            "Use Save as for deliberate variants, with clear names such as House-tight or House-roomy.",
+            "Keep collected Samples with the saved kit/library folder structure. A document and its relative audio references form one portable set.",
+            "Use Export instrument when you want one self-contained sound including audio. Use Settings > Save settings when you want processing only."
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Format",
+            "Purpose",
+            "Audio included?"
+          ],
+          "rows": [
+            [
+              ".drumkit",
+              "The played kit, its structure, mappings, controls and return setup",
+              "Uses collected Samples/relative paths; keep the folder structure"
+            ],
+            [
+              ".drumlib",
+              "A reusable collection",
+              "Uses collected sample references"
+            ],
+            [
+              ".druminstrument",
+              "Portable single instrument, including its original sample",
+              "Yes, inside the archive"
+            ],
+            [
+              ".drumsettings",
+              "Processing preset to apply to another existing instrument",
+              "No; destination audio stays in place"
+            ]
+          ],
+          "widths": [
+            0.22,
+            0.4,
+            0.38
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Schema 26 stores independent send shaping. Earlier files load without those overrides and retain their original send behaviour. Older plug-in versions may reject newer state; do not overwrite your only copy before an update. Current DRUM settings files do not package a shared return chain or a third-party plug-in binary."
+        },
+        {
+          "type": "why",
+          "text": "Saving the original sample rather than baking every edit preserves flexibility. A settings preset is a recipe; an exported instrument is the recipe plus its ingredient. They solve different reuse problems."
+        }
+      ]
+    },
+    {
+      "title": "Reusable instrument settings: save a recipe",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/settings-picker.png",
+          "max_height": 150,
+          "caption": "All/None plus individual sections: only ticked sections are loaded. This example shows all sections selected."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Source instrument: Settings... > Save settings.... Name the .drumsettings file. It contains processing, not audio.",
+            "Destination: Settings... > Load settings.... Choose the file.",
+            "Sections start unticked. Tick only those wanted, or press All. Press Load selected; it stays disabled until at least one section is ticked.",
+            "Audition the result. Save the destination settings first if you may want its earlier recipe back."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Choose sample/playback/choke, amplitude, pitch envelope, filter, EQ, LFO, attack, tuning, mixer, output, send levels, independent send shapes, macro mappings or the instrument chain. Unchecked sections are retained."
+        },
+        {
+          "type": "p",
+          "text": "Amplitude includes playback mode so the graph can play. Filter includes its envelope and on/off state. Send levels and independent send shapes are separate choices. Shapes copies all six feeds without replacing shared return effects."
+        },
+        {
+          "type": "why",
+          "text": "Choose only Amplitude envelope / mode to borrow a decay while retaining EQ, pitch and sends. Choose Filter + filter envelope for tone alone, or Send levels A-F for the balance of effect feeds."
+        },
+        {
+          "type": "p",
+          "text": "Audio, identity, name, MIDI note and notes stay unchanged. Group settings, shared returns, macro names and global macro values also stay. Existing destination macros can override copied values; import mappings only when wanted. Selection happens on load; the saved file contains the whole recipe."
+        },
+        {
+          "type": "p",
+          "text": "Only a selected effect chain gets new slot identities. Self-sidechains follow the new note; external sidechains are cleared for reassignment. Third-party effects must be installed on the destination system."
+        }
+      ]
+    },
+    {
+      "title": "Portable instrument export and notes",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Use Notes to write tuning hints, source details or performance instructions. Notes save with the instrument as you type.",
+            "Use Export... to create a .druminstrument containing the original audio, instrument controls, independent send shaping, notes and instrument chain.",
+            "Import that file into a Library or Kit group. Import adds an instrument rather than replacing the selected sample tile."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "New instrument/effect identities and a destination note are assigned on import. The sample is collected into the destination sample storage. You do not need a sibling Samples folder when moving this single-instrument archive."
+        },
+        {
+          "type": "why",
+          "text": "Use complete instrument export for a signature snare you want to hear identically on another computer. Use settings-only presets when you want a new sample to inherit the processing approach instead."
+        },
+        {
+          "type": "p",
+          "text": "Missing assigned samples prevent complete export; relink them first. An instrument with no assigned sample can still carry settings. Shared return chains and kit-global macro values are destination resources, not part of a single instrument export. External sidechains in complete exports reconnect only when a suitable destination reference is found; unresolved sources are reported."
+        }
+      ]
+    },
+    {
+      "title": "Mixer: instruments first, then groups",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/mixer-instruments.png",
+          "caption": "Instrument mix view: individual strips sit beside their group strip. Demonstration levels are not recommended defaults.",
+          "max_height": 260
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Open Mixer and select a group to balance its instruments. Use each vertical fader, pan bar and compact M/S controls.",
+            "Use the contrasting group strip to set that group's combined level/balance. Return to the group overview to balance groups against one another.",
+            "Set output destinations deliberately. An instrument using To group inherits the group output; an explicit auxiliary output chooses a destination directly.",
+            "Keep the final whole-track level on the normal Live track fader."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Instrument balance answers whether the open hat is louder than the closed hat. Group balance answers whether all hats are too loud against the kick. Keeping these decisions separate avoids undoing the internal blend when you change a group level."
+        },
+        {
+          "type": "p",
+          "text": "Faders display dB (decibels): 0 dB leaves the level unchanged, negative values reduce it and positive values increase it. Instrument strips reach silence at their minimum (-60 dB internally); group/return strips reach silence at their minimum (-70 dB internally). The maximum is +12 dB. A displayed minus-infinity means off, not an infinitely small musical adjustment."
+        },
+        {
+          "type": "p",
+          "text": "The group strip has distinct shading to distinguish it from neighbouring instrument strips. Group volume/pan and mute/solo controls apply at the group mixing stage; they are not a second set of per-instrument synthesis controls."
+        },
+        {
+          "type": "p",
+          "text": "Click an instrument name at the top of its mixer strip to open that instrument’s editor pages directly. Click Mixer in the main toolbar to return to mixing. Group-name buttons still open the group’s instrument strips."
+        }
+      ]
+    },
+    {
+      "title": "Mixer readouts, peak hold and realistic controls",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Read the fader value above the slider. Click it to type an exact value; double-click it to restore 0 dB.",
+            "Use the stereo meter beside the fader to watch signal level. Scale marks are labelled every 6 dB. Green/yellow/red segments make high levels easy to spot.",
+            "The numerical peak reading retains the maximum detected level until you click it to reset.",
+            "Each left/right peak marker holds briefly before falling back. Set the delay in Setup; the default is one second, with a 0-30 second range."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A fader reading is the gain you requested. A peak reading is a measurement of the signal that passed. They need not match: a quiet sample at a 0 dB fader can still have a low signal peak. Reset held maxima before comparing a new balance."
+        },
+        {
+          "type": "p",
+          "text": "Pan is a horizontal bar; double-click centres it. Knobs use shaded faces, pointers and value arcs; buttons look raised or pressed according to state. Slow wheel movement gives fine knob changes, sustained faster movement accelerates, and Shift makes knob adjustment finer. Inertial coasting is ignored on these knobs. The waveform wheel uses a separate display-zoom rule described later."
+        },
+        {
+          "type": "p",
+          "text": "Gain, pan and send changes use smoothing. Current linked-kit updates preserve active voice/effect state for ordinary control changes, avoiding the earlier low-frequency pops caused by full state replacement. Replacing a sample or changing certain note-on settings still takes effect on a new hit."
+        }
+      ]
+    },
+    {
+      "title": "Six local sends and return levels",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/mixer-groups.png",
+          "caption": "Group overview and shared return strips. The local send system belongs to DRUM, not Live's global return tracks.",
+          "max_height": 260
+        },
+        {
+          "type": "p",
+          "text": "A-F are six shared local effect returns. Each instrument and group has six send bars arranged as two rows of three. The range is minus-infinity (off) to +6 dB, with 0 dB as unity feed. Return strips let you mix the processed return level, pan, mute/solo and destination."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Put a reverb, delay or another effect on a shared return chain. For a conventional parallel effect, start with the effect fully wet.",
+            "Raise one instrument's send from off, starting around -18 dB. Use its return strip to place the overall effect in the mix.",
+            "Use a group send when a whole group should feed that return. Instrument and group contributions add; check that both are not unintentionally feeding it.",
+            "The same instrument send levels appear in Mixer and Outputs &amp; Sends. They are two views of the same saved controls, not two serial send stages."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "One shared room can make several drums feel as though they occupy the same space. Individual send amounts decide how far each drum sits back; the return fader controls the overall amount of that room."
+        },
+        {
+          "type": "p",
+          "text": "Raising a feed above 0 dB can drive the return harder. A return output fader changes the processed result after the return chain; it is not a substitute for reducing an overloaded input to that chain."
+        }
+      ]
+    },
+    {
+      "title": "Independent send shaping: the central new feature",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/independent-send.png",
+          "caption": "Send B selected for this instrument. The header and waveform caption identify the independent pre-return feed.",
+          "max_height": 260
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Open an instrument and use the waveform source menu to select Send A-F. DRUM opens its send-editing context.",
+            "Choose Amplitude or Pitch in Envelopes, Filter for the tone filter/filter envelope, or Tune for coarse/fine pitch. The send stays selected while you change pages.",
+            "Make the first edit. DRUM saves a separate shaping state for that instrument/send. Continue shaping the feed while auditioning the kit.",
+            "Select Edited or Source in the waveform menu to return to the main sound. From Tune, return to Envelopes to see that menu."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Each instrument can have six independent combinations of amplitude envelope, pitch envelope, coarse/fine tuning and tone-filter/filter-envelope settings. Main-sound shaping and the other five sends remain unchanged when you edit the selected feed. Mixer gain, pan, group balance, mute/solo and send amount still govern how much reaches the shared effect."
+        },
+        {
+          "type": "why",
+          "text": "A kick can stay deep and punchy while its reverb receives a short, high-passed or pitched-up version. A snare can feed a longer, darker delay while its main transient remains dry and sharp. You shape what excites the effect, not only the returned sound."
+        }
+      ]
+    },
+    {
+      "title": "Independent-send recipes and gain checks",
+      "blocks": [
+        {
+          "type": "sub",
+          "text": "What stays shared, and what becomes independent"
+        },
+        {
+          "type": "p",
+          "text": "On the first edit, DRUM starts from the instrument's displayed shaping, including applicable currently mapped shaping values. After that, the selected send stores its own shaping. Merely choosing a send to inspect it does not rewrite its processing. Unedited sends keep the original behaviour; changing the main sound can still affect those unedited sends."
+        },
+        {
+          "type": "p",
+          "text": "Important routing distinction: an independently shaped feed uses its own sample/voice playback and filter/envelope state, then enters the shared return chain directly. It bypasses the main instrument Chain effects; those effects are not duplicated into six branches. Unedited sends retain their existing post-instrument-chain route. Shared return effects remain common to every instrument feeding that return."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Short snare room: choose Send A, shorten its amplitude shape and lower its filter cutoff. Keep the main snare unchanged. Raise Send A gently into a fully wet Room.",
+            "Air above a kick: choose Send B, enable a high-pass tone filter and raise the coarse pitch by an octave. Feed a small amount into a shared Room or Echo. Check the original kick still has its body.",
+            "Dark hat delay: choose Send C, reduce the cutoff and lower its pitch slightly. Keep its amplitude shape short to stop the delay being driven by the entire open-hat tail.",
+            "Different spaces: give Send A a short bright feed and Send B a longer dark feed from the same instrument. Balance the two return faders, not just the feed levels."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Filtering before reverb prevents unwanted low frequencies from exciting the reverb at all. Filtering a mixed return afterward would also affect every other instrument sharing it. Independent feeds solve the per-instrument part of that problem."
+        },
+        {
+          "type": "p",
+          "text": "The waveform shows an isolated hit, not the sum of the kit or the final wet return. Its normal preview uses 80% velocity and a bounded one-second gate. A send set to off can show a flat feed even when its shaping is valid. Turn up the send to inspect an audible feed, then set the musical level you need."
+        },
+        {
+          "type": "p",
+          "text": "Independent pitch means independent sample playback: a lower-pitched send can last longer than the main hit. Envelope timing is measured in milliseconds; pitch changes affect sample duration but do not convert an envelope's millisecond positions into musical beats."
+        }
+      ]
+    },
+    {
+      "title": "Send-to-send routing and shared effect chains",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Open a local return chain from Outputs &amp; Sends/routing. Add built-in or compatible VST3 effects in the desired order.",
+            "Use the return's feed controls to route its output into another return, for example Echo A into Room B.",
+            "Untick the return's Main/direct output when you want only the onward route. Other return-feed amounts are retained.",
+            "Use the return mixer output/level controls to balance the final destination. Avoid unintended parallel copies of the same processed signal."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Echo into Room places the repeats in a space. Room into Echo repeats an already reverberant sound. Order matters. Keeping the first return's direct output on adds a parallel result; turning it off makes the route serial."
+        },
+        {
+          "type": "p",
+          "text": "Self-feeds and circular return connections are rejected or disabled. The diagram shows active routing; a grey/unavailable connection is not simply a muted effect. This protects the graph from feedback loops rather than creating an unrestricted modular feedback synthesizer."
+        },
+        {
+          "type": "p",
+          "text": "Main/direct output and onward send amounts are separate settings. In this build, switching direct output off keeps the stored and audible onward feed. Shared chain changes affect every instrument feeding that return."
+        }
+      ]
+    },
+    {
+      "title": "Use Ableton global sends through multi-output routing",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Choose an available auxiliary output such as Out 2 for the instrument, group or return you want to treat separately.",
+            "In Live create an audio track, set Audio From to the DRUM track and choose the matching plug-in output. Enable monitoring as appropriate.",
+            "Use that Live audio track's send controls to feed Live's global return tracks. Adjust its normal track fader as part of your DAW mix.",
+            "Check for doubled signal: do not monitor the same dry output through both an unnecessary Main copy and a receiving audio track."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A VST3 instrument does not expose a direct knob into an arbitrary Live global return. Separate audio outputs create normal DAW tracks, and those tracks can use Live's own sends, automation and effects."
+        },
+        {
+          "type": "p",
+          "text": "DRUM's A-F sends remain local to DRUM. They do not become Live Send A-F simply because the letters match. Output buses must be enabled/supported by the host. Disabled normal auxiliary destinations fall back to Main; verify the receiving track rather than assuming a selected menu item guarantees a separate signal."
+        },
+        {
+          "type": "p",
+          "text": "A group output is a routing convenience, not a new VST3 instance or a separate MIDI track. Third-party host routing differs; these steps describe the Live workflow."
+        }
+      ]
+    },
+    {
+      "title": "Waveforms: Source, Edited, channels and one Fit",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Choose Source to inspect the original sample and drag trim markers. Reverse playback displays the source in the corresponding playback direction.",
+            "Choose Edited to inspect the processed one-hit preview, or Send A-F to inspect/edit that independent feed.",
+            "Use the mouse wheel to zoom time around the pointer. Hold Shift while scrolling to zoom amplitude, including over envelope overlays. Both horizontal and vertical wheel packets are handled.",
+            "Middle-drag to pan a zoomed time view. Press the single Fit button to show the full duration and fit the waveform height."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Fit replaces the separate Fit X, Fit Y and Y-magnification controls. Display zoom does not change audio gain. The current scale stays in place through ordinary edits so you can see actual level differences; Fit deliberately reframes it. Auto channels combines identical L/R content into one display lane; Stereo L/R, Left only and Right only change the picture, not the audio."
+        },
+        {
+          "type": "why",
+          "text": "Zooming amplitude makes a quiet transient easier to inspect without making it louder. Use the peak readout to judge signal level; a waveform filling the screen after Fit is not proof that the sample is loud or clipped."
+        },
+        {
+          "type": "p",
+          "text": "The waveform is a processed preview before hosted instrument/return effects, not a live oscilloscope of the whole kit. Busy/updating text indicates preview rendering. Very long previews are bounded, and the caption identifies truncation. Playback cursors follow the selected main/send voice context."
+        }
+      ]
+    },
+    {
+      "title": "Sample editing, playback modes and choke",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Set Start and End with source markers. Enable zero-crossing snap where useful. Reverse changes playback direction; it does not rewrite the file.",
+            "Use Sample gain, Normalise and Mono only when you intend to change the sound. Fades can remove edge clicks; compare with the unedited hit.",
+            "Choose Trigger for a one-shot; Gate to release when the note ends; Envelope for the amplitude shape and optional looping.",
+            "Set retrigger/voice limits and choke groups deliberately. Closed/open hats commonly share a choke group so a new hat cuts the previous one."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Start/end and loop positions are fractions shown as percentages. Fade/loop-crossfade times are milliseconds. In Envelope mode the amplitude graph controls the attack; Trigger/Gate use the relevant fade controls. Loop start/end are relative to the trimmed region and require an enabled loop in the appropriate mode."
+        },
+        {
+          "type": "why",
+          "text": "A long open hat should usually stop when a closed hat lands. Choke is a performance relationship between instruments. Reducing every hat's decay instead would also remove the long hat when no closed hat follows."
+        },
+        {
+          "type": "p",
+          "text": "Trim region, direction, loop on/off and some voice-start choices are latched for the next hit. Other continuous controls can update a sounding voice. Voice stealing/choke applies a short fade to avoid a discontinuity. Replacing a genuinely different sample retires old sample playback; it is not an ordinary fader edit."
+        }
+      ]
+    },
+    {
+      "title": "Stage on/off: hear what each process contributes",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "New instruments start with optional processing tick boxes off. Tick a stage to hear it; untick to bypass while retaining its values. Existing kits keep their saved states.",
+            "Sample, amplitude, pitch, tone filter, LFO and the instrument chain now have equivalent controls where needed. The Pitch envelope and Tune pages share the same pitch-stage switch.",
+            "With Send A-F selected, amplitude, pitch and filter switches belong to that independent feed. Select Edited or Source to return to the main sound.",
+            "Turn a stage off, listen, then turn it back on. Its graph, amount and effect settings stay stored. Enabling Amplitude selects Envelope playback so the graph actually shapes the hit."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Bypass answers: what does this processing contribute? A/B answers: which of two stored versions do I prefer? The new tick boxes provide bypass, not an A/B preset store. Changes in loudness can influence preference, so compare at a sensible listening level."
+        },
+        {
+          "type": "p",
+          "text": "Sample bypass neutralizes trim, reverse, mono/normalisation/sample gain, loop region and fades, retaining trigger/voice/choke policy. Region/direction edits apply on the next hit. Amplitude bypass blends to neutral over 5 ms while the saved envelope keeps running internally. Off restores the full sample within its playback boundaries, without retaining an amplitude-envelope MIDI gate. The envelope cannot retire a sample voice early. Pitch bypass removes tuning and pitch modulation without deleting the graph."
+        },
+        {
+          "type": "p",
+          "text": "Filter, LFO, Attack and EQ on/off controls retain their values. Chain off bypasses every instrument effect without rewriting each slot’s own bypass state; Chain on restores that pattern. The instrument waveform is pre-chain, so use actual playback to judge the chain. Output routing and macro mapping are not audio processing stages and do not get misleading bypass switches."
+        },
+        {
+          "type": "p",
+          "text": "Re-enabling restores the stored processing. A sounding note continues at its current time; bypass does not rewind a transient or resurrect a finished note. Compare the same freshly triggered hit or repeating pattern. Tests cover main/send amplitude, pitch and filter across 44.1/48/96 kHz and 64/512-sample blocks, plus enabled/disabled audio recall."
+        }
+      ]
+    },
+    {
+      "title": "Waveform cuts: remove between or outside markers",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/waveform-cut.png",
+          "crop": [
+            42,
+            300,
+            1238,
+            581
+          ],
+          "max_height": 148,
+          "caption": "Source markers, cut-mode menu, Cut and Undo/Redo. The Sample tick box bypasses sample processing; cuts are separate file edits."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Open Sample and choose Source. Place the Start and End markers around the region.",
+            "Choose Cut outside markers (the default) to discard the outside and keep just the marked audio. Choose Cut between markers to remove that region and join the audio before and after it.",
+            "Press Cut. DRUM writes a new 32-bit floating-point WAV in Sample Edits, using the source rate and channels. It does not overwrite the original sample.",
+            "The new sample refits in time and height, markers reset to the whole result, and looping turns off. The remaining processing, name and MIDI note stay in place.",
+            "Use Undo/Redo beside Cut, or Command/Ctrl+Z and Command/Ctrl+Shift+Z on the Sample page, to restore/reapply cuts and their markers."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Use between to remove an unwanted click or silent gap inside a sound. Use outside to turn one region of a longer recording into a compact playable sample. A real cut changes the sample duration; merely moving trim markers does not create a new audio file."
+        },
+        {
+          "type": "p",
+          "text": "Cutting is available on the main Source waveform, not on an edited send waveform. When the markers span the full sample, Cut and the cut-mode selector are greyed out: outside would change nothing, and between would remove every frame. Undo/Redo stay available. Repeated cuts have separate per-instrument Undo/Redo histories (up to 32 cuts in the open editor session). External sample replacement clears that instrument’s cut history; closing the editor ends the history. Saved kit/project state retains the current cut audio reference, not this temporary history."
+        },
+        {
+          "type": "p",
+          "text": "Cuts preserve decoded sample values and stereo channels. Between joins are direct splices, without an automatic crossfade: choose zero crossings where practical and audition the join. Retained originals and generated edits must remain on disk for Undo or recall. Save/collect a portable kit or export the instrument to carry the current cut audio with the project."
+        }
+      ]
+    },
+    {
+      "title": "Free envelopes: four points, curves and optional holds",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/envelopes.png",
+          "caption": "Envelope overlay on the actual waveform. The shapes shown are demonstrations, not a required ADSR template.",
+          "max_height": 260
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Reset an amplitude/pitch/filter shape to get four evenly spaced neutral points. Amplitude resets fully open; pitch/filter modulation reset neutral.",
+            "Drag a point to change its time and level. Click a line to insert another point, drag a line to bend its curve and double-click a point to remove it.",
+            "Free points shape the sample without changing its boundaries. MIDI note-off does not end a free curve; after its last point, the final value continues until sample end. Right-click an interior point for an explicit S hold and note-off release; right-click S to clear. A hold follows its point when moved.",
+            "Use local Undo/Redo for envelope edits, resets and stage on/off. A drag is one edit rather than hundreds of entries; toggling a stage no longer discards its graph history."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Envelope time is in milliseconds; amplitude is a fraction/percentage, pitch amount is in semitones (12 per octave) and filter amount is in octaves. A neutral shape plus zero modulation depth produces no pitch/filter movement. Dragging a pitch/filter shape can enable a sensible starting amount so the edit is audible."
+        },
+        {
+          "type": "why",
+          "text": "A freely drawn two-stage tail or a dip before the attack can express things a simple ADSR cannot. Four neutral points make a useful starting shape, not a limit. Shape the amplitude of a send to decide exactly which part of the hit excites its shared effect."
+        },
+        {
+          "type": "p",
+          "text": "Edit shapes in the graph. Legacy numeric timings remain for saved states and macros. Use Unlink timing before editing a macro-timed main envelope: this bakes its displayed timing into free points. Independent sends retain their own shapes."
+        }
+      ]
+    },
+    {
+      "title": "Pitch, Tune and key estimates",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Use Tune for coarse semitones and fine cents. Coarse/fine tuning on a selected send affects that feed; choose Edited/Source to work on the main sound.",
+            "Use the Pitch envelope to make a falling kick transient or a small upward percussion flick. Start with a modest amount such as 2-5 semitones.",
+            "Use velocity-to-pitch and pitch-bend range only when the incoming MIDI performance should change tuning.",
+            "Read trigger note separately from estimated musical pitch/key. The trigger key selects an instrument; it is not necessarily the sound's pitch."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A small pitch fall can give a kick a firm attack without changing the whole sample to an unrelated note. Coarse tuning shifts the complete sound; an envelope changes pitch over time."
+        },
+        {
+          "type": "p",
+          "text": "The key display is an analysis estimate, especially uncertain for noise, layered hits and short transients. A strongest spectral note does not prove a major/minor key. Camelot labels help organise harmonic material but are not a promise that two percussion samples will harmonically match."
+        },
+        {
+          "type": "p",
+          "text": "Independent send tuning reads from the original sample in its own playback voice. Retuning the effect feed therefore does not retune the dry/main voice or another send."
+        }
+      ]
+    },
+    {
+      "title": "Tone filter, filter envelope and 16-band EQ",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/eq-rolloff.png",
+          "crop": [
+            0,
+            0,
+            700,
+            290
+          ],
+          "max_height": 130,
+          "caption": "72 dB/oct high cut at 1 kHz. The response continues below the visible range, without an artificial -60 dB shelf."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Enable the tone Filter before adjusting cutoff/resonance or its envelope. Choose low-pass, high-pass, band-pass or notch; choose the available slope.",
+            "Start with low resonance and modest drive. Lower a low-pass cutoff to soften a hat, or high-pass a room feed to keep kick lows out of the reverb.",
+            "Use filter envelope amount for movement relative to the cutoff. A negative amount closes the filter as the shape rises; positive opens it.",
+            "For main-sound surgical shaping, open the 16-band EQ, enable the needed bands and adjust frequency, gain, Q/type/slope as available. Use the analyser as a guide, then listen."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "The tone filter is an expressive broad change; the EQ is useful for targeted tone/overlap problems. Q describes bandwidth/resonance: higher values usually make a narrower, stronger feature. Level-match before deciding that an EQ curve is better."
+        },
+        {
+          "type": "p",
+          "text": "Independent sends have their own tone filter and filter envelope. The instrument EQ/hosted Chain is not six independent EQ/Chain copies. The independent branch retains shared sample-stage EQ as implemented, while its independent override scope covers envelope, tone-filter and pitch settings. A change to a genuinely shared source stage can affect more than one path."
+        },
+        {
+          "type": "p",
+          "text": "Disabled subordinate controls indicate an unmet prerequisite rather than lost settings. Bypassing a section retains its settings so it can be re-enabled. A red preview level warning concerns processed signal peak, not display magnification. The response line is clipped to the graph, not clamped to its lower limit: a roll-off leaves the display when it falls below -60 dB. The audio response is unchanged by this display correction."
+        }
+      ]
+    },
+    {
+      "title": "LFO and the independent attack layer",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "On the main sound, enable LFO and raise a depth. Choose a waveform or draw Custom, set free Hz or tempo division, and decide whether it retriggers per note.",
+            "Use small pitch/filter movement for variation; use pan movement carefully when checking mono compatibility.",
+            "Enable Attack to add a Click, Pulse or Noise transient. Set level, tone, decay and position.",
+            "Start quietly: for example a low-level pulse around the front of a soft kick, then compare bypassed at similar loudness."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "The attack layer adds a transient without asking the sample's amplitude envelope to manufacture one. It has its own clock/short decay and can continue according to its position even when the sample is short. The LFO supplies repeating movement rather than a one-time envelope."
+        },
+        {
+          "type": "p",
+          "text": "LFO and Attack are main/shared source-stage controls, not new independent per-send pages. Those tabs are unavailable while editing a send; return to Edited/Source to edit them. Separate send voices preserve the main sound's random-pan/LFO random sequence rather than consuming its random values."
+        },
+        {
+          "type": "p",
+          "text": "Attack type, gain, tone, decay and timing are saved. Off/bypass keeps the stored settings. Longer position times can put the generated transient after the sample's front edge; check the one-hit waveform and the audible result."
+        }
+      ]
+    },
+    {
+      "title": "Built-in effects: a practical map",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Effect family",
+            "How and why to use it"
+          ],
+          "rows": [
+            [
+              "EQ / Dynamic EQ",
+              "Shape tone or control a frequency area only when its level warrants it. Start with a small cut rather than a dramatic boost."
+            ],
+            [
+              "Compressor / Transient / Ducker",
+              "Control dynamics, reshape attack/sustain or make room for a chosen sidechain source. Listen to timing, not just peak reduction."
+            ],
+            [
+              "Saturation / Clipper / Limiter",
+              "Add colour or restrain peaks. Match output level and leave headroom before the next stage."
+            ],
+            [
+              "Gate",
+              "Reduce low-level tail/noise. Check that soft notes still open it."
+            ],
+            [
+              "Utility / Stereo Width",
+              "Set level/balance and adjust stereo width. Check mono and avoid assuming wider is always better."
+            ],
+            [
+              "Bitcrusher / Frequency Shifter / Resonator",
+              "Create texture, inharmonic movement or resonant colour. Start at a low mix/output level."
+            ],
+            [
+              "Delay / Echo / Room",
+              "Add repeats or space. Prefer fully wet settings for conventional shared returns; serial routing changes the order of these spaces."
+            ]
+          ],
+          "widths": [
+            0.38,
+            0.62
+          ]
+        },
+        {
+          "type": "p",
+          "text": "DRUM currently includes 17 built-in effect types: EQ, Compressor, Transient, Saturation, Clipper, Limiter, Gate, Utility, Stereo Width, Dynamic EQ, Bitcrusher, Delay, Ducker, Room, Resonator, Frequency Shifter and Echo. They can be part of instrument or shared return chains."
+        },
+        {
+          "type": "why",
+          "text": "Keeping common processors inside the instrument makes a portable preset more useful. Hosting a favourite VST3 gives you another sound palette, but that preset still depends on having the same third-party processor installed."
+        },
+        {
+          "type": "p",
+          "text": "Meters in a chain show its local activity; they are not a certification of true-peak or loudness compliance. The Stereo Width audio boundary issue was repaired in the current engine; width is still a creative control that should be checked against the centre and mono image."
+        }
+      ]
+    },
+    {
+      "title": "Compressor: choose how to see the dynamics",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/compressor-activity.png",
+          "max_height": 210,
+          "caption": "Actual DRUM compressor: eight-second input history with gain reduction. The threshold line can be dragged."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Open a built-in Compressor from its instrument or shared-return chain. Choose Meters, Transfer or Activity below the display. Sidechain starts collapsed to give the main controls and waveform more space; click Sidechain > to expand its separate left panel.",
+            "Use Meters for stereo input/output and gain reduction (GR). Input/output bars have one-second peak markers. The numerical maximum stays until you click that reading to reset it.",
+            "Use Transfer to see the input/output curve, threshold and knee. The white dot shows measured peaks. Drag horizontally to change Threshold.",
+            "Use Activity to see eight seconds of real input peak history. Choose GR for the orange reduction trace, measured down from 0 dB, or Output for the green output trace. Drag the blue horizontal line to change Threshold."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Transfer helps set how strongly the compressor acts; Activity shows when it acts. On a drum loop, raise Attack to let the initial transient through, then adjust Release while watching GR recover between hits. Use Meters to check output headroom."
+        },
+        {
+          "type": "p",
+          "text": "Threshold, Ratio, Attack, Release, Output, Knee and Mix are joined by Peak/RMS/Expand, programme-dependent Auto Release, Lin/Log response, 0/1/10 ms Lookahead, Auto Makeup and a filtered external sidechain. Display switches change only the view. Sound controls and display choices save with the effect; older kits load the added processing switches off."
+        },
+        {
+          "type": "p",
+          "text": "Input/output levels use dBFS; GR is dB of attenuation. Expand shows negative GR for gain increase. Mix is the wet percentage; Output is the manual gain after compression. Level match, Bypass and SC listen are temporary listening tools. A/B compares parameter snapshots. The history is a peak activity envelope, not a signed sample oscilloscope."
+        }
+      ]
+    },
+    {
+      "title": "Compressor controls: detection and timing",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Control",
+            "How and why to use it"
+          ],
+          "rows": [
+            [
+              "Threshold / Ratio / Knee",
+              "Set where gain changes, how strongly and how gradually it starts. Ratio ranges from 1:1 to 1000:1 for near-limiting behaviour."
+            ],
+            [
+              "Peak / RMS / Expand",
+              "Peak catches transients; RMS follows a 10 ms stereo energy estimate. Expand raises signals above threshold instead of attenuating them; gain increase is capped at 36 dB before Output."
+            ],
+            [
+              "Attack / Release / Auto Release",
+              "Attack sets reaction speed. Auto Release replaces manual Release with programme-dependent recovery; the manual knob is disabled while Auto is ticked."
+            ],
+            [
+              "Lin / Log",
+              "Lin retains the original amplitude-detector response. Log follows gain change in dB, with faster recovery after heavy gain changes."
+            ],
+            [
+              "Lookahead",
+              "Choose 0, 1 or 10 ms. Audio is delayed while the detector reads ahead. Dry and wet paths stay aligned, and the delay is reported for host compensation."
+            ],
+            [
+              "Output / Auto Makeup / Mix",
+              "Output adds manual gain. Auto Makeup estimates compensation from threshold/ratio/knee, capped at 24 dB; unavailable with External SC or Expand. Mix blends aligned dry and processed audio."
+            ]
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Try Peak with a slower attack to preserve a drum transient, or RMS to smooth a sustained group. Log changes the recovery feel; Auto Release adapts to the material. Lookahead gives the detector advance warning while host compensation keeps other paths aligned."
+        },
+        {
+          "type": "p",
+          "text": "New optional switches start unticked. Existing saved compressors retain their eight original parameter values and use Peak, Lin and 0 ms Lookahead until changed. Output is the renamed manual Makeup knob; its saved value is retained. The new Auto Makeup tick box is separate."
+        },
+        {
+          "type": "p",
+          "text": "This is DRUM’s implementation of the familiar control set, not Ableton’s proprietary compressor model. External sources are DRUM instruments chosen in its chain routing. Arbitrary Live-track sources require host routing support; the plug-in cannot select Live’s private routing points. Lookahead changes timing: let the host update compensation before judging a comparison."
+        }
+      ]
+    },
+    {
+      "title": "Compressor sidechain: choose what drives the detector",
+      "blocks": [
+        {
+          "type": "image",
+          "path": "assets/compressor-sidechain.png",
+          "max_height": 210,
+          "caption": "Expanded Sidechain panel on the left; the main display retains its full width. Click Sidechain again to fold it away without bypassing its saved processing."
+        },
+        {
+          "type": "steps",
+          "items": [
+            "Click Sidechain > to reveal the separate panel. To duck a sound from another drum, choose that instrument in the containing chain card sidechain source menu, then tick External SC. No Input supplies silence to the external detector.",
+            "Use SC Gain to drive the external trigger and SC Mix to blend it with the internal signal. The chain card also has source gain/mix: normally leave those at 0 dB / 100% and make the compressor adjustments here. The trigger is not added to the output.",
+            "Enable SC EQ, then choose Low cut, High cut, Band-pass or Notch, Frequency and Q. These affect the detector, not the main audio. SC low cut is the separate original first-order high-pass for older settings; leave it at 0 unless wanted.",
+            "Tick SC listen to hear the filtered detector while setting it up. Untick to return to compression. Listening is temporary, is not recalled and switches off when the editor closes."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "For a kick-led pumping effect, route Kick into a pad or percussion Compressor, enable External SC, start around 4:1 with a 1-5 ms attack and a 100-250 ms release. Watch Activity/GR recover before the next beat. For a drum group, try RMS, a gentler ratio and Auto Release, then level-match before deciding."
+        },
+        {
+          "type": "p",
+          "text": "Filtering or raising detector gain changes what triggers compression; it does not EQ or amplify the main sound. SC listen deliberately monitors that trigger for setup and is not a mix source. Disable it before judging the final compressor output."
+        },
+        {
+          "type": "p",
+          "text": "Folding the section hides its controls and retains their settings and processing. The expanded/collapsed view saves with the effect. If SC listen is active while folded, the Sidechain button indicates Listen. Closing or hiding the compressor window clears audition."
+        }
+      ]
+    },
+    {
+      "title": "Instrument chains, sidechains and dependencies",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Open Chain and add a built-in or compatible VST3 effect. Reorder the cards to choose signal order; open the plug-in panel for its controls.",
+            "Bypass a card to compare it, or remove it when it is no longer needed. Save chain/preset state deliberately.",
+            "For supported external sidechain effects, select an instrument as source, then set source gain/mix. No Input provides silence to that external sidechain.",
+            "Use Mute source only when the source should drive the sidechain but should not be heard in the kit output."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A kick can make another sound duck without being part of that sound's audio input. Selecting a source and muting it are different decisions; accidentally muting the wrong source can make an otherwise healthy kit seem broken."
+        },
+        {
+          "type": "p",
+          "text": "Missing/unsupported plug-ins are reported; Retry loading is for a dependency that has become available. A chain preset does not install a third-party plug-in. Save settings and complete-instrument export capture live plug-in state, not merely the effect names."
+        },
+        {
+          "type": "p",
+          "text": "DRUM uses a shared graph for independent instrument chains and return routing, including host latency handling. Do not interpret an effect window closing as the effect becoming bypassed. Independent shaped sends bypass the main instrument Chain, then use their chosen shared return chain."
+        },
+        {
+          "type": "p",
+          "text": "Chain and hosted-effect windows open above the DRUM window that launched them. On macOS they are attached to that owner, including a floating DRUM window, so ordinary front/back ordering cannot bury the chain behind its parent."
+        }
+      ]
+    },
+    {
+      "title": "Macros, names and host automation",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Open Macros on the main sound. Name a macro, choose a destination and set minimum/maximum.",
+            "Map the same host macro across several instruments when one gesture should control a kit-wide change.",
+            "Automate the exposed macro in the host. A renamed macro keeps its parameter identity; Live may cache titles until its view refreshes.",
+            "Use envelope timing Unlink when you want to bake a macro-driven main envelope before freely drawing it."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "A single Darker macro can lower cutoffs on several hats while another Room macro raises chosen send levels. Limits keep a performance gesture in a useful musical range."
+        },
+        {
+          "type": "p",
+          "text": "There are 16 host macros. Their names and live values belong to the kit; per-instrument mappings describe what those macros control. A settings-only preset transfers mappings but does not rename the destination kit's macros or set its current global values. Check mappings after transfer."
+        },
+        {
+          "type": "p",
+          "text": "Independent send shaping is stored separately. Main shaping macros are not silently reused to overwrite a send's independent pitch/filter/envelope. Shared mixer/send-level mappings still affect how much audio is delivered. DRUM does not expose every instrument knob as an unlimited set of separate host automation parameters."
+        }
+      ]
+    },
+    {
+      "title": "Notes editor, patterns and MIDI interchange",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Open Notes and create/select a pattern for the active kit. Set a useful loop length, tempo/signature and grid.",
+            "Draw or move notes on the instrument rows; edit note length and velocity. Use selection and the available quantise/duplicate/nudge/humanise tools deliberately.",
+            "Use chance and velocity-deviation lanes for variation. Select notes to limit an operation; otherwise applicable tools may work on the whole pattern.",
+            "Export or drag MIDI to the DAW when ready. Save the kit/pattern as well, retaining DRUM-specific editing information."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The Notes editor is DRUM's own editor, not an embedded Live editor. Instrument rows refer to kit identities, while a standard MIDI file uses note numbers. Reordering the kit changes the mapping you should check before reusing a MIDI file."
+        },
+        {
+          "type": "why",
+          "text": "A small chance variation on a ghost note can make a repeating pattern breathe without randomising the main backbeat. Humanisation is most effective when you can explain which timing or velocity should vary and which should remain firm."
+        },
+        {
+          "type": "p",
+          "text": "MIDI interchange is note-focused. Export cannot preserve all DRUM identity/chance/deviation metadata, and import is not a lossless round trip for arbitrary controller, channel, tempo-map or MPE data. It maps notes to currently assigned kit keys; unmatched keys are skipped/reported. Import replaces the current pattern notes and can be undone. Ableton .alc clips are outside this interchange scope."
+        }
+      ]
+    },
+    {
+      "title": "Setup, performance and healthy sessions",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            "Choose a sample/document root you can back up. Keep sample dependencies available and use portable export for single sounds you move elsewhere. Automatic Live clip remapping starts unticked for a new instance; enable it deliberately when you want clip notes to follow kit reordering. Saved preferences are recalled.",
+            "Set the stereo peak-marker hold time in Setup. Start at one second; shorten it for fast level work or lengthen it to catch occasional transients.",
+            "Use Float Window per instance for the windows you need while changing tracks. Keep Live Auto-Hide on for normal editors.",
+            "Add independent send shaping and hosted effects when they serve a musical purpose, then watch the DAW CPU meter."
+          ]
+        },
+        {
+          "type": "why",
+          "text": "Independent pitch/envelope/filter paths require independent voice processing. Six edited feeds on a busy instrument can cost more CPU than six ordinary level-only feeds. You are buying separation of sound, not a promise that parallel processing is free."
+        },
+        {
+          "type": "p",
+          "text": "The decoder/preview work is kept away from the audio callback where possible, and decoded samples can be reused. A new sample, a genuine graph change or a heavy third-party processor can still cause work that ordinary smoothed fader movement does not."
+        },
+        {
+          "type": "p",
+          "text": "For a demanding kit, reduce unnecessary overlap, remove unused effects, use shared returns sensibly and consider rendering in the DAW. Keep a saved live version before freezing/bouncing. Do not assume that a passing offline regression suite proves every host, device or plug-in combination."
+        }
+      ]
+    },
+    {
+      "title": "Troubleshooting: follow the signal",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Symptom",
+            "Checks and reason"
+          ],
+          "rows": [
+            [
+              "No sound",
+              "Check host MIDI/monitoring, active kit/note map, sample-ready state, instrument/group mute/solo, fader minimum and output receiving track."
+            ],
+            [
+              "Send waveform flat",
+              "Check send level is above off, selected instrument is audible and preview is ready. This is a feed preview, not the wet return."
+            ],
+            [
+              "Send shaping seems to affect everything",
+              "Confirm the menu actually says Send A-F. Changes to a shared return affect every feed; main/shared source stages are not six independent hosted chains."
+            ],
+            [
+              "Effects absent after preset load",
+              "Install the required VST3 and check its format/architecture. Settings files contain state, not the effect binary. Reassign cleared external sidechains."
+            ],
+            [
+              "Unexpected save/open dialog",
+              "Use File for operations. Library/Kit buttons navigate; their right-click menus contain context-specific file actions. Save current work before replacing documents."
+            ],
+            [
+              "Float disappears on track changes",
+              "Check Float is enabled for that instance, matching companion installed and Live settings correct. Keep Auto-Hide on for non-float behaviour."
+            ],
+            [
+              "Buzz or runaway hat",
+              "Stop playback/audition, then isolate the instrument/return chain and check MIDI/choke/voice behaviour and third-party processors. Do not treat simply muting a feed as proof that a processor's existing tail has stopped."
+            ],
+            [
+              "Fader moves but peak stays high",
+              "The numerical maximum is held until clicked/reset. It is a historical measurement, not the current fader value."
+            ],
+            [
+              "Unexpected sound after loading settings",
+              "Preset replaces processing including trim percentages, mixer/output/send settings, macro mappings and chain. Check these against the destination sample and kit."
+            ]
+          ],
+          "widths": [
+            0.29,
+            0.71
+          ]
+        },
+        {
+          "type": "p",
+          "text": "If a problem persists, note the build, host version, sample, selected waveform/send, output destination and exact action. Save a separate minimal reproduction rather than overwriting the working kit."
+        }
+      ]
+    },
+    {
+      "title": "Reference: signal paths, limits and glossary",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": [
+            "Path",
+            "What happens"
+          ],
+          "rows": [
+            [
+              "Main sound",
+              "Sample playback / sound shaping / main instrument Chain / group mixing / chosen output. Attack and modulation use their documented stages."
+            ],
+            [
+              "Unedited local send",
+              "Existing instrument/group post-fader send routing through the instrument split into the shared return."
+            ],
+            [
+              "Independently shaped send",
+              "Separate sample/voice envelope-filter-pitch processing / applicable mixer and send gain / shared return Chain / return mixer/output. Main instrument Chain is bypassed."
+            ],
+            [
+              "Live global return",
+              "DRUM auxiliary output / Live audio receiving track / that track's Live send / Live return."
+            ]
+          ],
+          "widths": [
+            0.28,
+            0.72
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Term",
+            "Meaning"
+          ],
+          "rows": [
+            [
+              "dB / dBFS",
+              "dB is a level ratio; dBFS is measured relative to digital full scale. 0 dB gain is not the same as a 0 dBFS signal peak."
+            ],
+            [
+              "Send / return",
+              "A send feeds an effect path; a return is its processed output mixed back in."
+            ],
+            [
+              "Semitone / cent",
+              "12 semitones per octave; 100 cents per semitone."
+            ],
+            [
+              "Cutoff / Q",
+              "Filter frequency boundary and resonance/bandwidth behaviour."
+            ],
+            [
+              "Peak hold / held maximum",
+              "Brief L/R markers versus the numerical all-time maximum since reset."
+            ],
+            [
+              "Preset / instrument archive",
+              "A processing recipe versus a recipe plus the original sample."
+            ]
+          ],
+          "widths": [
+            0.32,
+            0.68
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Current limits include one sample per instrument, 88 instruments and 16 groups per collection, six local returns, 16 macros and 32 points per envelope. Independent shaping does not add six new hosted instrument chains, multi-layer/round-robin sampling or a large factory library. The current tested deliverable is Mac VST3, not an AU/AAX release."
+        },
+        {
+          "type": "p",
+          "text": "This manual uses actual application-rendered demonstration images. Typography uses embedded Liberation Sans as a portable Segoe-style substitute on macOS. The editable manuscript and version-aware PDF builder are retained in the repository."
+        }
+      ]
+    }
+  ]
+}

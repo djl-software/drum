@@ -1,0 +1,177 @@
+# Development
+
+The build foundation follows Meter: CMake 3.22+, C++20, JUCE 8.0.12, a static MSVC runtime, a VST3 target with an optional standalone development harness, and CTest processor tests.
+
+## Sound editing (0.5, 28 October 2026)
+
+`SoundParameters.h` defines scalar editing fields and metadata shared by validation, schema-5 persistence and the tabbed `SoundEditor`. Legacy schemas 1–4 retain neutral settings. The worker computes waveform peaks, trim/loop boundaries, zero-crossing snapping and normalisation. Rendering uses preallocated voices with three ADSR envelopes, two cascaded stereo TPT filter sections, per-voice LFOs, bounded loops and MIDI-channel pitch bend. Markers/mode/direction/loop are latched at note-on; other edits update voices without changing their playback positions. Disabled LFOs bypass their volume depth, and muted previews cannot release unrelated held sounds.
+
+The processor declares Main plus 15 optional stereo output buses and six optional send buses. It derives buffer offsets from enabled buses, including a mono Main configuration. Sixteen stable `macro1`–`macro16` parameters provide host automation. The audio thread applies instrument-specific mappings to immutable bank settings at block boundaries; gain/balance/base-pitch ramps remain five milliseconds. Other modulation edits are not guaranteed click-free. All variable storage is allocated before processing, and no model locks or file operations occur in the callback. Normalise uses double-precision gain to avoid overflowing on very small floating-point samples.
+
+`EditingTests.cpp` checks trimming/reverse, Gate and Classic release, bidirectional loops, ADSR, voice limits/retrigger, normalise, velocity, pitch envelope/bend, filter response/stability, LFO bypass, muted-preview isolation, macro updates, mono/aux/send offsets, schema migration/rejection, slicing and editor callbacks. The hosted VST3 test also exercises gate note-off, real bus routing and host macro automation. All six page snapshots and the 800×600 layout were inspected. Windows Release VST3/standalone builds and both CTest suites passed; Steinberg validation passed 47/47. Native Live trim/recall/audition evidence and the pending final installed-module update are recorded in `ableton-testing.md`. Native macOS and broader host performance testing remain outstanding.
+
+See `sound-editor.md` for usage, routing semantics, automation scope and the remaining features needed for complete Ableton parity. The sections below preserve validation history for earlier previews.
+
+## Layout
+
+- `Common/src/`: audio processor and editor. Add DSP and parameter/state handling here.
+- `Common/assets/`: embedded DJL branding.
+- `Common/tests/`: processor, state and editor smoke tests.
+- `Common/scripts/`: shared manual tooling.
+- `Windows/scripts/`: Windows build, browser bridge and packaging.
+- `Mac/scripts/`: macOS build and installer scripts.
+- `Common/docs/`: development and dependency notes.
+- `build/`, `build-macos/`, `dist/`, `.local/`: generated files, excluded from Git.
+
+Drum has its own bundle ID `com.djleslieson.drum` and four-character plugin code `DjDr`, distinct from Meter. The manufacturer code remains `DjlS`.
+
+The processor is a MIDI instrument with no audio input and mono/stereo audio output. `IS_SYNTH`, MIDI input and the `Instrument|Drum` VST3 category agree with that layout. The kit/group/instrument model and editor follow the [product specification](product-specification.md). Version 0.3 added asynchronous sample loading and MIDI playback; 0.4 adds per-instrument volume, balance, tuning, mute, solo and choke groups.
+
+VST3 builds by default. `DRUM_BUILD_STANDALONE=ON` enables the optional standalone development harness; a separate product edition comes later.
+
+Windows uses Visual Studio 2022 x64. The macOS script targets universal arm64/x86_64 with Xcode and macOS 11+. Native macOS validation is still required. Packaging creates development artifacts only; installer/signing/release configuration can be added when product requirements are known.
+
+Tests cover MIDI instrument identity, silent empty-engine output at 44.1/48/96 kHz, mono/stereo, zero/short/normal blocks, unsupported audio inputs and outputs, state round trip, malformed state and editor construction. DAW loading and audio-device runtime validation remain separate checks.
+
+## Instrument scaffold validation — 26 October 2026
+
+Windows x64 Release build passed using Visual Studio 2022, JUCE 8.0.12 and the default VST3-only configuration. CTest passed 1/1 processor suite. Steinberg VST3 SDK validator 3.8.1 passed 47 tests with zero failures. The generated module manifest reports `Instrument|Drum`.
+
+These checks validate the scaffold and host interface. They do not validate sample playback, kit management, Ableton session behaviour, or the optional standalone/macOS builds.
+
+## Management model and editor
+
+`KitLibrary` owns a versioned library snapshot behind a lock for UI edits and DAW state operations. Edits apply to a candidate snapshot and publish only after validation. The audio callback uses a separately prepared sample bank and an atomic active-kit epoch; it never reads the locked management snapshot.
+
+The editor polls model and sample-status revisions on the message thread so host restores and completed loads refresh an open window. Management edits and successful sample assignments notify the host that non-parameter state changed. Schema 4 preserves all kits, absolute sample paths and instrument controls. Schemas 1–3 migrate with neutral controls. Sample audio is not embedded.
+
+Management tests exercise capacities, note uniqueness, identity preservation, copying/moving/removal, malformed state, legacy migration, full processor recall and UI callbacks. Layout snapshots cover normal, empty, minimum-size and dense libraries.
+
+### Management validation — 26 October 2026
+
+Windows Release builds of the VST3 and optional review app passed. The expanded CTest suite passed, including direct keyboard entry into the name editor, UI callbacks and round-trip state restoration. Steinberg validator 3.8.1 passed 47 tests with zero failures. Actual editor renders were inspected at 1280×900 and 1080×860, including empty and full 8-kit/16-group/88-instrument states. The review app was opened and example-kit creation, group selection and cancellation of the group-removal confirmation checked in the live window.
+
+Audio generation, sample loading, host automation of sound controls and native macOS validation remain outside this management preview.
+
+## Sample playback implementation (0.3)
+
+`SampleEngine` owns a loader thread, decoded sample cache and immutable active-kit banks. File access, decoding, allocation and reclamation happen on the worker. An atomic published pointer and a single-reader hazard pointer keep banks alive across audio callbacks and sounding voices. The render callback uses 128 fixed voices, raw MIDI event bytes and linear sample-rate conversion, without locks, file access or dynamic allocation. Sample changes stop existing voices at the next bank publication; kit changes and state restores also invalidate the old bank immediately, keeping it silent while the new bank loads. Naming and organisational changes that preserve the bank do not interrupt audio.
+
+Hits respond to MIDI note-on velocity on all channels, at the supplied sample offset. Note-off and velocity-zero note-on do not stop a one-shot. CC 120/123 stop that channel's voices; the UI Stop button stops all voices. The oldest voice is stolen when all 128 are busy. Stereo is preserved, mono is duplicated for stereo output, and stereo is averaged for mono output. A 2 ms end ramp reduces discontinuities at trimmed sample ends. There is no limiter; simultaneous hits can exceed full scale.
+
+Files must be mono/stereo, 8–384 kHz, at most 30 seconds and 64 MiB decoded. Invalid replacements preserve the previous assignment. The active bank accepts at most 512 MiB of unique samples; entries over that limit retain their paths but are silent with an error. The request queue allows eight outstanding loads. Saved absolute references reload on project recall; Replace relinks missing files. Automatic relocation, sample collection, undo and offline-render loading synchronisation remain future work. Allow the Ready status before exporting.
+
+Playback tests cover timing, velocity, overlap, resampling duration, stereo/mono output, audition and panic, invalid/oversized files, switching kits, missing-file recovery, saved-state recall and the voice limit. A separate CTest case loads the built VST3 through JUCE's host, triggers a sample, saves its wrapper state and verifies playback in a new instance. This does not substitute for an Ableton Live session test.
+
+### Playback validation — 26 October 2026
+
+Windows x64 Release VST3 and standalone harness built successfully. CTest passed both suites (2/2), including compiled-VST3 sample output and session recall. Steinberg VST3 SDK validator passed 47 tests with zero failures. Actual editor renders were inspected at normal and minimum sizes. In the running standalone harness, the native Load sample picker loaded a stereo WAV, displayed its filename and duration, changed to Replace and enabled Play. Native Ableton playback/recall and macOS remain unverified.
+
+## Instrument controls and import (0.4)
+
+Render banks now include immutable controls and a sample-generation counter. Control-only publications retain the same samples and generation, allowing voices to keep playing across bank changes. Their buffers remain owned by the new bank. Volume/balance/pitch targets ramp over 5 ms per voice; sample position is preserved. New hits start at the current settings. Mapping/sample changes still stop old voices. A 2 ms fade is used for mute/solo suppression and choke; CC panic and UI Stop remain immediate. Choke assignment is kit-wide and independent of MIDI channel or organisational group. Muted/solo-suppressed triggers cannot choke other voices.
+
+Volume uses dB gain with the minimum silent; stereo balance attenuates the opposite channel and preserves unity at centre. Tuning multiplies the resampling step by `2^(semitones/12)` and changes the reported tail. Multiple solos are additive, with mute taking priority. Controls are snapshot/state values, not host automation parameters yet.
+
+The worker processes one queued import per pass, with at most 88 requests outstanding. New instruments are created only after successful decoding, using one validated model transaction for name, free MIDI note and path. Single-card replacement preserves controls. Bulk drops create instruments in the selected group and reject a selection that exceeds remaining kit capacity. Invalid or unsupported files do not create slots. Files remain external references. Importing Live device presets is outside the audio-sample workflow requested by the user.
+
+`ControlTests.cpp` checks gain and balance, tuning duration, smoothing without retriggering, mute/solo across groups, no resurrection after unmute, choke timing and isolation, self-choking, muted-trigger behaviour, copying, persistence, legacy migration, invalid values, editor callbacks and bulk drop behaviour. Hosted VST3 tests also save and restore non-default controls and verify the resulting channel levels. Native macOS validation and automated DAW parameter lanes remain pending.
+
+The editor scales its workspace below 1080×860 and permits resizing down to 800×600. Initial dimensions are bounded using the primary display work area; the host controls window position. Compact, normal and dense snapshots were inspected. Windows Release builds, both CTest suites and all 47 Steinberg checks passed. Live 12 Suite browser drops were verified with Core Library WAV and AIFF files, including card replacement and a native volume edit. See `ableton-testing.md` for the separate unreadable AIFF browser entry and the remaining host-testing boundary.
+
+## Waveform detail (0.5.1)
+
+The fixed 512-bin absolute-peak overview is replaced by signed per-channel min/max ranges at the current physical display resolution. The loader builds a pyramid of 64-frame blocks and merged levels; exact range queries inspect at most 126 raw edge samples plus cached blocks. Cache storage is approximately 6.25% of decoded audio and counts towards the active bank's 512 MiB limit. The UI retains only its selected immutable sample; status lookup stores weak references. Sample reclamation remains off the audio callback, on the loader or UI thread.
+
+Paths are cached until sample, view, size or display resolution changes. At close zoom the renderer connects individual source samples, down to a 32-frame view. Stereo lanes share the same amplitude scale. Zoom and pan only affect the view; trim markers still use original-file coordinates. New instruments or replacement samples reset the view, while ordinary control edits preserve it. No saved-state schema or playback changes are required.
+
+`WaveformTests.cpp` compares cached extrema against raw audio across block boundaries, odd lengths, both channels, DC offsets and single-frame impulses. It covers a 30-second 384 kHz source, deep zoom, pointer anchoring, scrolling, marker edits, Fit, resizing and replacing samples while old display data remains retained. Tests render actual normal, compact, zoomed and 2x-resolution editor images using synthetic audio.
+
+Windows x64 Release VST3 and standalone harness builds passed on 28 October 2026. CTest passed 2/2 suites, including waveform regressions and compiled-VST3 playback/recall. Steinberg validation passed 47/47. The full waveform, 128x transient view, compact layout and 2x-resolution render were inspected. The tested VST3 was installed with Live closed; this patch has not been reopened in a native Live session.
+
+## Persistent edited waveform (0.6)
+
+The waveform is a sibling of the controls viewport, so tab changes and scrolling preserve its position. Source keeps original-file marker coordinates; Edited and Send views use rendered output time and disable marker dragging. Edited amplitude is fixed at ±1 rather than normalised per render. View choice and zoom are editor-local, with no saved-state changes.
+
+`SampleEngine::renderPreview` creates an isolated, non-loading engine on a background worker and reuses the actual control preparation and voice renderer. It shares immutable decoded input without rereading files, and never touches the live engine's voices, banks, MIDI or output. One-hit previews use the manual audition gate/velocity, current macro values, and atomically published host rate/tempo. Source waveform preparation and playback behaviour remain unchanged. Each preview result is bounded to 30 seconds / 2.88 million stereo frames plus its extrema cache; long results carry a truncation flag. The renderer checks cancellation every 512 frames.
+
+`SoundPreview` owns a single worker per editor, compares complete input snapshots, cancels obsolete requests and publishes only the latest generation. The UI polls results at 15 Hz, preserving the existing waveform with an Updating label while a replacement is pending. Closing the sound panel cancels the request; destroying the editor joins the worker. DSP, audio-buffer allocation and peak calculation never occur in paint or the live audio callback.
+
+`PreviewTests.cpp` compares preview output sample-for-sample with real audition across trim, reverse, snapping, normalise, tuning, envelopes, filtering, LFOs and macros at 44.1/48/96 kHz. It also checks gain/level visibility, send levels, mute, cancellation, duration bounds, latest-result publication, all six tabs, pinned scrolling, compact layout and pixel changes after envelope/filter/host-macro edits.
+
+Windows x64 Release VST3 and standalone builds passed on 28 October 2026. CTest passed 2/2 suites and Steinberg validation passed 47/47. Actual editor renders were inspected across every tab, including changed envelopes/filters and the compact macro layout. Version 0.6.0 was installed after Live closed and verified against the tested bundle. Native Live review of this version remains pending.
+
+## Waveform vertical zoom and height (0.6.1)
+
+Waveform display magnification ranges from 0.25x to 128x, independent of audio gain, cached preview data and horizontal zoom. Fit Y queries exact extrema in the current visible range for the displayed channels and selects a suitable power-of-two scale once; it does not track subsequent control edits. Each lane clamps its visual bounds independently, and the peak readout continues to report actual signal level.
+
+The waveform defaults to 280 logical pixels, with a draggable divider and a minimum 160-pixel control viewport at supported editor sizes. Auto channel layout collapses mono or identical L/R signals into one lane. Equality is computed when the immutable waveform cache is built on a worker, never by scanning source audio in paint. Any difference, including opposite polarity or a very small sample difference, preserves stereo. Left/right inspection selects a display channel without averaging or modifying the audio.
+
+Regression tests cover channel identity, opposite polarity, tiny stereo differences, quiet-signal magnification, Fit Y, vertical-scale retention across tabs and edits, left/right selection, divider resizing, compact controls, mono output display, and unchanged instrument state after display operations. Synthetic editor renders cover quiet before/after zoom, one-channel inspection, mono preview and compact sizing.
+
+Windows x64 Release VST3 and standalone builds passed on 28 October 2026. CTest passed 2/2 suites and Steinberg validation passed 47/47. Quiet stereo at Y 16x, mono at Y 32x and compact display renders were inspected. The tested 0.6.1 bundle was installed with Live closed and verified file-by-file. Native Live review remains pending.
+
+## Source channels and attack layer (0.7)
+
+Schema 6 adds per-instrument mono summing and an optional generated attack. Schema 5 retains all old controls with Stereo/attack Off defaults; older migrations remain supported. Validation rejects missing, nonfinite, out-of-range and fractional enum values before replacing state. Copies and slices inherit the new controls through the same sound struct.
+
+Mono averages source L/R before the filter, with a per-voice 5 ms crossfade for live changes. New notes use the selected setting immediately. Normalisation remains based on the original source peak. Pan and stereo modulation follow the fold-down. Opposite-polarity source channels can cancel as expected.
+
+Click uses a sine plus second harmonic; Pulse uses a sine; Noise uses a per-voice deterministic generator and one-pole low-pass. A 0.2 ms onset and finite exponentially decaying window bound the transient. Tone is capped below Nyquist, including the Click harmonic. Attack gain changes ramp over 5 ms; the layer runs once per note, independent of loop wraps and source pitch. It is mixed after the sample filter and before the shared amplitude/velocity/LFO-volume, mixer, release/choke and routing stages. Voice storage is fixed, with no added callback allocation, locking or file access. Default Off leaves existing playback unchanged.
+
+The shared preview renderer includes the new DSP. The seventh editor tab exposes the attack controls; the Sample page exposes Source channels. Envelopes/LFO help text now spells out the conditions needed to hear modulation. Native Live devices still require output routing into Live tracks; no nested VST3 host is included.
+
+Windows x64 Release VST3 and standalone builds passed on 28 October 2026. CTest passed 2/2 suites and Steinberg validation passed 47/47. Tests cover channel averaging/cancellation, exact mono identity, live crossfade, all attack types, tone/decay, bounded tails, mute/sends, deterministic repeat hits, schema migration and invalid-state rejection. Preview and actual audition match at 44.1/48/96 kHz with mono and attack enabled. The compiled VST3 test compares the new DSP and sends against preview samples before and after recall into a fresh instance. UI tests cover all seven tabs and waveform changes for mono, attack, LFO and pitch; normal/compact renders were inspected. The installed bundle matches the tested build file-by-file. Native Live review of 0.7 remains pending.
+
+## Draggable ADSR graphs (0.8)
+
+`EnvelopeEditor` displays a held-note diagram using the existing amplitude, pitch or filter ADSR values. Time is linear, with independent 10 ms–80 s view bounds and a fixed illustrative 250 ms sustain segment. The automatic scale fits the whole curve outside gestures and is frozen while dragging. Negative pitch/filter amounts invert the vertical axis. Separate grips keep coincident stages reachable; line hit testing supplies the same edits. Keyboard edits retain the numeric controls as an alternative.
+
+The two envelope-page graphs and the filter graph live at the top of the scrolling control viewport; the existing waveform remains pinned. Gestures write the affected fields in one validated library transaction, notify the host and refresh the normal controls/preview. Selection changes cancel pending gestures. No DSP, state schema, host parameter or output-bus changes are required.
+
+Effective macro values are applied in the same last-mapping-wins order as playback. Mapped stages display their effective values but reject direct edits, preserving stored base values. Other stages remain editable. Inactive envelopes can be prepared without implicitly enabling processing; Classic/filter activation is a separate explicit button.
+
+Windows x64 Release VST3 and standalone builds passed on 29 October 2026. CTest passed 2/2 suites and Steinberg validation passed 47/47. `EnvelopeTests.cpp` checks node and line drags, simultaneous decay/sustain changes, numeric-control sync, Edited waveform updates, bounds, negative modulation, keyboard editing, view-only zoom, reset, macro automation/locking, selection changes during a gesture and saved-state recall. Actual amplitude/pitch and filter editor renders were inspected; compact graph height was adjusted to keep value labels visible. The installed bundle matches the tested build file-by-file. Native Live review of 0.8 remains pending.
+
+
+## Free envelopes, tonal readout and manual (0.9)
+
+Schema 7 stores up to three fixed-capacity 32-point envelopes per instrument. Quadratic curves include a movable horizontal control position; exact subdivision preserves the original curve when inserting a point. A hold index separates note-on time from release-relative time. The real-time VoiceEnvelope retains JUCE ADSR for legacy shapes, uses fixed storage for custom curves, releases from the current level and smooths live shape changes. Custom amplitude timing follows existing macro targets. State input is bounded at 32 MiB for dense libraries.
+
+The GUI supports add, XY drag, delete, curve drag and hold selection. Pitch graph gestures enable a default +12 st depth only when needed and not macro-controlled; insertion alone preserves the sound. Amount controls are visible in graph headers. Selection changes cancel gestures; time mappings lock graph edits.
+
+Tonal analysis runs on the cancellable preview worker, using a bounded audio segment. Pitch correlation and conservative spectral key estimates are reported separately from MIDI assignment. Stable single pitched hits keep musical key uncertain. Manual key/Camelot labels are saved metadata, not pitch correction.
+
+Windows Release build passed; CTest 2/2 and Steinberg validator 47/47 passed on 29 October 2026. Checks include exact curve subdivision, early release at 44.1/48/96 kHz, nonzero end fade, pitch/chord/noise analysis, gesture wiring, amount activation, waveform changes, timing macros, malformed state and migration. Preview matches actual DSP with custom shapes; the compiled VST3 compares curved-envelope output and sends before/after fresh-instance recall. Normal/compact actual editor captures were inspected. Native Live interaction with 0.9 remains for user review.
+
+Build the 37-page manual with `python Common/scripts/build-user-manual.py`; run `python Common/scripts/check-manual-layout.py` to verify contents links/text bounds and render every page for inspection. It uses ReportLab, Pillow, pypdf, pdfplumber and pypdfium2 with Windows Segoe UI fonts. The JSON manuscript and current screenshots are in `docs/manual/`; range tables derive from SoundParameters.h. The reusable renderer and instructions are versioned under `skills/djl-manual-layout/` and installed in the user's Codex skills folder.
+
+
+## Per-instrument VST3 hosting (0.12.0)
+
+`EffectRack` owns a JUCE AudioProcessorGraph with 88 stereo instrument paths. Serial effect nodes connect each path to a shared output node so graph delay compensation also aligns dry instruments. SampleEngine renders voices into preallocated per-instrument buffers while chains exist, then routes processed audio to the existing outputs and post-chain sends. Blocks above the prepared size are chunked without moving MIDI offsets. Empty libraries retain the direct rendering path.
+
+Graph edits, discovery, instance creation and editor windows run on the message thread. JUCE publishes graph render plans to audio; state capture uses per-plugin callback locks. Active-kit changes capture settings before retiring nodes. Schema 11 persists descriptions, bypass and bounded base64 state. Clone operations generate new slot IDs. Missing plugins retain settings and dry pass-through. Mono-only effects are downmixed and duplicated; auxiliary sidechains are disabled. Hosted latency is reported to the parent host, and effect tails continue after source voices finish.
+
+The eighth SoundEditor tab provides module-folder discovery, search, drag/file insertion, card reorder, bypass, deletion, retry and native editors. Files are enumerated without executing every module; selected modules are discovered in-process. There is no crash-isolated scanner, direct hosted-parameter automation, native Live device import or guaranteed Live-browser drag protocol. Waveforms/tonal analysis remain before Chain and say so in the editor. Hosted effects can process the attack layer too.
+
+CTest now includes `vst3_instrument_chains`, using the real test-only `Drum Chain Test Effect.vst3`. It checks ordered noncommutative processing, isolated routing, post-chain sends, bypass, copied state, kit switching, missing/corrupt state, latency including dry paths, oversized blocks, tails, UI drag/reorder, editor removal and compiled Drum VST3 hosting/recall. The fixture is excluded from packages. Third-party compatibility and hands-on Live review remain separate from these deterministic checks.
+
+Windows Release validation: all three CTest suites and 47 Steinberg validator checks passed. Optional drum_tests --chain-smoke <module.vst3> checks also loaded, processed and recalled the installed DJL Meter and FabFilter Pro-Q 4. This is a compatibility smoke check, not exhaustive plugin certification. The manual has 40 pages, 38 bookmarks and 44 links.
+
+
+## Full-width Chain and Live drag investigation (0.12.1)
+
+Removed the module browser, search, folder scanning and folder preferences from ChainEditor. A small native file chooser remains beside the full-width flow. Module file drops, reorder, bypass, removal and state are unchanged. UI tests assert the list is absent, the flow begins at x=0, and repeated external module drops still insert independent effects.
+
+A user-performed drag from the installed Live Plug-ins list into a Windows OLE drop probe reached DragEnter but exported no IDataObject formats. Direct queries for FileDrop, FileNameW/FileName, UnicodeText/Text, URL, shell item IDs and virtual-file descriptors/contents all returned absent/null. This is evidence that the standard external-drop route supplies no usable plugin identity on this installation. No Live-specific bridge or private-process inspection has been added, and the product does not claim direct Live-browser drag support.
+
+## Windows Live browser adapter (0.12.2)
+
+The standard external IDataObject contains no exported formats on Live 12.4.15. Both cached and freshly enumerated Python BrowserItem.is_selected returned false for all 124 catalogue entries. The read-only diagnostic Control Surface is not required by the product.
+
+A separate .NET Framework Windows helper observes left-button drag origins only within the owning Live process, reads the ContentBrowser row through UI Automation and queries Live-plugins-1.db read-only using bound SQL. It accepts enabled VST3 audio-effect records with existing absolute module paths. Multiple matches remain explicit choices. Names alone do not import Live presets or native devices. Browser accessibility and the database schema are host-version dependencies.
+
+The editor supplies an instance-specific temporary folder, parent HWND, visible drop bounds and kit/instrument context. A native child drop surface appears only during a recognised drag. It returns a context-tagged event, then hides. The editor rejects stale contexts and stops the owned helper on destruction. Audio processing never calls accessibility, database or IPC APIs. No network service, input injection or persistent Control Surface configuration is used.
+
+The resolver fixture tests VST3/effect filtering, disabled and missing modules, Unicode names, ambiguous matches, SQL binding and unchanged database bytes. Live-host drag acceptance remains a manual test.

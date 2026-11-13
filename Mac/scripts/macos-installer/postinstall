@@ -1,0 +1,37 @@
+#!/bin/bash
+set -e
+# Install the existing Control Surface integration into Live's actual User Library.
+scriptSource='/Library/Application Support/DJL/Drum/Remote Scripts/DJL_Drum_Link'
+consoleUser=$(/usr/bin/stat -f '%Su' /dev/console)
+case "$consoleUser" in root|loginwindow|_mbsetupuser|'') exit 0 ;; esac
+userHome=$(/usr/bin/dscl . -read "/Users/$consoleUser" NFSHomeDirectory | /usr/bin/sed 's/^NFSHomeDirectory: //')
+latestConfig=''
+for config in "$userHome/Library/Preferences/Ableton"/Live*/Library.cfg; do
+    if [[ -f "$config" && ( -z "$latestConfig" || "$config" -nt "$latestConfig" ) ]]; then latestConfig="$config"; fi
+done
+libraryBase=''
+libraryName=''
+if [[ -n "$latestConfig" ]]; then
+    libraryBase=$(/usr/bin/xmllint --xpath 'string(/Ableton/ContentLibrary/UserLibrary/LibraryProject/ProjectPath/@Value)' "$latestConfig" 2>/dev/null || true)
+    libraryName=$(/usr/bin/xmllint --xpath 'string(/Ableton/ContentLibrary/UserLibrary/LibraryProject/ProjectName/@Value)' "$latestConfig" 2>/dev/null || true)
+fi
+if [[ "$libraryBase" != /* || -z "$libraryName" ]]; then
+    libraryBase="$userHome/Music/Ableton"
+    libraryName='User Library'
+fi
+remoteScripts="$libraryBase/$libraryName/Remote Scripts"
+target="$remoteScripts/DJL_Drum_Link"
+if [[ -d "$target" ]]; then
+    backup="$userHome/Library/Application Support/DJL/Drum/Script Backups/$(/bin/date +%Y%m%d-%H%M%S)/DJL_Drum_Link"
+    /bin/mkdir -p "$(/usr/bin/dirname "$backup")"
+    /usr/bin/ditto "$target" "$backup"
+    /usr/sbin/chown -R "$consoleUser" "$userHome/Library/Application Support/DJL/Drum/Script Backups"
+fi
+if [[ ! -d "$remoteScripts" ]]; then
+    /bin/mkdir -p "$remoteScripts"
+    /usr/sbin/chown "$consoleUser" "$remoteScripts"
+fi
+/usr/bin/ditto "$scriptSource" "$target"
+/usr/sbin/chown -R "$consoleUser" "$target"
+echo "Installed DJL Drum Link into $target. Restart Live to refresh Control Surfaces."
+exit 0

@@ -1,0 +1,97 @@
+#include "BuiltinEffects.h"
+#include "BuiltinGraph.h"
+#include "BrowserIdentity.h"
+#include <stdexcept>
+namespace {
+void require(bool condition,const char* message){if(!condition)throw std::runtime_error(message);}
+bool sameBand(const drum::EqBand& a,const drum::EqBand& b){
+    return a.enabled==b.enabled && a.type==b.type && a.slope==b.slope
+        && std::abs(a.frequency-b.frequency)<.02 && std::abs(a.gain-b.gain)<.001 && std::abs(a.q-b.q)<.001;
+}
+bool sameEq(const drum::Equalizer& a,const drum::Equalizer& b){
+    if(a.enabled!=b.enabled || std::abs(a.output-b.output)>=.001)return false;
+    for(size_t n=0;n<a.bands.size();++n)if(!sameBand(a.bands[n],b.bands[n]))return false;
+    return true;
+}
+void set(drum::BuiltinEffect& p,int index,float value){auto* parameter=p.controls[(size_t)index];parameter->setValueNotifyingHost(parameter->convertTo0to1(value));}
+juce::AudioBuffer<float> signal(){juce::AudioBuffer<float> b(2,4096);for(int n=0;n<b.getNumSamples();++n){b.setSample(0,n,2.f*std::sin((float)n*.13f));b.setSample(1,n,b.getSample(0,n)*.5f);}return b;}
+}
+void runStereoWidthRegressionTests(){
+    using namespace drum;
+    juce::MidiBuffer midi;
+    // At an exact delay boundary, wrapping a tiny negative floating-point
+    // position can round up to the buffer length. A left delay then reads the
+    // start of the right channel; a right delay reads unrelated heap memory.
+    for(double rate:{44100.,48000.,96000.})for(float delay:{0.f,9.f,10.f,10.1f,17.f,30.f})for(int side:{0,1}){
+        BuiltinEffect width(BuiltinKind::stereoWidth);
+        set(width,0,delay);set(width,1,(float)side);set(width,2,0);set(width,5,100);
+        width.prepareToPlay(rate,128);
+        for(int block=0;block<80;++block){
+            juce::AudioBuffer<float> audio(2,128);audio.clear();
+            if(block==0)audio.setSample(1-side,0,1);
+            width.processBlock(audio,midi);
+            require(audio.getMagnitude(side,0,128)==0,"Stereo Width delay reads across the channel boundary");
+            for(int n=0;n<128;++n)require(audio.getSample(1-side,n)==(block==0 && n==0?1.f:0.f),"Stereo Width changed the undelayed channel");
+        }
+        width.reset();
+        const double frames=(double)width.controls[0]->get()*.001*rate;
+        const int arrival=(int)frames;const float part=(float)(frames-arrival);
+        for(int block=0;block<80;++block){
+            juce::AudioBuffer<float> audio(2,128);audio.clear();
+            if(block==0)audio.setSample(side,0,1);
+            width.processBlock(audio,midi);
+            for(int n=0;n<128;++n){const int frame=block*128+n;const float expected=frame==arrival?1-part:frame==arrival+1?part:0;
+                require(std::abs(audio.getSample(side,n)-expected)<1e-5f,"Stereo Width delay impulse timing changed");}
+            require(audio.getMagnitude(1-side,0,128)==0,"Stereo Width leaked the delayed impulse into the other channel");
+        }
+        width.reset();
+        juce::AudioBuffer<float> silence(2,128);silence.clear();width.processBlock(silence,midi);
+        require(silence.getMagnitude(0,128)==0,"Stereo Width produced audio after reset");
+    }
+}
+void runBuiltinTests(){
+    runStereoWidthRegressionTests();
+    using namespace drum;juce::MidiBuffer midi;
+    require(!browserMatchNeedsChoice("ValhallaVintageVerb",1),"Unique VST3 still requires confirmation");
+    require(browserMatchNeedsChoice("ValhallaVintageVerb",2) && browserMatchNeedsChoice(" limiter ",1),"Ambiguous browser name skipped chooser");
+    SpectrumTap tap;tap.rate.store(48000);tap.enabled.store(true);auto analyserStorage=std::make_unique<SpectrumAnalysis>();auto& analyser=*analyserStorage;
+    for(int n=0;n<SpectrumAnalysis::size;++n){float v=.5f*std::sin(juce::MathConstants<float>::twoPi*32*n/SpectrumAnalysis::size);tap.push(v,-v);}
+    require(analyser.update(tap) && std::abs(analyser.db[32]+6.0206f)<.2f,"Spectrum calibration or stereo phase handling incorrect");
+    SpectrumTap burstTap;burstTap.enabled.store(true);auto burstStorage=std::make_unique<SpectrumAnalysis>();auto& burst=*burstStorage;
+    for(int n=0;n<24576;++n){float v=n<4096?.5f*std::sin(juce::MathConstants<float>::twoPi*128*n/SpectrumAnalysis::size):0;burstTap.push(v,v);}
+    require(burst.update(burstTap) && burst.db[128]>-20,"EQ spectrum lost a short hit before a queued silent tail");
+    SpectrumTap shortTap;shortTap.enabled.store(true);auto shortHitStorage=std::make_unique<SpectrumAnalysis>();auto& shortHit=*shortHitStorage;
+    for(int n=0;n<1024;++n)shortTap.push(.5f,.5f);
+    require(shortHit.update(shortTap) && *std::max_element(shortHit.db.begin(),shortHit.db.end())>-60,"EQ spectrum waits for a full window before displaying short hits");
+    BuiltinEffect filtered(BuiltinKind::eq);auto spectrumEq=filtered.equalizer();spectrumEq.bands[3].enabled=true;spectrumEq.bands[3].frequency=750;spectrumEq.bands[3].gain=-18;spectrumEq.bands[3].q=2;filtered.setEqualizer(spectrumEq);filtered.prepareToPlay(48000,4096);filtered.spectrum->enabled.store(true);juce::AudioBuffer<float> tone(2,16384);for(int n=0;n<16384;++n)for(int c=0;c<2;++c)tone.setSample(c,n,.5f*std::sin(juce::MathConstants<float>::twoPi*750*n/48000));filtered.processBlock(tone,midi);auto afterStorage=std::make_unique<SpectrumAnalysis>();auto& after=*afterStorage;require(after.update(*filtered.spectrum) && after.db[128]<analyser.db[32]-16,"Spectrum was not taken after EQ processing");
+    tap.enabled.store(false);tap.push(1,1);require(tap.consume([](float,float){})==0,"Disabled spectrum still captured audio");
+    for(double rate:{44100.,48000.,96000.})for(int type=0;type<8;++type){BuiltinEffect p((BuiltinKind)type);p.prepareToPlay(rate,4096);auto audio=signal();p.processBlock(audio,midi);for(int c=0;c<2;++c)for(int n=0;n<audio.getNumSamples();++n)require(std::isfinite(audio.getSample(c,n)),"Built-in emitted nonfinite audio");p.reset();audio.clear();p.processBlock(audio,midi);require(audio.getMagnitude(0,4096)==0,"Built-in generated sound after reset");}
+    require(isBuiltin(builtinDescription(BuiltinKind::stereoWidth)) && createBuiltin(builtinDescription(BuiltinKind::stereoWidth))!=nullptr,"Stereo Width unavailable in chain factory");
+    for(double rate:{44100.,48000.,96000.}){BuiltinEffect width(BuiltinKind::stereoWidth);width.prepareToPlay(rate,4096);auto input=signal(),copy=input; width.processBlock(input,midi);for(int c=0;c<2;++c)for(int n=0;n<4096;++n)require(input.getSample(c,n)==copy.getSample(c,n),"Default Stereo Width alters audio");}
+    BuiltinEffect haas(BuiltinKind::stereoWidth);set(haas,0,10);set(haas,2,0);set(haas,5,100);haas.prepareToPlay(48000,1024);juce::AudioBuffer<float> impulse(2,1024);impulse.clear();impulse.setSample(0,0,1);impulse.setSample(1,0,1);haas.processBlock(impulse,midi);require(impulse.getSample(0,0)==1 && std::abs(impulse.getSample(1,480)-1)<1e-5 && impulse.getSample(1,0)==0,"Haas delay timing or side incorrect");
+    set(haas,1,0);haas.prepareToPlay(48000,1024);impulse.clear();impulse.setSample(0,0,1);impulse.setSample(1,0,1);haas.processBlock(impulse,midi);require(impulse.getSample(1,0)==1 && std::abs(impulse.getSample(0,480)-1)<1e-5,"Left Haas side failed");
+    set(haas,5,0);set(haas,4,100);haas.prepareToPlay(48000,1024);impulse.clear();impulse.setSample(0,0,1);impulse.setSample(1,0,1);haas.processBlock(impulse,midi);require(std::abs(impulse.getSample(0,0))<1e-6 && impulse.getSample(1,0)==1,"Width pan cannot position sound");
+    set(haas,4,0);haas.prepareToPlay(48000,4096);auto stereo=signal();haas.monoCheck.store(true);haas.processBlock(stereo,midi);for(int n=512;n<4096;++n)require(stereo.getSample(0,n)==stereo.getSample(1,n),"Mono audition does not sum output");
+    juce::MemoryBlock widthState;haas.getStateInformation(widthState);BuiltinEffect widthRecall(BuiltinKind::stereoWidth);widthRecall.setStateInformation(widthState.getData(),(int)widthState.getSize());require(!widthRecall.monoCheck.load() && widthRecall.controls[0]->get()==10,"Mono audition persisted or width settings lost");
+    BuiltinEffect protectedWidth(BuiltinKind::stereoWidth),unprotectedWidth(BuiltinKind::stereoWidth);for(auto* effect:{&protectedWidth,&unprotectedWidth}){set(*effect,3,500);set(*effect,5,100);effect->prepareToPlay(48000,48000);}set(unprotectedWidth,2,0);unprotectedWidth.prepareToPlay(48000,48000);juce::AudioBuffer<float> bass(2,48000);for(int n=0;n<48000;++n){float v=.5f*std::sin(juce::MathConstants<float>::twoPi*50*n/48000);bass.setSample(0,n,v);bass.setSample(1,n,v);}auto bassCopy=bass;protectedWidth.processBlock(bass,midi);unprotectedWidth.processBlock(bassCopy,midi);double narrow=0,wide=0;for(int n=10000;n<48000;++n){narrow+=std::pow(bass.getSample(0,n)-bass.getSample(1,n),2);wide+=std::pow(bassCopy.getSample(0,n)-bassCopy.getSample(1,n),2);}require(narrow<wide*.1,"Bass protection does not keep low frequencies centred");require(unprotectedWidth.correlation.load()<-.9f && unprotectedWidth.monoChange.load()<-15,"Live mono check failed to detect cancellation");
+    BuiltinEffect limiter(BuiltinKind::limiter);set(limiter,1,-6);limiter.prepareToPlay(48000,4096);auto audio=signal();limiter.processBlock(audio,midi);require(audio.getMagnitude(0,4096)<=juce::Decibels::decibelsToGain(-6.f)+1e-6f,"Limiter exceeded ceiling");for(int n=0;n<4096;++n)require(std::abs(audio.getSample(0,n)*.5f-audio.getSample(1,n))<1e-6f,"Limiter broke stereo linking");require(limiter.reduction.load()>5,"Limiter gain reduction missing");
+    BuiltinEffect clip(BuiltinKind::clipper);set(clip,1,-3);clip.prepareToPlay(48000,4096);audio=signal();clip.processBlock(audio,midi);require(clip.getLatencySamples()>0,"Clipper oversampling latency missing");require(audio.getMagnitude(0,4096)<=juce::Decibels::decibelsToGain(-3.f)+1e-6f,"Clipper exceeded sample ceiling");
+    for(float pan:{-100.f,0.f,100.f}){BuiltinEffect balance(BuiltinKind::utility);set(balance,5,pan);balance.prepareToPlay(48000,2048);juce::AudioBuffer<float> stereo(2,2048);for(int n=0;n<2048;++n){stereo.setSample(0,n,.25f);stereo.setSample(1,n,.5f);}balance.processBlock(stereo,midi);require(std::abs(stereo.getSample(0,1000)-.25f*juce::jmin(1.f,1-pan*.01f))<1e-6f && std::abs(stereo.getSample(1,1000)-.5f*juce::jmin(1.f,1+pan*.01f))<1e-6f,"Utility pan centre or end stops incorrect");}
+    {BuiltinEffect balance(BuiltinKind::utility);set(balance,0,-9);set(balance,1,120);set(balance,5,-35);juce::MemoryBlock saved;balance.getStateInformation(saved);BuiltinEffect recalled(BuiltinKind::utility);recalled.setStateInformation(saved.getData(),(int)saved.getSize());require(std::abs(recalled.controls[5]->get()+35)<.001f,"Utility pan not recalled");auto legacy=juce::AudioProcessor::getXmlFromBinary(saved.getData(),(int)saved.getSize());legacy->setAttribute("version",3);legacy->removeAttribute("p5");juce::MemoryBlock old;juce::AudioProcessor::copyXmlToBinary(*legacy,old);recalled.setStateInformation(old.getData(),(int)old.getSize());require(std::abs(recalled.controls[0]->get()+9)<.001f && std::abs(recalled.controls[1]->get()-120)<.001f && recalled.controls[5]->get()==0,"Old Utility state changed existing values or did not centre new Pan");}
+    BuiltinEffect utility(BuiltinKind::utility);set(utility,0,-6);set(utility,1,0);utility.prepareToPlay(48000,4096);audio=signal();auto original=audio;utility.processBlock(audio,midi);for(int n=0;n<4096;++n){float expected=(original.getSample(0,n)+original.getSample(1,n))*.5f*juce::Decibels::decibelsToGain(-6.f);require(std::abs(audio.getSample(0,n)-expected)<1e-6f && audio.getSample(0,n)==audio.getSample(1,n),"Utility mono/gain incorrect");}
+    BuiltinEffect compressor(BuiltinKind::compressor);compressor.prepareToPlay(48000,4096);for(int c=0;c<2;++c)for(int n=0;n<4096;++n)audio.setSample(c,n,1);compressor.processBlock(audio,midi);require(compressor.reduction.load()>12 && audio.getSample(0,4095)<.3f,"Compressor failed steady-state reduction");
+    BuiltinEffect gate(BuiltinKind::gate);gate.prepareToPlay(48000,4096);for(int c=0;c<2;++c)for(int n=0;n<4096;++n)audio.setSample(c,n,.0001f);gate.processBlock(audio,midi);require(audio.getMagnitude(0,4096)<.000001f,"Gate leaked below-threshold signal");for(int c=0;c<2;++c)for(int n=0;n<4096;++n)audio.setSample(c,n,1);gate.processBlock(audio,midi);require(audio.getSample(0,4095)>.9f,"Gate failed to open");
+    BuiltinEffect transient(BuiltinKind::transient);transient.prepareToPlay(48000,4096);audio=signal();original=audio;transient.processBlock(audio,midi);for(int c=0;c<2;++c)for(int n=0;n<4096;++n)require(audio.getSample(c,n)==original.getSample(c,n),"Neutral transient settings changed audio");
+    BuiltinEffect eq(BuiltinKind::eq);Equalizer settings;settings.enabled=true;settings.output=-3;settings.bands[2].enabled=true;settings.bands[2].gain=-60;settings.bands[15]={true,6,8000,0,.70710678,72};eq.setEqualizer(settings);require(eq.equalizer().bands[2].gain==-60,"Chain EQ clamped deep cut");settings=eq.equalizer();eq.prepareToPlay(48000,4096);VoiceEqualizer reference;reference.reset(settings,48000);audio=signal();auto expected=audio;for(int n=0;n<4096;++n)reference.process(expected.getWritePointer(0)[n],expected.getWritePointer(1)[n]);eq.processBlock(audio,midi);for(int c=0;c<2;++c)for(int n=0;n<4096;++n)require(audio.getSample(c,n)==expected.getSample(c,n),"Chain EQ differs from sound-editor EQ");
+    juce::MemoryBlock state;eq.getStateInformation(state);BuiltinEffect recalled(BuiltinKind::eq);recalled.setStateInformation(state.getData(),(int)state.getSize());require(sameEq(recalled.equalizer(),settings),"Chain EQ failed state round trip");recalled.resetParameters();require(eq.equalizer()==settings && recalled.equalizer()!=settings,"EQ instances share settings");
+    auto factory=factoryChain();require(factory.empty(),"Factory chain must preserve original audio");
+    auto file=juce::File::getCurrentWorkingDirectory().getChildFile("builtin-preset-test.drumchain");auto d=builtinDescription(BuiltinKind::eq);factory.push_back({juce::Uuid().toString(),d.createXml()->toString(),state.toBase64Encoding(),false});require(saveChain(file,factory),"Preset save failed");auto restored=loadChain(file);require(restored && restored->size()==1 && (*restored)[0].state==factory[0].state,"Preset recall failed");require((*restored)[0].id!=factory[0].id,"Preset reused slot identity");file.deleteFile();
+    auto invalid=d;invalid.fileOrIdentifier="drum:effect:999";require(!createBuiltin(invalid),"Unknown built-in accepted");
+    auto oldEq=juce::AudioProcessor::getXmlFromBinary(state.getData(),(int)state.getSize());require(oldEq!=nullptr,"Missing EQ state XML");oldEq->setAttribute("version",1);for(int i=42;i<98;++i)oldEq->removeAttribute("p"+juce::String(i));juce::MemoryBlock legacyEq;juce::AudioProcessor::copyXmlToBinary(*oldEq,legacyEq);BuiltinEffect oldRecall(BuiltinKind::eq);oldRecall.setStateInformation(legacyEq.getData(),(int)legacyEq.getSize());for(int n=0;n<8;++n)require(sameBand(oldRecall.equalizer().bands[n],settings.bands[n]),"Legacy chain EQ changed existing bands");for(int n=8;n<16;++n)require(!oldRecall.equalizer().bands[n].enabled,"Legacy chain enabled new bands");
+    BuiltinEffect graphEffect(BuiltinKind::compressor);BuiltinGraph graph(graphEffect);graph.setSize(600,210);const auto now=juce::Time::getCurrentTime();juce::MouseEvent down(juce::Desktop::getInstance().getMainMouseSource(),{311,70},juce::ModifierKeys::leftButtonModifier,1,0,0,0,0,&graph,&graph,now,{311,70},now,1,false);graph.mouseDown(down);graph.mouseUp(down);require(std::abs(graphEffect.controls[0]->get()+27)<1,"Graph threshold drag did not update compressor");
+    for(auto kind:{BuiltinKind::eq,BuiltinKind::compressor,BuiltinKind::saturation,BuiltinKind::stereoWidth,BuiltinKind::utility,BuiltinKind::tempoDelay,BuiltinKind::echo}){BuiltinEffect effect(kind);effect.prepareToPlay(48000,4096);std::unique_ptr<juce::AudioProcessorEditor> editor(effect.createEditor());editor->addToDesktop(0);editor->setVisible(true);
+        int mixX=-1,lastX=-1;for(auto* child:editor->getChildren())if(child->getComponentID().startsWith("builtin-knob-")){auto* dial=dynamic_cast<juce::Slider*>(child);require(dial && dial->getSliderStyle()==juce::Slider::RotaryVerticalDrag,"Built-in control did not use standard rotary");lastX=juce::jmax(lastX,child->getX());if(child->getComponentID()=="builtin-knob-Mix")mixX=child->getX();}require(mixX<0 || mixX==lastX,"Mix is not the last control");
+        if(effect.spectrum){juce::MessageManager::getInstance()->runDispatchLoopUntil(85);juce::Timer::callPendingTimersSynchronously();require(effect.spectrum->enabled.load(),"Visible EQ did not enable analyser");juce::Random noise(1234);juce::AudioBuffer<float> display(2,16384);for(int n=0;n<16384;++n){float v=.2f*(noise.nextFloat()*2-1)+.35f*std::sin(n*.05f);display.setSample(0,n,v);display.setSample(1,n,v);}effect.processBlock(display,midi);juce::MessageManager::getInstance()->runDispatchLoopUntil(85);juce::Timer::callPendingTimersSynchronously();require(effect.spectrum->consume([](float,float){})==0,"Visible EQ did not consume spectrum audio");}
+        if(effect.waveform){juce::MessageManager::getInstance()->runDispatchLoopUntil(85);juce::Timer::callPendingTimersSynchronously();require(effect.waveform->enabled.load(),"Visible saturation did not enable waveform");auto input=signal();effect.processBlock(input,midi);int n=0;effect.waveform->consume([&](float l,float r){require(std::abs(l-input.getSample(0,n))<1e-6f && std::abs(r-input.getSample(1,n))<1e-6f,"Saturation waveform is not processed output");++n;});require(n==4096,"Saturation waveform missing samples");input=signal();effect.processBlock(input,midi);juce::MessageManager::getInstance()->runDispatchLoopUntil(85);juce::Timer::callPendingTimersSynchronously();}
+        auto file=juce::File::getCurrentWorkingDirectory().getChildFile("builtin-"+builtinName(kind)+".png");file.deleteFile();juce::FileOutputStream output(file);require(juce::PNGImageFormat().writeImageToStream(editor->createComponentSnapshot(editor->getLocalBounds()),output),"Built-in screenshot failed");}
+}
