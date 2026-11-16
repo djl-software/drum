@@ -1,7 +1,11 @@
 #include "EffectRack.h"
 #include "platform/HostFloat.h"
+#include "platform/DoneFooter.h"
 #include "BuiltinEffects.h"
 #include <set>
+#if JUCE_MAC
+#include "../../Mac/src/GroupFader.h"
+#endif
 
 namespace drum
 {
@@ -15,7 +19,13 @@ public:
         for(int c=0;c<2;++c){const float next=rack.mixerLevels[(size_t)index][(size_t)c].load();auto& level=levels[(size_t)c];if(initial)level.setCurrentAndTargetValue(next);else level.setTargetValue(next);auto* samples=audio.getWritePointer(c);for(int frame=0;frame<audio.getNumSamples();++frame)samples[frame]*=level.getNextValue();
             const float peak=audio.getMagnitude(c,0,audio.getNumSamples()),decay=std::exp(-(float)audio.getNumSamples()/((float)hz*.3f));
             auto& meter=rack.mixerMeters[(size_t)index][(size_t)c];meter.store(juce::jmax(peak,meter.load()*decay));retainMaximum(rack.mixerMaxima[(size_t)index][(size_t)c],peak);rack.mixerHolds[(size_t)index][(size_t)c].store(holds[(size_t)c].process(peak,audio.getNumSamples(),hz,rack.peakHoldSeconds.load()));}
-        for(int n=0;n<6;++n){const float gain=(index<maxInstruments && rack.mutedSidechainSources[(size_t)index].load())?0:rack.sendLevels[(size_t)index][(size_t)n].load(std::memory_order_relaxed);auto& send=sends[(size_t)n];if(initial)send.setCurrentAndTargetValue(gain);else send.setTargetValue(gain);for(int frame=0;frame<audio.getNumSamples();++frame){const float value=send.getNextValue();for(int c=0;c<2;++c)audio.setSample(2+n*2+c,frame,audio.getSample(c,frame)*value);}}if(index>=maxInstruments && !rack.returnMainEnabled[(size_t)(index-maxInstruments)].load()){audio.clear(0,0,audio.getNumSamples());audio.clear(1,0,audio.getNumSamples());}initial=false;}
+        for(int n=0;n<6;++n){const float gain=(index<maxInstruments && rack.mutedSidechainSources[(size_t)index].load())?0:rack.sendLevels[(size_t)index][(size_t)n].load(std::memory_order_relaxed);auto& send=sends[(size_t)n];if(initial)send.setCurrentAndTargetValue(gain);else send.setTargetValue(gain);for(int frame=0;frame<audio.getNumSamples();++frame){const float value=send.getNextValue();for(int c=0;c<2;++c)audio.setSample(2+n*2+c,frame,audio.getSample(c,frame)*value);}}
+#if JUCE_MAC
+        if(index<maxInstruments && rack.mutedSidechainSources[(size_t)index].load()){audio.clear(0,0,audio.getNumSamples());audio.clear(1,0,audio.getNumSamples());}
+#else
+        if(index>=maxInstruments && !rack.returnMainEnabled[(size_t)(index-maxInstruments)].load()){audio.clear(0,0,audio.getNumSamples());audio.clear(1,0,audio.getNumSamples());}
+#endif
+        initial=false;}
     const juce::String getName() const override{return "Post-fader send split";}
     bool acceptsMidi() const override{return false;}bool producesMidi() const override{return false;}double getTailLengthSeconds() const override{return 0;}
     bool hasEditor() const override{return false;}juce::AudioProcessorEditor* createEditor() override{return nullptr;}
@@ -90,7 +100,7 @@ public:
     {
         setUsingNativeTitleBar(true);
         auto* editor=plugin.createEditorIfNeeded();if(!editor)editor=new juce::GenericAudioProcessorEditor(plugin);
-        setContentOwned(editor,true);setResizable(editor->isResizable(),false);centreWithSize(getWidth(),getHeight());
+        setContentOwned(djl::withDoneButton(*this,editor),true);setResizable(editor->isResizable(),false);centreWithSize(getWidth(),getHeight());
     }
     ~PluginWindow() override {clearContentComponent();}
     void closeButtonPressed() override {setVisible(false);}
@@ -112,7 +122,7 @@ EffectRack::EffectRack(KitLibrary& model,std::function<void()> callback,std::fun
     graph.setPlayConfigDetails(channels,channels,44100,512);
     input=graph.addNode(std::make_unique<Graph::AudioGraphIOProcessor>(Graph::AudioGraphIOProcessor::audioInputNode),{},Graph::UpdateKind::none);
     output=graph.addNode(std::make_unique<Graph::AudioGraphIOProcessor>(Graph::AudioGraphIOProcessor::audioOutputNode),{},Graph::UpdateKind::none);
-    for(int n=0;n<maxInstruments+6;++n)splitters[(size_t)n]=graph.addNode(std::make_unique<SendSplitter>(*this,n),{},Graph::UpdateKind::none);
+    for(int n=0;n<processingLanes;++n)splitters[(size_t)n]=graph.addNode(std::make_unique<SendSplitter>(*this,n),{},Graph::UpdateKind::none);
     graph.addListener(this);noMidi.ensureSize(8192);startTimerHz(10);
 }
 EffectRack::~EffectRack()
@@ -171,22 +181,50 @@ void EffectRack::capture()
 }
 void EffectRack::timerCallback()
 {
+#if JUCE_MAC
+    // Shared-send edits also update the per-group processing instances.
+    if(dirty.exchange(false))capture();
+#else
     if(++captureTicks>=10){captureTicks=0;if(dirty.exchange(false))capture();}
+#endif
     sync();
 }
 void EffectRack::sync()
 {
     const juce::ScopedLock guard(managementLock);
+#if JUCE_MAC
+    if(dirty.exchange(false))capture();
+#endif
     const bool reload=restored.exchange(false),latencyChanged=latencyDirty.exchange(false);
     auto state=library.snapshot();
     if(!reload && state.revision==seenRevision && !latencyChanged)return;
     // Keep edited settings when moving to another kit, but never overwrite a recall.
     if(!reload && graphEpoch.load()!=state.kitEpoch){capture();state=library.snapshot();}
     seenRevision=state.revision;const auto* kit=activeKit(state);
+    auto targets=effectTargets(*kit);
+#if JUCE_MAC
+#include "../../Mac/src/SharedReturnTargets.inc"
+#endif
     std::vector<std::pair<int,std::vector<EffectSlot>>> next;
-    for(const auto* instrument:effectTargets(*kit))if(!instrument->effects.empty()){auto slots=instrument->effects;if(instrument->controls.sound.bypassChain!=0)for(auto& slot:slots)slot.bypassed=true;next.push_back({instrument->note,std::move(slots)});}
+    for(const auto* instrument:targets)if(!instrument->effects.empty()){auto slots=instrument->effects;if(instrument->controls.sound.bypassChain!=0)for(auto& slot:slots)slot.bypassed=true;next.push_back({instrument->note,std::move(slots)});}
     bool topologyChanged=false;for(int a=0;a<6;++a){returnMainEnabled[(size_t)a].store(kit->returnRouting[(size_t)a].main);for(int b=0;b<6;++b){const double value=kit->returnRouting[(size_t)a].sends[(size_t)b];topologyChanged|=(value>sendFloor)!=(returnRouting[(size_t)a].sends[(size_t)b]>sendFloor);sendLevels[(size_t)(maxInstruments+a)][(size_t)b].store(sendGain(value));}}returnRouting=kit->returnRouting;
-    if(!reload && next==layout && graphEpoch.load()==state.kitEpoch && !latencyChanged && !topologyChanged)return;
+    juce::String topology;
+#if JUCE_MAC
+    auto configure=[&](int lane,const ReturnRouting& route){topology+=juce::String(lane)+":"+juce::String((int)route.main)+route.group;for(int n=0;n<6;++n){sendLevels[(size_t)lane][(size_t)n].store(sendGain(route.sends[(size_t)n]));topology+=route.sends[(size_t)n]>sendFloor?"1":"0";}};
+    for(int n=0;n<6;++n)configure(maxInstruments+n,kit->returnRouting[(size_t)n]);
+    bool groupSolo=false;for(const auto& group:kit->groups)groupSolo|=group.mixer.solo;
+    for(int n=0;n<(int)kit->groups.size();++n){const auto& group=kit->groups[(size_t)n];int base=groupBusBase+n*7;topology+=group.id;
+        auto setMixer=[&](int lane,const MixerControls& m,bool audible){float gain=audible && !m.mute && m.volumeDb>-70?juce::Decibels::decibelsToGain((float)m.volumeDb):0;setMixerLevels(lane,gain*(float)juce::jmin(1.0,1-m.pan),gain*(float)juce::jmin(1.0,1+m.pan));};
+        // Apply the group fader once at each terminal output, after send FX.
+        // Internal routes stay unscaled so cascaded sends do not multiply it.
+        setMixer(base,MixerControls{},true);
+        setMixer(macGroupFaderBase+n,group.mixer,!groupSolo || group.mixer.solo);
+        for(int r=0;r<6;++r){sendLevels[(size_t)base][(size_t)r].store(sendGain(group.sends[(size_t)r]));topology+=group.sends[(size_t)r]>sendFloor?"1":"0";configure(base+1+r,group.returnRouting[(size_t)r]);setMixer(base+1+r,group.returnRouting[(size_t)r].mixer,true);}
+        for(int r=0;r<6;++r){configure(instrumentReturnLane(n,r),kit->returnRouting[(size_t)r]);setMixer(instrumentReturnLane(n,r),kit->returnRouting[(size_t)r].mixer,true);}
+        for(const auto& instrument:group.instruments)topology+=instrument.id+juce::String(instrument.note)+":"+juce::String(instrument.controls.sound.output);
+    }
+#endif
+    if(!reload && next==layout && graphEpoch.load()==state.kitEpoch && !latencyChanged && !topologyChanged && topology==routingTopology)return;
     std::set<juce::String> wanted;for(const auto& [note,slots]:next)for(const auto& slot:slots)wanted.insert(slot.id);
     for(auto it=nodes.begin();it!=nodes.end();)
     {
@@ -198,9 +236,16 @@ void EffectRack::sync()
         }
         else ++it;
     }
-    for(const auto* target:effectTargets(*kit))for(const auto& slot:target->effects)
+    for(const auto* target:targets)for(const auto& slot:target->effects)
     {const auto& instrument=*target;
         auto& runtime=nodes[slot.id];
+#if JUCE_MAC
+        if(runtime && slot.id.startsWith("group-shared:") && runtime->processor() && runtime->saved.description==slot.description && runtime->saved.state!=slot.state){
+            juce::MemoryBlock saved;if(saved.fromBase64Encoding(slot.state)){
+                auto* plugin=runtime->processor()->plugin.get();const juce::ScopedLock audioGuard(plugin->getCallbackLock());plugin->setStateInformation(saved.getData(),(int)saved.getSize());runtime->saved.state=slot.state;
+            }
+        }
+#endif
         if(runtime && (runtime->saved.description!=slot.description || runtime->saved.state!=slot.state))
         {
             runtime->window.reset();if(auto* p=runtime->processor()){p->plugin->removeListener(this);graph.removeNode(runtime->node,Graph::UpdateKind::none);}runtime.reset();
@@ -244,6 +289,9 @@ void EffectRack::sync()
         if(auto* p=runtime->processor()){p->setLatencySamples(p->plugin->getLatencySamples());p->suspendProcessing(slot.bypassed);p->sidechainGain.store(juce::Decibels::decibelsToGain((float)slot.sidechainGain));p->sidechainMix.store((float)slot.sidechainMix);}
     }
     for(const auto& connection:graph.getConnections())graph.removeConnection(connection,Graph::UpdateKind::none);
+#if JUCE_MAC
+#include "../../Mac/src/GroupGraph.inc"
+#else
     bool any=true;double longestTail=0,instrumentTail=0;std::array<Graph::NodeID,6> returnInputs;std::array<double,6> returnTails{};
     for(auto& muted:mutedSidechainSources)muted.store(false);
     for(int note=firstNote;note<firstNote+maxInstruments+6;++note)
@@ -280,6 +328,7 @@ void EffectRack::sync()
     for(int a=0;a<6;++a)for(int b=0;b<6;++b)if(returnRouting[(size_t)a].sends[(size_t)b]>sendFloor)for(int c=0;c<2;++c)graph.addConnection({{splitters[(size_t)(maxInstruments+a)]->nodeID,2+b*2+c},{returnInputs[(size_t)b],c}},Graph::UpdateKind::none);
     auto pathTails=returnTails;for(int step=0;step<6;++step)for(int a=0;a<6;++a)for(int b=0;b<6;++b)if(returnRouting[(size_t)a].sends[(size_t)b]>sendFloor)pathTails[(size_t)b]=juce::jmax(pathTails[(size_t)b],pathTails[(size_t)a]+returnTails[(size_t)b]);for(double seconds:pathTails)longestTail=juce::jmax(longestTail,seconds);
     graph.rebuild();layout=std::move(next);graphEpoch.store(state.kitEpoch);hasEffects.store(any);tail.store(longestTail+instrumentTail);latency(graph.getLatencySamples());
+#endif
 }
 void EffectRack::process(juce::AudioBuffer<float>& audio,uint64_t epoch,juce::AudioPlayHead* playHead,bool nonRealtime)
 {

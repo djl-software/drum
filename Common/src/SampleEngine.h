@@ -105,6 +105,9 @@ public:
     void keyboardNote(int note, bool down);
     // Low 17 bits: held MIDI channels + mouse. High 32 bits: note-on serial,
     // retained even when a short MIDI hit begins and ends in a single block.
+    void resetActivityLatch() noexcept {activityPass.fetch_add(1);}
+    uint64_t activityPassId() const noexcept {return activityPass.load();}
+    bool triggeredThisPass(int note) const noexcept {return note>=0 && note<128 && triggeredPass[(size_t)note].load()==activityPass.load();}
     uint64_t noteActivity(int note) const { return note>=0 && note<128?activity[(size_t)note].load():0; }
     void stop() { repeatNote.store(-1); previewNote.store(-1); panic.store(true); }
     std::array<float,2> groupPeaks(int index) const noexcept {return {groupMeters[(size_t)index][0].load(),groupMeters[(size_t)index][1].load()};}
@@ -137,6 +140,7 @@ private:
         double rate=44100;
         bool hasEffects=false;
         std::array<MixerControls,6> returnMixers{};bool returnSolo=false;
+        std::array<MixerControls,maxGroups> groupMixers{};std::array<MixerControls,maxGroups*6> groupReturnMixers{};int groupCount=0;
         uint64_t sampleGeneration = 0;
         std::array<juce::String,128> ids;
         std::array<std::shared_ptr<const Sample>,128> samples;
@@ -213,6 +217,7 @@ private:
     struct KeyboardCommand { int note=0; bool down=false; uint64_t kitEpoch=0; };
     juce::AbstractFifo keyboardQueue {128};
     std::array<KeyboardCommand,128> keyboardCommands;
+    std::atomic<uint64_t> activityPass{1};std::array<std::atomic<uint64_t>,128> triggeredPass{};bool hostWasPlaying=false;
     std::array<std::atomic<uint64_t>,128> activity {};
     std::array<std::atomic<uint64_t>,128> playbackHeads {};
     std::array<std::array<std::atomic<uint64_t>,128>,6> sendPlaybackHeads {};

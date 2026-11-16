@@ -175,6 +175,7 @@ void runChainTests(const juce::String& effectPath,const juce::String& drumPath)
     // File drops append real VST3 effects without an embedded plugin browser.
     DrumAudioProcessorEditor editor(setup.processor);editor.setSize(1280,900);editor.addToDesktop(0);editor.setVisible(true);pump();click(editor,"open-sound-editor");click(editor,"edit-tab-7");
     auto* chain=dynamic_cast<ChainEditor*>(find(editor,"plugin-chain"));check(chain && chain->isVisible(),"Chain tab not visible");
+    check(find(editor,"edit-tab-8")->getX()<find(editor,"edit-tab-2")->getX(),"Tune must precede Filter in tab order");
 #if JUCE_WINDOWS
     // Running the test host under its Ableton test name enables the native
     // receiver. Exercise Windows' actual hit test, not just JUCE callbacks.
@@ -295,7 +296,10 @@ void runChainSmoke(const juce::String& path)
     check(setup.instrument(setup.a).effects.empty(),"Last installed effect Remove button failed");
     chain->filesDropped({path},700,60);pump(100);setup.settle();pump();
     check(setup.instrument(setup.a).effects.size()==1,"Installed effect could not be added again after removal");
-    std::cout<<found[0]->name<<": loaded, processed, recalled, added twice, removed through cards and added again successfully\n";
+    chain->select(setup.kit,"return-0");chain->filesDropped({path},700,180);pump(100);setup.settle();pump();
+    auto returns=rack.copyChain(setup.kit,"return-0");check(returns.size()==1 && rack.instance(returns.front().id),"Installed effect could not be dropped onto shared send chain");
+    rack.openEditor(returns.front().id,chain);pump();rack.hideEditors();
+    std::cout<<found[0]->name<<": loaded, processed, recalled, added twice, removed through cards, added to instrument and send chains, and editor opened successfully\n";
 }
 
 void runFixtureEditorTest(const juce::String& path)

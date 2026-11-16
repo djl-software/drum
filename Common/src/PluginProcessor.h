@@ -10,11 +10,17 @@
 #include "LinkedKits.h"
 #include "NamedMacroParameter.h"
 #include <map>
+#if JUCE_MAC
+#include "../../Mac/src/EditorPresentation.h"
+#endif
 
 class DrumAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater, private juce::Timer
 {
 public:
     explicit DrumAudioProcessor(bool trackInstance=false);
+#if JUCE_MAC
+    djl::EditorPresentation editorPresentation;
+#endif
     void updateTrackProperties(const TrackProperties&) override;
     juce::String windowTitle() const;
     juce::String trackName() const{return bridgeTrackName.isNotEmpty()?bridgeTrackName:hostTrackName;}

@@ -345,12 +345,55 @@ void runManagementTests()
         good(source.getLibrary().rename(instrument.id,"Linked kick"));source.syncLinkedKit();peer.syncLinkedKit();
         check(peer.getLibrary().snapshot().kits[0].groups[0].instruments[0].name=="Linked kick","Same-file kit edit did not propagate");
         auto controls=peer.getLibrary().snapshot().kits[0].groups[0].instruments[0].controls;controls.pan=-.5;good(peer.getLibrary().setControls(id,instrument.id,controls));peer.syncLinkedKit();source.syncLinkedKit();
+#if JUCE_MAC
+        check(source.getLibrary().snapshot().kits[0].groups[0].instruments[0].controls.pan==0,"Peer instrument settings overwrote this track");
+#else
         check(source.getLibrary().snapshot().kits[0].groups[0].instruments[0].controls.pan==-.5,"Linked controls did not propagate in reverse");
-        source.macro(0).setValueNotifyingHost(.8f);source.syncLinkedKit();peer.syncLinkedKit();check(std::abs(peer.macro(0).get()-.8f)<.001f,"Linked macro did not propagate");
+#endif
+        source.macro(0).setValueNotifyingHost(.8f);source.syncLinkedKit();peer.syncLinkedKit();
+#if JUCE_MAC
+        check(std::abs(peer.macro(0).get()-.5f)<.001f,"Peer macro settings overwrote this track");
+#else
+        check(std::abs(peer.macro(0).get()-.8f)<.001f,"Linked macro did not propagate");
+#endif
         auto effects=drum::factoryChain(1);good(source.getLibrary().setEffects(id,instrument.id,effects));source.syncLinkedKit();peer.syncLinkedKit();
+#if JUCE_MAC
+        check(peer.getLibrary().snapshot().kits[0].groups[0].instruments[0].effects.empty(),"Peer instrument chain overwrote this track");
+#else
         check(peer.getLibrary().snapshot().kits[0].groups[0].instruments[0].effects.size()==effects.size(),"Linked effect chain did not propagate");
+#endif
         auto group=source.getLibrary().addGroup(id);good(group);good(source.getLibrary().moveInstrument(id,instrument.id,group.id));source.syncLinkedKit();peer.syncLinkedKit();
         check(peer.getLibrary().snapshot().kits[0].groups.back().instruments[0].id==instrument.id,"Linked group move lost instrument identity");
+#if JUCE_MAC
+        auto sourceControls=source.getLibrary().snapshot().kits[0].groups.back().instruments[0].controls;
+        auto peerControls=peer.getLibrary().snapshot().kits[0].groups.back().instruments[0].controls;
+        const double peerSend=peerControls.sound.sendD;
+        sourceControls.sound.sendD=-9;
+        auto shaping=std::make_shared<drum::SendProcessing>();shaping->tuning=7;sourceControls.sendProcessing[3]=shaping;
+        int sendTarget=0;for(int n=1;n<(int)std::size(drum::macroTargets);++n)if(juce::String(drum::macroTargets[(size_t)n].name)=="Send D")sendTarget=n;
+        check(sendTarget>0,"Send D macro fixture unavailable");sourceControls.macros[0]={sendTarget,-30,0};
+        good(source.getLibrary().setControls(id,instrument.id,sourceControls));
+        good(source.getLibrary().setGroupSend(id,group.id,3,-12));
+        good(source.getLibrary().setReturnName(id,3,"Kick delay"));
+        good(source.getLibrary().setEffects(id,"return-3",drum::factoryChain(1)));
+        good(source.getLibrary().setReturnMain(id,3,false));
+        source.macro(0).setValueNotifyingHost(.3f);
+        source.syncLinkedKit();peer.syncLinkedKit();
+        auto peerState=peer.getLibrary().snapshot();
+        check(drum::findInstrument(peerState.kits[0],instrument.id)->controls.sound.sendD==peerSend,"Linked kit overwrote peer instrument send");
+        check(!drum::findInstrument(peerState.kits[0],instrument.id)->controls.sendProcessing[3] && drum::findInstrument(peerState.kits[0],instrument.id)->controls.macros[0].target!=sendTarget,"Linked kit overwrote peer send shaping or macro map");
+        check(peerState.kits[0].groups.back().sends[3]==drum::sendFloor,"Linked kit overwrote peer group send");
+        check(peerState.kits[0].returns[3].name!="Kick delay" && peerState.kits[0].returns[3].effects.empty() && peerState.kits[0].returnRouting[3].main,"Linked kit overwrote peer return");
+        peerControls.sound.sendD=-24;good(peer.getLibrary().setControls(id,instrument.id,peerControls));peer.syncLinkedKit();source.syncLinkedKit();
+        check(std::abs(source.macro(0).get()-.3f)<.001f,"Peer sync overwrote track-local send macro value");
+        auto sourceState=source.getLibrary().snapshot();check(drum::findInstrument(sourceState.kits[0],instrument.id)->controls.sound.sendD==-9 && sourceState.kits[0].returns[3].name=="Kick delay","Reverse link overwrote track sends");
+        juce::MemoryBlock sourceSaved,peerSaved;source.getStateInformation(sourceSaved);peer.getStateInformation(peerSaved);
+        DrumAudioProcessor sourceRecall(true),peerRecall(true);sourceRecall.setStateInformation(sourceSaved.getData(),(int)sourceSaved.getSize());peerRecall.setStateInformation(peerSaved.getData(),(int)peerSaved.getSize());
+        sourceRecall.syncLinkedKit();peerRecall.syncLinkedKit();sourceRecall.syncLinkedKit();
+        auto recalledSource=sourceRecall.getLibrary().snapshot(),recalledPeer=peerRecall.getLibrary().snapshot();
+        check(drum::findInstrument(recalledSource.kits[0],instrument.id)->controls.sound.sendD==-9 && drum::findInstrument(recalledPeer.kits[0],instrument.id)->controls.sound.sendD==-24,"Host recall lost separate track sends");
+        check(recalledSource.kits[0].returns[3].name=="Kick delay" && recalledPeer.kits[0].returns[3].name!="Kick delay","Host recall linked return names");
+#endif
         good(peer.duplicateActiveKit());good(source.getLibrary().rename(instrument.id,"Original only"));source.syncLinkedKit();peer.syncLinkedKit();
         check(peer.getLibrary().snapshot().kits[0].groups.back().instruments[0].name=="Linked kick","Duplicate remained linked to original");
     }

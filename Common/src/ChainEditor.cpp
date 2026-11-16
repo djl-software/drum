@@ -1,3 +1,4 @@
+#include "SendRoutingMenu.h"
 #include "ChainEditor.h"
 #include "ResetSlider.h"
 #include "BuiltinEffects.h"
@@ -81,8 +82,10 @@ private:
 ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library(model),effects(rack)
 {
     setComponentID("plugin-chain");
-    addAndMakeVisible(toMain);toMain.setComponentID("return-to-main");toMain.setTooltip("Also send this return's processed output to Main. Other send levels are retained when this is unticked.");toMain.onClick=[this]{if(!routingUpdate){auto result=effects.returnMain(kitId,drum::returnIndex(instrumentId),toMain.getToggleState());status.setText(result.ok?"Return routing saved with the kit.":result.message,juce::dontSendNotification);refresh();}};
-    for(int n=0;n<6;++n){auto& dial=returnSends[(size_t)n];addAndMakeVisible(dial);dial.setLookAndFeel(&returnLook);useValueBar(dial);dial.setComponentID("return-send-"+juce::String(n));dial.setRange(drum::sendFloor,drum::sendCeiling,.1);dial.setTextValueSuffix(" dB");dial.setDoubleClickReturnValue(true,drum::sendFloor);dial.textFromValueFunction=[](double db){return db<=drum::sendFloor?juce::String::charToString(0x2212)+juce::String::charToString(0x221e):juce::String(db,1);};dial.valueFromTextFunction=[](const juce::String& text){return text.contains(juce::String::charToString(0x221e)) || text.containsIgnoreCase("inf")?drum::sendFloor:text.getDoubleValue();};dial.onValueChange=[this,n]{if(!routingUpdate){auto result=effects.returnSend(kitId,drum::returnIndex(instrumentId),n,returnSends[(size_t)n].getValue());status.setText(result.ok?"Return routing saved with the kit.":result.message,juce::dontSendNotification);refresh();}};auto& label=returnLabels[(size_t)n];addAndMakeVisible(label);label.setColour(juce::Label::textColourId,ink);label.setJustificationType(juce::Justification::centred);label.setFont(juce::FontOptions(12));}
+    addChildComponent(navBack);addChildComponent(navExit);navBack.setComponentID("chain-back");navExit.setComponentID("chain-exit");navBack.onClick=[this]{if(onBack)onBack();};navExit.onClick=[this]{if(onExit)onExit();};
+    addAndMakeVisible(destination);destination.setComponentID("send-destination");destination.onClick=[this]{drum::showSendRoutingMenu(destination,library,effects,kitId,instrumentId,[this]{refresh();});};
+    addAndMakeVisible(toMain);toMain.setComponentID("return-to-main");toMain.setTooltip("Also send this return's processed output to Main. Other send levels are retained when this is unticked.");toMain.onClick=[this]{if(!routingUpdate){auto result=library.setSendDestination(kitId,instrumentId,toMain.getToggleState(),{});if(result.ok)effects.routingChanged();status.setText(result.ok?"Return routing saved with the kit.":result.message,juce::dontSendNotification);refresh();}};
+    for(int n=0;n<6;++n){auto& dial=returnSends[(size_t)n];addAndMakeVisible(dial);dial.setLookAndFeel(&returnLook);useValueBar(dial);dial.setComponentID("return-send-"+juce::String(n));dial.setRange(drum::sendFloor,drum::sendCeiling,.1);dial.setTextValueSuffix(" dB");dial.setDoubleClickReturnValue(true,drum::sendFloor);dial.textFromValueFunction=[](double db){return db<=drum::sendFloor?juce::String::charToString(0x2212)+juce::String::charToString(0x221e):juce::String(db,1);};dial.valueFromTextFunction=[](const juce::String& text){return text.contains(juce::String::charToString(0x221e)) || text.containsIgnoreCase("inf")?drum::sendFloor:text.getDoubleValue();};dial.onValueChange=[this,n]{if(!routingUpdate){auto result=library.setSendRoute(kitId,instrumentId,n,returnSends[(size_t)n].getValue());if(result.ok)effects.routingChanged();status.setText(result.ok?"Return routing saved with the kit.":result.message,juce::dontSendNotification);refresh();}};auto& label=returnLabels[(size_t)n];addAndMakeVisible(label);label.setColour(juce::Label::textColourId,ink);label.setJustificationType(juce::Justification::centred);label.setFont(juce::FontOptions(12));}
 
     addAndMakeVisible(builtin);builtin.setComponentID("chain-add-builtin");
     builtin.onClick=[this]{juce::PopupMenu menu;for(int n=0;n<drum::builtinCount;++n)menu.addItem(n+1,drum::builtinName((drum::BuiltinKind)n));menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&builtin),[safe=juce::Component::SafePointer<ChainEditor>(this)](int choice){if(safe && choice>0 && choice<=drum::builtinCount)safe->apply(safe->effects.add(safe->kitId,safe->instrumentId,drum::builtinDescription((drum::BuiltinKind)(choice-1))));});};
@@ -90,9 +93,16 @@ ChainEditor::ChainEditor(drum::KitLibrary& model,drum::EffectRack& rack):library
     addAndMakeVisible(load);load.setComponentID("chain-load");
     load.onClick=[this]{
         chooser=std::make_unique<juce::FileChooser>("Choose a VST3 audio effect",juce::File{},"*.vst3");
-        chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,
+        chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles
+#if JUCE_MAC
+                |juce::FileBrowserComponent::canSelectDirectories
+#endif
+                ,
             [safe=juce::Component::SafePointer<ChainEditor>(this)](const juce::FileChooser& fc){
-                if(safe && fc.getResult()!=juce::File())safe->addFile(fc.getResult());
+                if(safe && fc.getResult()!=juce::File()) {
+                    if(fc.getResult().hasFileExtension("vst3"))safe->addFile(fc.getResult());
+                    else safe->status.setText("Choose a .vst3 plug-in bundle, rather than its containing folder.",juce::dontSendNotification);
+                }
             });
     };
     addAndMakeVisible(viewport);viewport.setViewedComponent(&flow,false);viewport.setScrollBarsShown(true,true);viewport.setComponentID("chain-flow");
@@ -110,8 +120,10 @@ void ChainEditor::select(const juce::String& kit,const juce::String& instrument)
 void ChainEditor::refresh()
 {
     const auto state=library.snapshot();const auto* kit=drum::activeKit(state);const auto* instrument=kit->id==kitId?drum::findInstrument(*kit,instrumentId):nullptr;
-    const int source=drum::returnIndex(instrumentId);routingUpdate=true;toMain.setVisible(source>=0);if(source>=0 && kit->id==kitId)toMain.setToggleState(kit->returnRouting[(size_t)source].main,juce::dontSendNotification);
-    for(int n=0;n<6;++n){auto& dial=returnSends[(size_t)n];auto& label=returnLabels[(size_t)n];dial.setVisible(source>=0);label.setVisible(source>=0);if(source>=0 && kit->id==kitId){label.setText(drum::sendLabel(*kit,n),juce::dontSendNotification);dial.setName("To "+drum::sendLabel(*kit,n));auto candidate=kit->returnRouting;candidate[(size_t)source].sends[(size_t)n]=0;const bool available=source!=n && drum::validReturnRouting(candidate);dial.setEnabled(available);label.setAlpha(available?1.f:.35f);dial.setTooltip(source==n?"A send cannot feed itself.":available?"Post-effect feed to "+drum::sendLabel(*kit,n):"This connection would form a circular route.");bool typing=false;for(auto* child:dial.getChildren())if(auto* text=dynamic_cast<juce::Label*>(child))typing|=text->isBeingEdited();if(!dial.isMouseButtonDown() && !typing)dial.setValue(kit->returnRouting[(size_t)source].sends[(size_t)n],juce::dontSendNotification);}}
+    int source=-1;const auto* routes=kit && kit->id==kitId?drum::routesFor(*kit,instrumentId,source):nullptr;
+    routingUpdate=true;toMain.setVisible(routes!=nullptr);destination.setVisible(routes!=nullptr);
+    if(routes){toMain.setToggleState((*routes)[(size_t)source].main,juce::dontSendNotification);destination.setButtonText(drum::sendDestinationText(*kit,(*routes)[(size_t)source]));}
+    for(int n=0;n<6;++n){auto& dial=returnSends[(size_t)n];auto& label=returnLabels[(size_t)n];dial.setVisible(routes!=nullptr);label.setVisible(routes!=nullptr);if(routes){label.setText("Send "+juce::String::charToString('A'+n),juce::dontSendNotification);dial.setName("To Send "+juce::String::charToString('A'+n));auto candidate=*kit;int index=-1;auto* copy=const_cast<std::array<drum::ReturnRouting,6>*>(drum::routesFor(candidate,instrumentId,index));(*copy)[(size_t)source].sends[(size_t)n]=0;const bool available=source!=n && drum::validProcessingRouting(candidate);dial.setEnabled(available);label.setAlpha(available?1.f:.35f);dial.setTooltip(available?"Post-effect feed to another send":"This route would form a circular connection.");bool typing=false;for(auto* child:dial.getChildren())if(auto* text=dynamic_cast<juce::Label*>(child))typing|=text->isBeingEdited();if(!dial.isMouseButtonDown() && !typing)dial.setValue((*routes)[(size_t)source].sends[(size_t)n],juce::dontSendNotification);}}
     routingUpdate=false;
     auto next=instrument?instrument->effects:std::vector<drum::EffectSlot>{};
     // Parameter-state capture should not recreate the UI under the pointer.
@@ -129,7 +141,7 @@ void ChainEditor::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colour(0xff19212e));
     g.setColour(ink);g.setFont(juce::FontOptions(13));
-    g.drawText(drum::returnIndex(instrumentId)>=0?"Shared send: summed input -> effects -> Main and/or other sends":"Instrument chain: Drum effects + VST3, processed left to right",0,0,getWidth(),22,juce::Justification::centredLeft);
+    g.drawText(instrumentId.contains("return-")?"Send: summed input -> effects -> Main and/or other sends":instrumentId.startsWith("group:")?"Group chain: summed members and routed sends -> effects -> group sends":"Instrument chain: Drum effects + VST3, processed left to right",0,0,getWidth()-(onBack || onExit?190:0),22,juce::Justification::centredLeft);
     if(cards.empty())
     {
         g.setColour(bg);g.fillRoundedRectangle(viewport.getBounds().toFloat().reduced(3),6);g.setColour(muted);
@@ -138,8 +150,9 @@ void ChainEditor::paint(juce::Graphics& g)
 }
 void ChainEditor::resized()
 {
+    navBack.setBounds(getWidth()-180,0,80,22);navExit.setBounds(getWidth()-90,0,80,22);
     builtin.setBounds(0,24,112,25);load.setBounds(120,24,112,25);presets.setBounds(240,24,96,25);
-    const bool isReturn=drum::returnIndex(instrumentId)>=0;toMain.setBounds(350,24,110,25);for(int n=0;n<6;++n){const int width=getWidth()/6;returnLabels[(size_t)n].setBounds(n*width,58,width,20);returnSends[(size_t)n].setBounds(n*width+(width-104)/2,78,104,88);}
+    const bool isReturn=instrumentId.contains("return-");toMain.setBounds(350,24,70,25);destination.setBounds(425,24,juce::jmax(150,getWidth()-430),25);for(int n=0;n<6;++n){const int width=getWidth()/6;returnLabels[(size_t)n].setBounds(n*width,58,width,20);returnSends[(size_t)n].setBounds(n*width+(width-104)/2,78,104,88);}
     const int top=isReturn?178:58;viewport.setBounds(0,top,juce::jmax(1,getWidth()),juce::jmax(1,getHeight()-top-33));
     const int height=234;flow.setSize(juce::jmax(viewport.getWidth()-16,(int)cards.size()*188+40),height);
     for(size_t i=0;i<cards.size();++i)cards[i]->setBounds((int)i*188,0,176,height);
@@ -186,7 +199,7 @@ void ChainEditor::addFile(const juce::File& file,int position)
 }
 void ChainEditor::apply(const drum::Result& result)
 {
-    status.setText(result.ok?"Chain saved with this instrument. Drag headers to change the processing order.":result.message,juce::dontSendNotification);
+    status.setText(result.ok?"Chain saved. Drag headers to change the processing order.":result.message,juce::dontSendNotification);
     // A button may have called us; retire its card after the callback returns.
     juce::MessageManager::callAsync([safe=juce::Component::SafePointer<ChainEditor>(this)]{if(safe)safe->refresh();});
 }
@@ -198,6 +211,8 @@ void ChainEditor::timerCallback()
 }
 void ChainEditor::browserDropped(const juce::var& value)
 {
+    const auto context=value["context"].toString();
+    if(context.isNotEmpty() && context!=kitId+"/"+instrumentId)return;
     if(value["error"].toString().isNotEmpty()){status.setText(value["error"].toString(),juce::dontSendNotification);return;}
     const auto* matches=value["matches"].getArray();if(!matches || matches->isEmpty())return;
     std::vector<juce::File> files;juce::PopupMenu menu;

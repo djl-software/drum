@@ -34,12 +34,12 @@ void runChannelAttackTests()
     sample=source();controls={};controls.sound.attackLevel=0;
     check(render()->audio.getSample(0,20)==stereo->audio.getSample(0,20),"Disabled attack changed sound");
     controls.sound.attackOn=1;
-    std::array<float,3> signatures{};
-    for(int type=0;type<3;++type)
+    std::array<float,8> signatures{};std::array<std::array<float,384>,8> fingerprints{};
+    for(int type=0;type<8;++type)
     {
         controls.sound.attackType=type;auto hit=render();float delta=0;
         for(int n=0;n<384;++n)delta+=std::abs(hit->audio.getSample(0,n)-stereo->audio.getSample(0,n));
-        check(delta>1,"Attack layer inaudible");signatures[(size_t)type]=delta;
+        check(delta>1,"Attack layer inaudible");signatures[(size_t)type]=delta;for(int n=0;n<384;++n)fingerprints[type][n]=hit->audio.getSample(0,n);
         near(hit->audio.getSample(0,0),stereo->audio.getSample(0,0),"Attack begins with a discontinuity");
         for(int n=400;n<4000;++n)near(hit->audio.getSample(0,n),stereo->audio.getSample(0,n),"Attack altered sample tail");
         auto repeated=render();
@@ -52,6 +52,7 @@ void runChannelAttackTests()
         controls.sound.attackTone=1800;
     }
     check(std::abs(signatures[0]-signatures[1])>0.1f && std::abs(signatures[1]-signatures[2])>0.1f,"Attack types are indistinguishable");
+    for(int a=0;a<8;++a)for(int b=a+1;b<8;++b){float difference=0;for(int n=0;n<384;++n)difference+=std::abs(fingerprints[a][n]-fingerprints[b][n]);check(difference>.01f,"Two attack types generated the same transient");}
     controls.sound.attackType=1;controls.sound.attackDecay=100;auto longer=render();
     check(std::abs(longer->audio.getSample(0,1001)-stereo->audio.getSample(0,1001))>0.005f,"Attack decay does not extend transient");
     controls.sound.attackTone=500;auto lower=render();check(std::abs(lower->audio.getSample(0,31)-longer->audio.getSample(0,31))>0.01f,"Attack tone has no effect");
@@ -65,7 +66,7 @@ void runChannelAttackTests()
     // 0 dB is a peak reference for the shaped burst, across types, tones,
     // short/long decays and device rates. Velocity/mixer remain downstream.
     for(double rate:{8000.0,44100.0,48000.0,96000.0,192000.0,384000.0})
-        for(int type=0;type<3;++type)for(double tone:{30.0,1800.0,16000.0})for(double decay:{1.0,8.0,100.0})
+        for(int type=0;type<8;++type)for(double tone:{30.0,1800.0,16000.0})for(double decay:{1.0,8.0,100.0})
     {
         controls={};controls.sound.attackOn=1;controls.sound.attackLevel=0;controls.sound.attackType=type;
         controls.sound.attackTone=tone;controls.sound.attackDecay=decay;controls.sound.velocityVolume=0;

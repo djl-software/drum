@@ -3,6 +3,9 @@
 #include "KitLibrary.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <map>
+#if JUCE_MAC
+#include "../../Mac/src/GroupRouting.h"
+#endif
 
 namespace drum
 {
@@ -11,11 +14,17 @@ namespace drum
 class EffectRack final : private juce::Timer, private juce::AudioProcessorListener
 {
 public:
-    static constexpr int channels = (maxInstruments + 6) * 2;
+#if JUCE_MAC
+    static constexpr int processingLanes=macProcessingLanes;
+#else
+    static constexpr int processingLanes=maxInstruments+6;
+#endif
+    static constexpr int channels = processingLanes * 2;
     EffectRack(KitLibrary&, std::function<void()> changed, std::function<void(int)> latency);
     ~EffectRack() override;
     void prepare(double rate, int blockSize);
     void release();
+    void routingChanged(){sync();changed();}
     void sync(); // Message thread; also used by deterministic host tests.
     void capture(); // Non-audio thread, including host state-save callbacks.
     void stateRestored();
@@ -63,12 +72,16 @@ private:
     juce::VST3PluginFormat format;
     Graph graph;
     Graph::Node::Ptr input, output;
-    std::array<Graph::Node::Ptr,maxInstruments+6> splitters;
-    std::array<std::array<std::atomic<float>,6>,maxInstruments+6> sendLevels{};
-    std::array<std::array<std::atomic<float>,2>,maxInstruments+6> mixerLevels{},mixerMeters{},mixerMaxima{},mixerHolds{};
-    std::array<std::atomic<bool>,maxInstruments+6> resetHolds{};
+    std::array<Graph::Node::Ptr,processingLanes> splitters;
+#if JUCE_MAC
+    std::vector<Graph::Node::Ptr> groupFaders;
+    juce::StringArray activeSharedReturns;
+#endif
+    std::array<std::array<std::atomic<float>,6>,processingLanes> sendLevels{};
+    std::array<std::array<std::atomic<float>,2>,processingLanes> mixerLevels{},mixerMeters{},mixerMaxima{},mixerHolds{};
+    std::array<std::atomic<bool>,processingLanes> resetHolds{};
     std::atomic<double> peakHoldSeconds{1};
-    std::array<std::atomic<bool>,6> returnMainEnabled{};
+    std::array<std::atomic<bool>,processingLanes> returnMainEnabled{};
     std::array<ReturnRouting,6> returnRouting{};
     mutable juce::CriticalSection managementLock;
     std::map<juce::String, std::unique_ptr<Runtime>> nodes;
@@ -78,6 +91,7 @@ private:
     std::atomic<double> rate {44100}, tail {0};
     std::atomic<int> blockSize {512};
     std::array<std::atomic<bool>,maxInstruments> mutedSidechainSources {};
+    juce::String routingTopology;
     uint64_t seenRevision = UINT64_MAX;
     int captureTicks = 0;
     juce::MidiBuffer noMidi;

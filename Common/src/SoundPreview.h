@@ -56,7 +56,15 @@ private:
             PreviewResult rendered;
             try
             {
-                if(input.attackOnly && input.source){auto isolated=std::make_shared<Sample>();isolated->rate=input.source->rate;isolated->audio.setSize(input.source->audio.getNumChannels(),input.source->audio.getNumSamples());isolated->audio.clear();input.source=std::move(isolated);}
+                if(input.attackOnly && input.source){
+                    auto isolated=std::make_shared<Sample>();isolated->rate=input.source->rate;
+                    isolated->audio.setSize(input.source->audio.getNumChannels(),input.source->audio.getNumSamples());isolated->audio.clear();input.source=std::move(isolated);
+                    // Reference the generator's labelled dB level, before the
+                    // normal preview's 80% velocity, EQ and instrument mixer.
+                    input.controls.volumeDb=0;input.controls.pan=0;input.controls.mute=false;
+                    input.controls.sound.velocityVolume=0;input.controls.sound.lfoOn=0;input.controls.sound.randomPan=0;
+                    input.controls.sound.equalizer.enabled=false;input.controls.macros={};input.send=-1;
+                }
                 rendered=SampleEngine::renderPreview(input.source,input.controls,input.macros,input.bpm,input.rate,input.send,cancelled);
                 if(rendered.sample && !cancelled())rendered.analysis=analyseTonal(rendered.sample->audio,rendered.sample->rate,cancelled);
             }

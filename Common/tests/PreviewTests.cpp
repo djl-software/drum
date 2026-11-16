@@ -125,6 +125,10 @@ void runPreviewTests()
         near(worker.latest().sample->peak,baseline.sample->peak*0.5f,"Stale slider result replaced latest preview");
         input.attackOnly=true;input.controls.sound.attackOn=0;worker.request(input);while(worker.pending())juce::Thread::sleep(5);check(worker.latest().sample && worker.latest().sample->peak==0,"Attack-only waveform still contains the sample");
         input.controls.sound.attackOn=1;input.controls.sound.attackLevel=0;worker.request(input);while(worker.pending())juce::Thread::sleep(5);check(worker.latest().sample && worker.latest().sample->peak>0,"Attack-only waveform lost generated attack");
+        for(int type=0;type<8;++type){input.controls.sound.attackType=type;input.controls.volumeDb=-12;input.controls.pan=.5;
+            input.controls.sound.equalizer.enabled=true;input.controls.sound.equalizer.output=-6;
+            worker.request(input);while(worker.pending())juce::Thread::sleep(5);
+            check(worker.latest().sample && worker.latest().sample->peak==1.f,"Attack reference at 0 dB must reach full scale before velocity/EQ/mixer for every type");}
         input.source.reset();worker.request(input);
         while(worker.pending())juce::Thread::sleep(5);
         check(!worker.latest().sample,"Removed source retained stale preview");

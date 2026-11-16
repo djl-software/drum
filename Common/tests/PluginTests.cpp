@@ -21,6 +21,9 @@ void runWaveformTests();
 void runEnvelopeAuditTests();
 void runPreviewTests();
 void runChannelAttackTests();
+#if JUCE_MAC
+void runMacWindowTests();
+#endif
 void runEnvelopeTests();
 void runEqualizerTests();
 void runPadTests();
@@ -49,6 +52,10 @@ int main(int argc, char** argv)
     juce::ScopedJuceInitialiser_GUI initialiseJuce;
     try
     {
+#if JUCE_MAC
+        if(argc==2 && juce::String(argv[1])=="--mac-windows"){runMacWindowTests();return 0;}
+#endif
+        if(argc==2 && juce::String(argv[1])=="--channel-attack"){runChannelAttackTests();return 0;}
         if(argc==2 && juce::String(argv[1])=="--compressor"){runCompressorTests();return 0;}
         if(argc==2 && juce::String(argv[1])=="--envelope-audit"){runEnvelopeAuditTests();return 0;}
         if(argc==2 && juce::String(argv[1])=="--track-library"){runTrackLibraryTests();return 0;}

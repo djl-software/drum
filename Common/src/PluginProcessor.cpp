@@ -1,4 +1,7 @@
 #include "PluginProcessor.h"
+#if JUCE_MAC
+#include "../../Mac/src/TrackSendState.h"
+#endif
 #include "PluginEditor.h"
 #include "DrumCompanionWindow.h"
 #include "BuiltinEffects.h"
@@ -111,6 +114,9 @@ void DrumAudioProcessor::syncLinkedKit(bool preferLocal)
         }
     }
     linkedMacros=currentMacros;
+#if JUCE_MAC
+    if(incoming) djl::mac::preserveTrackSends(*incoming,*snapshot());
+#endif
     if(incoming && library.applyLiveState(*incoming)){
         for(int n=0;n<drum::numMacros;++n){auto value=(float)incoming->getDoubleAttribute("macro"+juce::String(n+1),.5);macros[(size_t)n]->setValueNotifyingHost(value);linkedMacros[(size_t)n]=value;}
         linkedLocalRevision=library.currentRevision();triggerAsyncUpdate();
@@ -223,7 +229,11 @@ void DrumAudioProcessor::getStateInformation(juce::MemoryBlock& data)
     effects.capture();if(libraryPreview && libraryLoaded.load())libraryPreview->effects.capture();
     const auto state = library.toXml();
     for(int n=0;n<drum::numMacros;++n) state->setAttribute("macro"+juce::String(n+1),(double)macros[(size_t)n]->get());
-    if(trackInstance){juce::XmlElement session("DrumSession");session.setAttribute("version",1);session.setAttribute("peakHoldSeconds",peakHoldSeconds.load());session.setAttribute("autoRemapLiveClips",autoRemapLiveClips());session.setAttribute("kitOpen",kitOpened.load());session.setAttribute("document",currentDocument.getFullPathName());session.addChildElement(new juce::XmlElement(*state));{const juce::ScopedLock documentGuard(libraryDocumentLock);if(kitBaseline)session.createNewChildElement("KitSaveBaseline")->addChildElement(new juce::XmlElement(*kitBaseline));}const juce::ScopedLock lock(migrationLock);if(legacyKits)session.createNewChildElement("LegacyKits")->addChildElement(new juce::XmlElement(*legacyKits));if(libraryPreview && sharedLibraryDirty()){auto* draft=session.createNewChildElement("LibraryDraft");draft->addChildElement(libraryPreview->library.toXml().release());if(auto base=sharedStore.baselineCopy())draft->createNewChildElement("Baseline")->addChildElement(base.release());}if(libraryLoaded && libraryPreview)session.addChildElement(libraryPreview->libraryWorkspaceState().release());copyXmlToBinary(session,data);}else copyXmlToBinary(*state, data);
+    if(trackInstance){juce::XmlElement session("DrumSession");session.setAttribute("version",1);session.setAttribute("peakHoldSeconds",peakHoldSeconds.load());session.setAttribute("autoRemapLiveClips",autoRemapLiveClips());session.setAttribute("kitOpen",kitOpened.load());session.setAttribute("document",currentDocument.getFullPathName());session.addChildElement(new juce::XmlElement(*state));{const juce::ScopedLock documentGuard(libraryDocumentLock);if(kitBaseline)session.createNewChildElement("KitSaveBaseline")->addChildElement(new juce::XmlElement(*kitBaseline));}const juce::ScopedLock lock(migrationLock);if(legacyKits)session.createNewChildElement("LegacyKits")->addChildElement(new juce::XmlElement(*legacyKits));if(libraryPreview && sharedLibraryDirty()){auto* draft=session.createNewChildElement("LibraryDraft");draft->addChildElement(libraryPreview->library.toXml().release());if(auto base=sharedStore.baselineCopy())draft->createNewChildElement("Baseline")->addChildElement(base.release());}if(libraryLoaded && libraryPreview)session.addChildElement(libraryPreview->libraryWorkspaceState().release());
+#if JUCE_MAC
+    editorPresentation.save(session);
+#endif
+    copyXmlToBinary(session,data);}else copyXmlToBinary(*state, data);
 }
 
 void DrumAudioProcessor::setStateInformation(const void* data, int size)
@@ -251,6 +261,9 @@ void DrumAudioProcessor::setStateInformation(const void* data, int size)
         }
         if(library.restore(*state))
         {
+#if JUCE_MAC
+          editorPresentation.restore(*saved);
+#endif
           setPeakHoldSeconds(saved->getDoubleAttribute("peakHoldSeconds",1),false);
           refreshMacroNames();
           if(trackInstance){kitBaseline.reset();if(auto* baseline=saved->getChildByName("KitSaveBaseline"))if(auto* content=baseline->getChildByName("DrumState")){drum::KitLibrary checked;bool valid=checked.restore(*content) && checked.snapshot().kits.size()==1;for(int n=0;n<drum::numMacros;++n){const auto value=content->getDoubleAttribute("macro"+juce::String(n+1),-1);valid&=std::isfinite(value) && value>=0 && value<=1;}if(valid)kitBaseline=std::make_unique<juce::XmlElement>(*content);}detachLinkedKit();if(liveKitLink)liveKitLink->autoRemap=saved->getBoolAttribute("autoRemapLiveClips",true);kitOpened=saved->getBoolAttribute("kitOpen",true);auto path=saved->getStringAttribute("document");currentDocument=juce::File::isAbsolutePath(path)?juce::File(path):juce::File();const juce::ScopedLock lock(migrationLock);legacyKits=std::move(pending);migrationAttempted=false;triggerAsyncUpdate();}

@@ -10,6 +10,11 @@ class ChainEditor final : public juce::Component, public juce::DragAndDropContai
 public:
     ChainEditor(drum::KitLibrary&,drum::EffectRack&);
     ~ChainEditor() override;
+    void setNavigation(std::function<void()> back,std::function<void()> exit){onBack=std::move(back);onExit=std::move(exit);
+#if JUCE_MAC
+        navExit.setButtonText("Done");
+#endif
+        navBack.setVisible((bool)onBack);navExit.setVisible((bool)onExit);resized();}
     void select(const juce::String& kit,const juce::String& instrument);
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -29,10 +34,13 @@ private:
     drum::KitLibrary& library;
     drum::EffectRack& effects;
     juce::String kitId,instrumentId;
+    std::function<void()> onBack,onExit;
+    juce::TextButton navBack{"Back"},navExit{"Exit"};
     juce::TextButton load{"Load VST3..."};
     juce::TextButton builtin{"Add effect"},presets{"Presets"};
     inline static std::optional<std::vector<drum::EffectSlot>> clipboard;
     ValueBarLook returnLook;
+    juce::TextButton destination{"Destination..."};
     juce::ToggleButton toMain{"Main"};
     std::array<ResetSlider,6> returnSends;std::array<juce::Label,6> returnLabels;bool routingUpdate=false;
     juce::Label status;

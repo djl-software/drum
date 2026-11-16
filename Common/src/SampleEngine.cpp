@@ -11,23 +11,42 @@ namespace drum
 static_assert(std::atomic<Sample*>::is_always_lock_free);
 namespace
 {
-double attackWindow(double elapsed,double duration) noexcept
+double attackWindow(double elapsed,double duration,int type) noexcept
 {
     const double t=elapsed/duration;
+    if(type==7){
+        // Three short palms within Decay, so Clap remains distinct even with
+        // a short transient setting rather than becoming ordinary noise.
+        const double burst=std::sin(juce::MathConstants<double>::pi*std::fmod(3*t,1.0));
+        return std::sin(juce::MathConstants<double>::halfPi*juce::jmin(1.0,elapsed/0.0002))
+            *burst*burst*std::exp(-2*t)*(1-t);
+    }
     return std::sin(juce::MathConstants<double>::halfPi*juce::jmin(1.0,elapsed/0.0002))
         *std::exp(-6*t)*(1-t)*(1-t);
 }
 double attackOscillator(int type,double hz,double rate,double coefficient,
-    double& phase,double& filteredNoise,uint32_t& seed) noexcept
+    double& phase,double& filteredNoise,uint32_t& seed,double elapsed=0) noexcept
 {
     const double angle=phase*juce::MathConstants<double>::twoPi;double value;
-    if(type==2)
+    if(type==2 || type==3 || type==7)
     {
         seed=1664525u*seed+1013904223u;
-        filteredNoise+=coefficient*((double)(seed>>8)/8388607.5-1-filteredNoise);value=filteredNoise;
+        const double white=(double)(seed>>8)/8388607.5-1;
+        filteredNoise+=coefficient*(white-filteredNoise);
+        value=type==3?white-filteredNoise:filteredNoise;
     }
-    else value=type==0?(std::sin(angle)+0.4*std::sin(2*angle))/1.4:std::sin(angle);
-    phase+=hz/rate;if(phase>=1)phase-=std::floor(phase);
+    else switch(type) {
+        case 0:value=(std::sin(angle)+0.4*std::sin(2*angle))/1.4;break;
+        case 4: {
+            // Analytic downward sweep: identical reset and phase at every rate.
+            const double swept=juce::MathConstants<double>::twoPi*hz*(elapsed+0.004*(1-std::exp(-elapsed/0.002)));
+            value=std::sin(swept);break;
+        }
+        case 5:value=(std::sin(angle)+.6*std::sin(angle*1.41421356237)+.4*std::sin(angle*1.73205080757))/2;break;
+        case 6:value=(std::sin(angle)+.5*std::sin(2*angle)*std::exp(-elapsed*1500))/1.5;break;
+        default:value=std::sin(angle);break;
+    }
+    phase+=hz/rate;if(type!=5 && phase>=1)phase-=std::floor(phase);
     return value;
 }
 }
@@ -36,13 +55,13 @@ float SampleEngine::calibratedAttackPeak(const SoundParameters& s,double rate)
     if(s.attackOn==0)return 1;
     const auto key=std::tuple{s.attackType,s.attackTone,s.attackDecay,rate};
     if(auto found=attackPeaks.find(key);found!=attackPeaks.end())return found->second;
-    const double hz=juce::jmin(s.attackTone,rate*(s.attackType==0?0.22:0.44));
+    const double hz=juce::jmin(s.attackTone,rate*((s.attackType==0 || s.attackType==6)?0.22:s.attackType==4?0.14:s.attackType==5?0.25:0.44));
     const double coefficient=1-std::exp(-juce::MathConstants<double>::twoPi*hz/rate),duration=s.attackDecay*0.001;
     double phase=0,noise=0;uint32_t seed=0x7f4a7c15;float peak=0;
     for(int frame=0;frame<(int)std::ceil(duration*rate);++frame)
     {
-        const float value=(float)attackOscillator((int)s.attackType,hz,rate,coefficient,phase,noise,seed)
-            *(float)attackWindow(frame/rate,duration);
+        const float value=(float)attackOscillator((int)s.attackType,hz,rate,coefficient,phase,noise,seed,frame/rate)
+            *(float)attackWindow(frame/rate,duration,(int)s.attackType);
         peak=juce::jmax(peak,std::abs(value));
     }
     peak=juce::jmax(peak,1.0e-12f);
@@ -225,7 +244,7 @@ SampleEngine::RenderControls SampleEngine::controlsFor(const Sample& sample,cons
     render.loopEnd=juce::jlimit(render.loopStart+1,render.end,snap(render.start+(int)(s.loopEnd*region)));
     render.sampleGain=std::pow(10.0,s.sampleGain/20)*(s.normalise!=0 && sample.peak>0?1.0/sample.peak:1.0);
     std::array<double,6> db{s.sendA,s.sendB,s.sendC,s.sendD,s.sendE,s.sendF};
-    for(size_t n=0;n<6;++n)render.sends[n]=sendGain(db[n])+render.groupSends[n];
+    for(size_t n=0;n<6;++n)render.sends[n]=sendGain(db[n])+(EffectRack::processingLanes>=effectLanes?0:render.groupSends[n]);
     return render;
 }
 PreviewResult SampleEngine::renderPreview(std::shared_ptr<const Sample> source,InstrumentControls controls,
@@ -275,7 +294,7 @@ PreviewResult SampleEngine::renderPreview(std::shared_ptr<const Sample> source,I
 void SampleEngine::updateBank(const State& state,double rate)
 {
     auto next=std::make_unique<Bank>(); const auto* kit=activeKit(state); next->kitId=kit->id; next->kitEpoch=state.kitEpoch;
-    next->rate=rate;
+    next->rate=rate;next->groupCount=(int)kit->groups.size();for(int n=0;n<next->groupCount;++n){next->groupMixers[(size_t)n]=kit->groups[(size_t)n].mixer;for(int r=0;r<6;++r)next->groupReturnMixers[(size_t)(n*6+r)]=kit->groups[(size_t)n].returnRouting[(size_t)r].mixer;}
     size_t bytes=0; std::set<const Sample*> counted; double duration=0.0;
     bool hasSolo=false,groupSolo=false;
     for(const auto& g:kit->groups)groupSolo|=g.mixer.solo;
@@ -373,7 +392,7 @@ void SampleEngine::indicateNote(int note,int channel,bool down,bool fromUI) noex
     if(note<0 || note>127)return;
     const uint64_t bit=uint64_t(1)<<(fromUI?16:channel-1);
     auto& state=activity[(size_t)note];
-    if(down){state.fetch_or(bit);state.fetch_add(uint64_t(1)<<32);}
+    if(down){triggeredPass[(size_t)note].store(activityPass.load());state.fetch_or(bit);state.fetch_add(uint64_t(1)<<32);}
     else state.fetch_and(~bit);
 }
 void SampleEngine::stopVoices(int channel) noexcept
@@ -494,17 +513,21 @@ void SampleEngine::updateRenderControls() noexcept
         render.sampleGain*=juce::Decibels::decibelsToGain((float)(c.sound.sampleGain-render.sound.sampleGain));
         render.sound=c.sound;
         std::array<double,6> db{c.sound.sendA,c.sound.sendB,c.sound.sendC,c.sound.sendD,c.sound.sendE,c.sound.sendF};
-        for(size_t n=0;n<6;++n) render.sends[n]=sendGain(db[n])+render.groupSends[n];
+        for(size_t n=0;n<6;++n) render.sends[n]=sendGain(db[n])+(EffectRack::processingLanes>=effectLanes?0:render.groupSends[n]);
     }
     for(int note=0;note<128;++note){const auto& main=renderControls[note];if(!current->samples[note])continue;
         for(int send=0;send<6;++send)if(main.source.sendProcessing[send]){
             auto settings=controlsForSend(main.source,send);
             for(int n=0;n<numMacros;++n){const auto& m=settings.macros[n];if(!m.target)continue;double value=m.minimum+(m.maximum-m.minimum)*macroValues[n];switch(m.target){case 1:settings.volumeDb=value;break;case 2:settings.pan=value;break;default:if(m.target>3)settings.sound.*macroTargets[m.target].member=value;break;}}
-            auto branch=controlsFor(*current->samples[note],settings,false);branch.audible=main.audible;branch.attackPeak=main.attackPeak;branch.groupMixer=main.groupMixer;
+            auto branch=controlsFor(*current->samples[note],settings,false);branch.audible=main.audible;branch.attackPeak=main.attackPeak;branch.groupMixer=main.groupMixer;branch.groupIndex=main.groupIndex;
             const double db[]{settings.sound.sendA,settings.sound.sendB,settings.sound.sendC,settings.sound.sendD,settings.sound.sendE,settings.sound.sendF};
+            const float sendGainValue=sendGain(db[send])+(EffectRack::processingLanes>=effectLanes?0:main.groupSends[send]);
+#if JUCE_MAC
+            branch.left*=sendGainValue;branch.right*=sendGainValue;
+#else
             const auto& group=main.groupMixer;const float groupGain=group.mute || group.volumeDb<=-70?0.f:juce::Decibels::decibelsToGain((float)group.volumeDb);
-            const float sendGainValue=sendGain(db[send])+main.groupSends[send];
             branch.left*=groupGain*(float)juce::jmin(1.0,1-group.pan)*sendGainValue;branch.right*=groupGain*(float)juce::jmin(1.0,1+group.pan)*sendGainValue;
+#endif
             sendRenderControls[send][note]=std::move(branch);
         }
     }
@@ -513,6 +536,7 @@ void SampleEngine::updateRenderControls() noexcept
 void SampleEngine::startAuditionVoice(int note) noexcept
 {
     const auto previousClock=clock;
+    triggeredPass[(size_t)note].store(activityPass.load());
     activity[(size_t)note].fetch_add(uint64_t(1)<<32);
     startVoice(note,1,0.8f);
     if(clock!=previousClock) for(auto& v:voices) if(v.sample && v.age>previousClock) v.preview=true;
@@ -540,7 +564,7 @@ void SampleEngine::renderVoices(juce::AudioBuffer<float>& output,int start,int e
         const auto& c=voiceControls(voice);
         const bool reverse=s.reverse!=0;
         const double driveGain=std::pow(10.0,s.drive/20);
-        const double attackHz=juce::jmin(s.attackTone,hostRate*(s.attackType==0?0.22:0.44));
+        const double attackHz=juce::jmin(s.attackTone,hostRate*((s.attackType==0 || s.attackType==6)?0.22:s.attackType==4?0.14:s.attackType==5?0.25:0.44));
         const double attackNoiseCoefficient=1-std::exp(-juce::MathConstants<double>::twoPi*attackHz/hostRate);
         auto read=[&](int channel,double position) {
             position=juce::jlimit((double)voice.start,(double)(voice.end-1),position);
@@ -640,9 +664,9 @@ void SampleEngine::renderVoices(juce::AudioBuffer<float>& output,int start,int e
             if(attackPending && attackFrame>=0 && attackGain>0)
             {
                 const double attackElapsed=attackFrame/hostRate;
-                const float window=(float)attackWindow(attackElapsed,attackDuration);
+                const float window=(float)attackWindow(attackElapsed,attackDuration,(int)s.attackType);
                 float hitLeft=(float)attackOscillator((int)s.attackType,attackHz,hostRate,attackNoiseCoefficient,
-                    voice.attackPhase,voice.attackNoise,voice.attackRandom),hitRight=hitLeft;
+                    voice.attackPhase,voice.attackNoise,voice.attackRandom,attackElapsed),hitRight=hitLeft;
                 voice.attackEqualizer.process(hitLeft,hitRight);
                 left+=(hitLeft*window/c.attackPeak)*attackGain;
                 right+=(hitRight*window/c.attackPeak)*attackGain;
@@ -652,8 +676,16 @@ void SampleEngine::renderVoices(juce::AudioBuffer<float>& output,int start,int e
             right*=voice.right.getNextValue()*amplitude*release*(float)juce::jmin(1.0,1+pan);
             if(renderingInstruments)
             {
-                const int channel=voice.sendIndex<0?(voice.note-firstNote)*2:(maxInstruments+voice.sendIndex)*2;
+                const int channel=voice.sendIndex<0?(voice.note-firstNote)*2:
+#if JUCE_MAC
+                    instrumentReturnLane(c.groupIndex,voice.sendIndex)*2;
+#else
+                    (maxInstruments+voice.sendIndex)*2;
+#endif
                 output.addSample(channel,frame,left);output.addSample(channel+1,frame,right);
+#if JUCE_MAC
+                if(voice.sendIndex>=0){const int monitor=(maxInstruments+voice.sendIndex)*2;output.addSample(monitor,frame,left);output.addSample(monitor+1,frame,right);}
+#endif
             }
             else
             {
@@ -683,6 +715,10 @@ void SampleEngine::renderVoices(juce::AudioBuffer<float>& output,int start,int e
 }
 void SampleEngine::mixEffects(juce::AudioBuffer<float>& output,int offset,int frames) noexcept
 {
+#if JUCE_MAC
+#include "../../Mac/src/GroupMix.inc"
+#else
+
     groupAudio.setSize(maxGroups*2,frames,false,false,true);groupAudio.clear();
     for(int note=firstNote;note<firstNote+maxInstruments;++note)
     {
@@ -707,6 +743,7 @@ void SampleEngine::mixEffects(juce::AudioBuffer<float>& output,int offset,int fr
         for(int lane=0;lane<2;++lane){const int source=(maxInstruments+send)*2+lane;if(channel==0 && mainWidth==1)output.addFrom(0,offset,instrumentAudio,source,0,frames,.5f);else if(output.getNumChannels()>channel+lane)output.addFrom(channel+lane,offset,instrumentAudio,source,0,frames);}}
     const float decay=std::exp(-(float)frames/((float)hostRate*.3f));
     for(int group=0;group<maxGroups;++group){if(resetGroupHolds[(size_t)group].exchange(false))groupHoldStates[(size_t)group]={};for(int lane=0;lane<2;++lane){float value=groupAudio.getMagnitude(group*2+lane,0,frames);auto& peak=groupMeters[(size_t)group][(size_t)lane];peak.store(juce::jmax(value,peak.load()*decay));retainMaximum(groupMaxima[(size_t)group][(size_t)lane],value);groupHolds[(size_t)group][(size_t)lane].store(groupHoldStates[(size_t)group][(size_t)lane].process(value,frames,hostRate,peakHoldSeconds.load()));}}
+#endif
 }
 void SampleEngine::publishPlaybackHeads() noexcept
 {
@@ -719,12 +756,14 @@ void SampleEngine::publishPlaybackHeads() noexcept
 }
 void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuffer& midi) noexcept
 {
+    bool playing=false;if(playHead)if(auto position=playHead->getPosition())playing=position->getIsPlaying();
+    if(playing && !hostWasPlaying)resetActivityLatch();hostWasPlaying=playing;
     Bank* next=nullptr;
     do { next=published.load(); hazard.store(next); } while(next!=published.load());
     if(next!=current)
     {
         if(!next || next->sampleGeneration!=sampleGeneration) stopVoices();
-        if(current && next && current->kitEpoch!=next->kitEpoch)repeatNote.store(-1);
+        if(current && next && current->kitEpoch!=next->kitEpoch){repeatNote.store(-1);resetActivityLatch();}
         current=next; sampleGeneration=next?next->sampleGeneration:UINT64_MAX;
         if(current) { updateRenderControls(); updateVoices(); }
     }
@@ -783,8 +822,12 @@ void SampleEngine::process(juce::AudioBuffer<float>& output,const juce::MidiBuff
             if(captureSpectrum && spectrumNote>=firstNote && spectrumNote<firstNote+maxInstruments){const int channel=(spectrumNote-firstNote)*2;for(int n=0;n<count;++n)eqSpectrum.push(instrumentAudio.getSample(channel,n),instrumentAudio.getSample(channel+1,n));}
             if(chainActive){
                 auto gains=[](const MixerControls& m,bool audible){const float gain=audible && !m.mute && m.volumeDb>-70?juce::Decibels::decibelsToGain((float)m.volumeDb):0;return std::array<float,2>{gain*(float)juce::jmin(1.0,1-m.pan),gain*(float)juce::jmin(1.0,1+m.pan)};};
-                for(int note=firstNote;note<firstNote+maxInstruments;++note){const auto& c=renderControls[(size_t)note];auto levels=c.sends;if(!c.audible)levels.fill(0);else for(int send=0;send<6;++send)if(c.source.sendProcessing[send])levels[send]=0;effects->setSendLevels(note,levels);auto g=gains(c.groupMixer,c.audible);effects->setMixerLevels(note-firstNote,g[0],g[1]);}
-                for(int n=0;n<6;++n){const auto& m=current->returnMixers[(size_t)n];auto g=gains(m,!current->returnSolo || m.solo);effects->setMixerLevels(maxInstruments+n,g[0],g[1]);}
+                for(int note=firstNote;note<firstNote+maxInstruments;++note){const auto& c=renderControls[(size_t)note];auto levels=c.sends;if(!c.audible)levels.fill(0);else for(int send=0;send<6;++send)if(c.source.sendProcessing[send])levels[send]=0;effects->setSendLevels(note,levels);auto g=EffectRack::processingLanes>=effectLanes?gains(MixerControls{},c.audible):gains(c.groupMixer,c.audible);effects->setMixerLevels(note-firstNote,g[0],g[1]);}
+                for(int n=0;n<6;++n){const auto& m=current->returnMixers[(size_t)n];auto g=gains(m,!current->returnSolo || m.solo);effects->setMixerLevels(maxInstruments+n,g[0],g[1]);
+#if JUCE_MAC
+                    for(int group=0;group<current->groupCount;++group)effects->setMixerLevels(instrumentReturnLane(group,n),g[0],g[1]);
+#endif
+                }
                 effects->process(instrumentAudio,current->kitEpoch,playHead,nonRealtime);}mixEffects(output,base,count);}
     }
     publishPlaybackHeads();

@@ -79,7 +79,7 @@ inline int outputBusIndex(int bus){return bus>=10 && bus<16?bus+6:bus>=16 && bus
  X(sendE,"Send E",-70,-70,6,0.1," dB",4,"",1) \
  X(sendF,"Send F",-70,-70,6,0.1," dB",4,"",1) \
  X(attackOn,"Attack",0,0,1,1,"",6,"Off|On",1) \
- X(attackType,"Attack sound",0,0,2,1,"",6,"Click|Pulse|Noise",1) \
+ X(attackType,"Attack sound",0,0,7,1,"",6,"Click|Pulse|Noise|Snap|Thump|Metal|Wood|Clap",1) \
  X(attackLevel,"Attack level",-18,-60,0,0.1," dB",6,"",1) \
  X(attackTone,"Attack tone",1800,30,16000,1," Hz",6,"",1) \
  X(attackDecay,"Attack decay",8,1,100,0.1," ms",6,"",1) \

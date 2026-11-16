@@ -17,7 +17,7 @@ public:
     void resized() override;
     void visibilityChanged() override;
     bool keyPressed(const juce::KeyPress&) override;
-    std::function<void()> close,showNotes,exportInstrument,controlsChanged;
+    std::function<void()> goBack,close,showNotes,exportInstrument,controlsChanged;
     std::function<void(bool)> instrumentSettings;
     bool isInterestedInFileDrag(const juce::StringArray& files) override { return chain.isInterestedInFileDrag(files) || (files.size()==1 && !files[0].endsWithIgnoreCase(".vst3")); }
     void filesDropped(const juce::StringArray&,int,int) override;
@@ -90,7 +90,7 @@ private:
     ChainEditor chain;
     std::unique_ptr<juce::DocumentWindow> returnWindow;
     juce::String returnWindowKit;int returnWindowIndex=-1;
-    juce::TextButton back,reset,notesButton,exportButton,soloButton,settingsButton;
+    juce::TextButton previous,back,reset,notesButton,exportButton,soloButton,settingsButton;
     juce::ToggleButton bypassButton;
     juce::Label noteIndicator;
     juce::TextButton slice;

@@ -19,5 +19,9 @@ private:
     djl::HostFloat hostFloat;
     void timerCallback() override;
     void showLibraryScreen(bool);
+#if JUCE_MAC
+    bool placementRestored=false;
+    void rememberPresentation();
+#endif
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrumAudioProcessorEditor)
 };

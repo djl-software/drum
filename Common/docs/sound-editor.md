@@ -95,7 +95,12 @@ Tick **Attack** to add a centred transient independently of the sample envelopes
 - **Click:** a short tonal click with an extra harmonic for a sharper front edge.
 - **Pulse:** a short sine burst; lower tone adds a knock, higher tone adds a tick.
 - **Noise:** a repeatable filtered noise burst for a rougher attack.
-- **Attack level:** -60 dB (silent) to 0 dB, default -18 dB. The shaped Click/Pulse/Noise burst is peak-calibrated: 0 dB reaches full scale before EQ, velocity response, LFO and instrument volume/pan; -6 dB is about half amplitude. At the 80% velocity used by Play/Edited, an isolated 0 dB layer peaks around -1.9 dBFS with otherwise neutral controls. Sample plus layer can exceed full scale. Existing active layers become louder at the same stored dB value because the control is now calibrated.
+- **Snap:** a bright, high-passed noise edge.
+- **Thump:** a downward pitch sweep for a harder knock.
+- **Metal:** an inharmonic ring for a metallic tick.
+- **Wood:** a short harmonic knock.
+- **Clap:** three shaped noise bursts spread across the decay.
+- **Attack level:** -60 dB (silent) to 0 dB, default -18 dB. The generated attack burst is peak-calibrated: 0 dB reaches full scale before EQ, velocity response, LFO and instrument volume/pan; -6 dB is about half amplitude. At the 80% velocity used by Play/Edited, an isolated 0 dB layer peaks around -1.9 dBFS with otherwise neutral controls. Sample plus layer can exceed full scale. Existing active layers become louder at the same stored dB value because the control is now calibrated.
 - **Attack tone:** 30 Hz–16 kHz, controlling oscillator pitch or noise brightness. High settings are limited for the current host sample rate.
 - **Attack decay:** 1–100 ms, default 8 ms, controlling the transient's maximum duration.
 - **Position:** 0–2,000 ms after MIDI note-on, default 0. Position is latched per note; it does not move an already scheduled hit.
@@ -400,3 +405,31 @@ Wheel zooms waveform time; Shift-wheel zooms amplitude, including horizontal Mac
 Float Window remains visible across track changes; non-float editors follow Live Auto-Hide, which should remain ON. File handles documents; Library/Kit navigate and have right-click file menus.
 
 Settings... > Save settings / Load settings transfers a whole-instrument .drumsettings processing preset, including all independent sends, mappings and chain. The destination sample, name, MIDI note and notes stay in place. Loading replaces processing; save the old recipe first. External sidechain assignments clear; self-sidechains follow the destination. Shared returns and kit-global macro values/names do not transfer. Export... remains the complete .druminstrument with audio.
+
+
+## Attack reference and macOS development changes
+
+Attack has eight generator types: Click, Pulse, Noise, Snap (bright noise edge), Thump (falling pitch), Metal (inharmonic partials), Wood (short harmonic knock), and Clap (repeated noise bursts). The first three retain their original saved type numbers. Each generated burst is peak-calibrated, so Attack level 0 dB is a full-scale generator reference for every type. Velocity, EQ, pan, mixer gain, sends and effects can change the final playback peak; adding a sample can exceed full scale.
+
+The Attack-only waveform is a generator reference before velocity, EQ and mixer gain. Its caption identifies this scope. The normal Edited view continues to show the combined sound at 80% velocity with current processing and mixer settings. Switching the waveform view does not change playback.
+
+Tune appears immediately before Filter; stored page and parameter identifiers are unchanged.
+
+Mac window management and Live browser-drop code live in `Mac/src/` and are selected only for desktop Apple builds. Windows retains its existing native implementations. The Mac VST3 chooser allows selecting `.vst3` bundles, which are directories on disk. Live browser drags resolve a selected browser row against Live's read-only VST3 database; a chooser confirms the VST3 because the browser row name can also refer to AU/VST devices. Finder file drops use the existing shared VST3 loader.
+
+Design references: [D16 PunchBOX manual](https://d16.pl/pub/manuals/PunchBox-manual-gb.pdf) describes separate Click, Tops and Tools layers; [Battery's manual](https://docs.native-instruments.com/online-guides/battery-manual/en/master-page.html) describes attack/sustain transient shaping. The additional Drum waveforms use original synthesis rather than copied samples.
+
+
+## Mac group processing and selectable return destinations
+
+All instrument tabs, sample choices, chains, send shaping and macros stay local to their Live track, including instances using the same kit file. Kit names and keyboard structure can still link.
+
+Open Mixer and click Chain & sends on a group strip. The group has its own chain and six independent send chains. Member dry paths enter the group after their instrument chains and send taps. The group chain runs before the group fader and group send taps. Instrument output overrides bypass the group bus.
+
+Click the To: button in the Outputs & Sends diagram, or in a group/send editor, to select Main, a named group, no direct output, or feeds to other sends. A return routed to a group enters before that group chain. Group sends use the group's own A-F returns. Circular routes are disabled/rejected. These paths and group effects are saved with the kit and Live project.
+
+
+Back sits beside Exit in the instrument editor. It returns to the originating page and retains the Mixer group/view. Mixer Back restores its previous instrument tab, MIDI editor or Library screen; Exit returns to the kit. Clicking a group name in the Mac Mixer overview opens its instruments. Clicking the group name inside that view opens its chain and sends. Group and send windows have Back and Exit controls that return to their owner. The Mixer selector still filters the instrument strips by group.
+
+
+Kit group tiles show a soft glow, activity light and count of distinct instruments triggered in the current playback pass. Live transport Play and Drum/Pattern Play reset the count. Each instrument latches after triggering; note-off, finished tails and Stop do not clear it. Other groups remain idle; pad and piano highlights remain momentary.

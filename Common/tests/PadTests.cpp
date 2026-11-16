@@ -26,6 +26,7 @@ void runPadTests()
     auto stream=file.createOutputStream();juce::WavAudioFormat format;std::unique_ptr<juce::AudioFormatWriter> writer(format.createWriterFor(stream.release(),48000,1,24,{},0));check(writer!=nullptr,"Pad fixture failed");
     juce::AudioBuffer<float> fixture(1,48000);for(int n=0;n<48000;++n)fixture.setSample(0,n,0.25f);writer->writeFromAudioSampleBuffer(fixture,0,48000);writer.reset();
     for(int n=0;n<8;++n){auto id=library.addInstrument(kit,group).id;check(library.rename(id,names[n]).ok,"Pad rename failed");engine.requestLoad(kit,id,file);}
+    auto quietGroup=library.addGroup(kit);check(quietGroup.ok,"Activity group fixture");check(library.rename(quietGroup.id,"Unplayed group").ok && library.addInstrument(kit,quietGroup.id).ok,"Inactive group fixture");
     check(engine.waitForLoading(10000),"Pads did not load");processor.prepareToPlay(48000,256);
     DrumAudioProcessorEditor editor(processor);editor.setSize(1280,900);editor.setVisible(true);
     auto& grid=find(editor,"instrument-grid");auto& piano=find(editor,"piano-keyboard");juce::AudioBuffer<float> output(2,256);juce::MidiBuffer midi;
@@ -47,11 +48,13 @@ void runPadTests()
     editor.setSize(1280,900);const int side=(grid.getWidth()-60)/6;juce::Point<float> point{float(side/2),float(side/2)};
     // Select before taking a baseline: activity must visibly differ from selection alone.
     // Allow the five-frame flash plus the three-frame key return to finish before recording the idle image.
-    grid.mouseDown(mouse(grid,point));grid.mouseUp(mouse(grid,point,false));engine.stop();processor.processBlock(output,midi);for(int n=0;n<10;++n)tick();
+    grid.mouseDown(mouse(grid,point));grid.mouseUp(mouse(grid,point,false));engine.stop();processor.processBlock(output,midi);engine.resetActivityLatch();for(int n=0;n<10;++n)tick();
     const auto area=juce::Rectangle<int>{0,0,side,side};auto idlePad=pixels(grid,area),idlePiano=pixels(piano,piano.getLocalBounds());
+    auto& groups=find(editor,"groups");const juce::Rectangle<int> firstGroup{0,0,groups.getWidth(),61},secondGroup{0,61,groups.getWidth(),61};const auto idleGroup=pixels(groups,firstGroup),quietGroupPixels=pixels(groups,secondGroup);
     midi.addEvent(juce::MidiMessage::noteOn(2,21,(juce::uint8)110),0);processor.processBlock(output,midi);tick();
     check(output.getMagnitude(0,256)>0.15f,"Incoming MIDI did not play the sample");
     check(pixels(grid,area)!=idlePad && pixels(piano,piano.getLocalBounds())!=idlePiano,"MIDI failed to highlight both pad and piano");
+    check(pixels(groups,firstGroup)!=idleGroup,"Playing instruments did not light their group tile");check(pixels(groups,secondGroup)==quietGroupPixels,"An unrelated group lit up");
     for(int n=0;n<7;++n)tick();check(pixels(grid,area)!=idlePad,"Held MIDI note stopped highlighting");
     capture(editor,"drum-pads-midi.png");
     const int keyX=(int)(piano.getWidth()/104.0f);
@@ -74,6 +77,16 @@ void runPadTests()
     piano.mouseDown(mouse(piano,keyPoint));processor.processBlock(output,midi);check(output.getMagnitude(0,256)>0.15f,"Piano press did not play");
     check(pixels(grid,area)!=idlePad,"Piano press failed to highlight pad");piano.mouseUp(mouse(piano,keyPoint,false));processor.processBlock(output,midi);
     engine.stop();processor.processBlock(output,midi);for(int n=0;n<7;++n)tick();
+    for(int n=0;n<3;++n)tick();check(pixels(groups,firstGroup)!=idleGroup,"Triggered group did not latch after Stop");engine.resetActivityLatch();tick();check(pixels(groups,firstGroup)==idleGroup,"Reset did not clear the group latch");
+    midi.clear();midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)110),0);midi.addEvent(juce::MidiMessage::noteOff(1,21),64);processor.processBlock(output,midi);midi.clear();for(int n=0;n<8;++n)tick();
+    check(pixels(groups,firstGroup)!=idleGroup,"Short note-off hid the still-playing sample tail");engine.stop();processor.processBlock(output,midi);for(int n=0;n<8;++n)tick();check(pixels(groups,firstGroup)!=idleGroup,"Group latch was cleared by the sample tail ending");engine.resetActivityLatch();tick();check(pixels(groups,firstGroup)==idleGroup,"Group latch reset failed");
+    struct Transport final:juce::AudioPlayHead{bool playing=false;juce::Optional<PositionInfo> getPosition()const override{PositionInfo info;info.setIsPlaying(playing);return info;}} transport;
+    processor.setPlayHead(&transport);midi.clear();midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)100),0);processor.processBlock(output,midi);midi.clear();check(engine.triggeredThisPass(21),"MIDI trigger did not latch");
+    transport.playing=true;processor.processBlock(output,midi);check(!engine.triggeredThisPass(21),"Host Play did not reset existing activity");
+    midi.addEvent(juce::MidiMessage::noteOn(1,22,(juce::uint8)100),0);processor.processBlock(output,midi);midi.clear();check(engine.triggeredThisPass(22),"Trigger during playback did not latch");
+    transport.playing=false;processor.processBlock(output,midi);check(engine.triggeredThisPass(22),"Host Stop cleared the activity latch");
+    transport.playing=true;midi.addEvent(juce::MidiMessage::noteOn(1,21,(juce::uint8)100),0);processor.processBlock(output,midi);midi.clear();check(engine.triggeredThisPass(21) && !engine.triggeredThisPass(22),"New Play lost its first-block note or retained old activity");
+    processor.setPlayHead(nullptr);engine.stop();processor.processBlock(output,midi);dynamic_cast<juce::Button&>(find(editor,"play-sample")).onClick();check(!engine.triggeredThisPass(21),"Drum Play did not reset activity before audition");processor.processBlock(output,midi);check(engine.triggeredThisPass(21),"Drum audition did not latch its instrument");engine.stop();processor.processBlock(output,midi);engine.resetActivityLatch();for(int n=0;n<10;++n)tick();
     capture(editor,"drum-pads.png");editor.setSize(800,600);capture(editor,"drum-pads-compact.png");
     // UI gate release must not release a physical MIDI key on the same note/channel.
     state=library.snapshot();auto id=drum::activeKit(state)->groups[0].instruments[0].id;drum::InstrumentControls controls;controls.sound.mode=1;

@@ -1,5 +1,7 @@
+#include "SendRoutingMenu.h"
 #include "PortableFiles.h"
 #include "SoundEditor.h"
+#include "SendRouteDisplay.h"
 #include "platform/HostFloat.h"
 
 namespace
@@ -203,8 +205,8 @@ public:
         auto caption=sourceMode()?juce::String(reversed()?"Source reversed / Start ":"Source / Start ")+juce::String(trimStart()*100,2)+"% / End "+juce::String(trimEnd()*100,2)+"% - drag markers to trim":!original?juce::String("Load a sample to preview"):busy?juce::String("Updating preview..."):rendered.error;
         if(!sourceMode() && original && !busy && caption.isEmpty())
         {
-            caption=(owner.editingSend>=0?"Independent send / pre-return FX / ":"")+juce::String("One hit / velocity 80% / 1 s gate");
-            if(owner.chainPresent && owner.editingSend<0)caption+=" / before Chain";
+            caption=owner.page==6 && owner.attackOnly.getToggleState()?juce::String("Attack reference / before velocity, EQ and mixer"):(owner.editingSend>=0?"Independent send / pre-return FX / ":"")+juce::String("One hit / velocity 80% / 1 s gate");
+            if(owner.chainPresent && owner.editingSend<0 && !(owner.page==6 && owner.attackOnly.getToggleState()))caption+=" / before Chain";
             if(source)caption+=" / peak "+juce::String(juce::Decibels::gainToDecibels(source->peak,-100.0f),1)+" dBFS";
             if(rendered.truncated)caption+=" / first "+juce::String(source->audio.getNumSamples()/source->rate,1)+" s only";
         }
@@ -481,10 +483,10 @@ class SoundEditor::RoutingView final : public juce::Component {
 public:
     drum::SoundParameters settings;juce::String instrument;bool hasChain=false,audible=true;std::array<bool,22> enabled{};
     std::array<bool,6> returnActive{};std::array<drum::ReturnRouting,6> returnRoutes{};std::array<juce::String,6> descriptions;
-    std::array<juce::TextButton,6> edit;std::array<juce::Label,6> names;std::array<juce::String,6> rawNames;std::function<void(int)> openReturn;std::function<void(int,const juce::String&)> renameReturn;
+    std::array<juce::TextButton,6> edit,destinations;std::array<juce::Label,6> names;std::array<juce::String,6> rawNames;std::function<void(int)> openReturn,chooseDestination;std::function<void(int,const juce::String&)> renameReturn;
     void setNames(const drum::Kit& kit){for(int n=0;n<6;++n){rawNames[(size_t)n]=kit.returns[(size_t)n].name;if(!names[(size_t)n].isBeingEdited())names[(size_t)n].setText(drum::sendLabel(kit,n),juce::dontSendNotification);}}
-    RoutingView(){for(int n=0;n<6;++n){addAndMakeVisible(edit[(size_t)n]);edit[(size_t)n].setButtonText("Edit "+juce::String::charToString((juce::juce_wchar)('A'+n)));edit[(size_t)n].setComponentID("edit-return-"+juce::String(n));edit[(size_t)n].onClick=[this,n]{if(openReturn)openReturn(n);};auto& name=names[(size_t)n];addAndMakeVisible(name);name.setComponentID("send-name-"+juce::String(n));name.setEditable(true,true,false);name.setFont(juce::FontOptions(12));name.setColour(juce::Label::textColourId,ink);name.setTooltip("Click to rename this shared send. Clear the name to restore Send "+juce::String::charToString((juce::juce_wchar)('A'+n))+".");name.onEditorShow=[this,n]{names[(size_t)n].getCurrentTextEditor()->setText(rawNames[(size_t)n],false);names[(size_t)n].getCurrentTextEditor()->selectAll();};name.onTextChange=[this,n]{if(renameReturn)renameReturn(n,names[(size_t)n].getText());};}}
-    void resized() override {const float row=(getHeight()-52)/7.f;for(int n=0;n<6;++n){edit[(size_t)n].setBounds((int)(getWidth()*.66f),(int)(24+row*(n+1)+2),juce::jmin(64,(int)(getWidth()*.08f)-4),juce::jmax(18,(int)row-6));names[(size_t)n].setBounds((int)(getWidth()*.47f)+4,(int)(24+row*(n+1)),(int)(getWidth()*.18f)-8,juce::jmax(14,(int)(row*.5f)));}}
+    RoutingView(){for(int n=0;n<6;++n){addAndMakeVisible(destinations[(size_t)n]);destinations[(size_t)n].setComponentID("send-destination-"+juce::String(n));destinations[(size_t)n].onClick=[this,n]{if(chooseDestination)chooseDestination(n);};addAndMakeVisible(edit[(size_t)n]);edit[(size_t)n].setButtonText("Edit "+juce::String::charToString((juce::juce_wchar)('A'+n)));edit[(size_t)n].setComponentID("edit-return-"+juce::String(n));edit[(size_t)n].onClick=[this,n]{if(openReturn)openReturn(n);};auto& name=names[(size_t)n];addAndMakeVisible(name);name.setComponentID("send-name-"+juce::String(n));name.setEditable(true,true,false);name.setFont(juce::FontOptions(12));name.setColour(juce::Label::textColourId,ink);name.setTooltip("Click to rename this shared send. Clear the name to restore Send "+juce::String::charToString((juce::juce_wchar)('A'+n))+".");name.onEditorShow=[this,n]{names[(size_t)n].getCurrentTextEditor()->setText(rawNames[(size_t)n],false);names[(size_t)n].getCurrentTextEditor()->selectAll();};name.onTextChange=[this,n]{if(renameReturn)renameReturn(n,names[(size_t)n].getText());};}}
+    void resized() override {const float row=(getHeight()-52)/7.f;for(int n=0;n<6;++n){destinations[(size_t)n].setBounds((int)(getWidth()*.47f)+4,(int)(24+row*(n+1)+row*.5f),(int)(getWidth()*.18f)-8,juce::jmax(14,(int)(row*.5f)-3));edit[(size_t)n].setBounds((int)(getWidth()*.66f),(int)(24+row*(n+1)+2),juce::jmin(64,(int)(getWidth()*.08f)-4),juce::jmax(18,(int)row-6));names[(size_t)n].setBounds((int)(getWidth()*.47f)+4,(int)(24+row*(n+1)),(int)(getWidth()*.18f)-8,juce::jmax(14,(int)(row*.5f)));}}
     void paint(juce::Graphics& g) override {
         g.setColour(bg);g.fillRoundedRectangle(getLocalBounds().toFloat(),8);
         const float w=(float)getWidth(),h=(float)getHeight(),row=(h-52)/7,split=w*.40f,ret=w*.47f,main=w*.82f,centre=24+row*3.5f;
@@ -536,6 +538,7 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     bypassButton.onClick=[this]{const auto member=bypassParameter();if(!member)return;auto state=processor.getLibrary().snapshot();auto* k=drum::activeKit(state);auto* i=drum::findInstrument(*k,instrumentId);if(!i)return;auto c=editingControls(i->controls);const bool inverse=(page!=3 && !(page==1 && selectedEnvelope==2));c.sound.*member=(bypassButton.getToggleState()!=inverse)?1:0;if(page==1 && selectedEnvelope==0 && bypassButton.getToggleState())c.sound.mode=2;auto result=storeControls(c);if(result.ok){if(page==1 || page==8)recordEnvelope(page==8?1:selectedEnvelope,editingControls(i->controls),c);processor.getEffects().sync();processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));}waveform->showEdited();refresh();};
     button(settingsButton,"Settings...","editor-instrument-settings");settingsButton.setTooltip("Save or load settings without replacing the destination sample, name or MIDI note.");settingsButton.onClick=[this]{juce::PopupMenu menu;menu.addItem(1,"Save settings...");menu.addItem(2,"Load settings...");juce::Component::SafePointer<SoundEditor> safe(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&settingsButton),[safe](int choice){if(safe && choice && safe->instrumentSettings)safe->instrumentSettings(choice==1);});};
     button(exportButton,"Export...","editor-instrument-export");exportButton.onClick=[this]{if(exportInstrument)exportInstrument();};
+    button(previous,"Back","back-sound-editor");previous.onClick=[this]{if(goBack)goBack();else if(close)close();};
     button(back,"Exit","close-sound-editor"); back.onClick=[this]{if(close)close();};
     button(reset,"Reset page","reset-edit-page"); reset.onClick=[this]{
         auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);auto* i=drum::findInstrument(*kit,instrumentId);
@@ -555,8 +558,9 @@ SoundEditor::SoundEditor(DrumAudioProcessor& p):processor(p),chain(p.getLibrary(
     lfoGraph->onBeginGesture=[this]{lfoGesture=true;lfoRecorded=false;};lfoGraph->onEndGesture=[this]{lfoGesture=lfoRecorded=false;};lfoGraph->onUndo=[this]{undoLfo(false);};lfoGraph->onRedo=[this]{undoLfo(true);};
     routing=std::make_unique<RoutingView>();addAndMakeVisible(*routing);routing->setComponentID("output-routing");
     routing->renameReturn=[this](int n,const juce::String& name){auto result=processor.getLibrary().setReturnName(kitId,n,name);if(result.ok)processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));else message=result.message;refresh();};
-    routing->openReturn=[this](int n){returnWindowKit=kitId;returnWindowIndex=n;auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);if(!kit)return;class ReturnWindow final:public juce::DocumentWindow{public:ReturnWindow(juce::String title):DocumentWindow(title,juce::Colour(0xff19212e),closeButton){setUsingNativeTitleBar(true);}void closeButtonPressed() override{setVisible(false);}};auto editor=std::make_unique<ChainEditor>(processor.getLibrary(),processor.getEffects());editor->select(kitId,"return-"+juce::String(n));editor->setSize(1000,500);returnWindow=std::make_unique<ReturnWindow>("Drum shared "+drum::sendLabel(*kit,n));returnWindow->setContentOwned(editor.release(),true);returnWindow->setResizable(true,false);returnWindow->centreWithSize(1020,540);djl::HostFloat::showAuxiliaryWindow(*returnWindow,this);};
-    addAndMakeVisible(attackOnly);attackOnly.setComponentID("attack-waveform-only");attackOnly.setTooltip("Show only the generated attack layer in the waveform. Playback still includes the sample.");attackOnly.onClick=[this]{waveform->showEdited();refreshPreview();};
+    routing->chooseDestination=[this](int n){drum::showSendRoutingMenu(routing->destinations[(size_t)n],processor.getLibrary(),processor.getEffects(),kitId,"return-"+juce::String(n),[this]{processor.updateHostDisplay(juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(true));refresh();});};
+    routing->openReturn=[this](int n){returnWindowKit=kitId;returnWindowIndex=n;auto state=processor.getLibrary().snapshot();auto* kit=drum::activeKit(state);if(!kit)return;class ReturnWindow final:public juce::DocumentWindow{public:ReturnWindow(juce::String title):DocumentWindow(title,juce::Colour(0xff19212e),closeButton){setUsingNativeTitleBar(true);}void closeButtonPressed() override{setVisible(false);}};auto editor=std::make_unique<ChainEditor>(processor.getLibrary(),processor.getEffects());editor->select(kitId,"return-"+juce::String(n));editor->setSize(1000,500);returnWindow=std::make_unique<ReturnWindow>("Drum shared "+drum::sendLabel(*kit,n));editor->setNavigation([this]{if(returnWindow)returnWindow->setVisible(false);toFront(true);},[this]{if(returnWindow)returnWindow->setVisible(false);toFront(true);});returnWindow->setContentOwned(editor.release(),true);returnWindow->setResizable(true,false);returnWindow->centreWithSize(1020,540);djl::HostFloat::showAuxiliaryWindow(*returnWindow,this);};
+    addAndMakeVisible(attackOnly);attackOnly.setComponentID("attack-waveform-only");attackOnly.setTooltip("Show the attack generator before velocity, EQ and mixer gain: 0 dB reaches full scale for every type. Playback still includes the sample.");attackOnly.onClick=[this]{waveform->showEdited();refreshPreview();};
     keySpectrum=std::make_unique<KeySpectrum>();addAndMakeVisible(*keySpectrum);keySpectrum->setComponentID("key-spectrum");
     auto tuningControl=[this](ResetSlider& slider,juce::Label& label,const char* title,const char* id,double low,double high,double step,const char* suffix){addAndMakeVisible(slider);addAndMakeVisible(label);slider.setComponentID(id);useValueBar(slider);slider.setRange(low,high,step);slider.setTextValueSuffix(suffix);slider.setDoubleClickReturnValue(true,0);slider.setColour(juce::Slider::trackColourId,mint.withAlpha(.3f));slider.setColour(juce::Slider::thumbColourId,mint);label.setText(title,juce::dontSendNotification);label.setColour(juce::Label::textColourId,juce::Colours::white);label.setFont(juce::FontOptions(14));label.setJustificationType(juce::Justification::centredRight);slider.onValueChange=[this]{changeKeyTuning();};};
     tuningControl(keyCoarse,keyCoarseLabel,"Coarse","key-coarse",-48,48,1," st");tuningControl(keyFine,keyFineLabel,"Fine","key-fine",-100,100,.1," cents");
@@ -851,7 +855,19 @@ void SoundEditor::refreshPreview()
     drum::EnvelopeShape cycle=sound.envelopes[3];if(sound.lfoShape!=6 || cycle.count<2){cycle={};cycle.count=sound.lfoShape==6?2:9;cycle.hold=0;for(int n=0;n<cycle.count;++n){const double phase=(double)n/(cycle.count-1);double level=.5;switch((int)sound.lfoShape){case 0:level=.5+.5*std::sin(phase*juce::MathConstants<double>::twoPi);break;case 1:level=1-2*std::abs(phase-.5);break;case 2:level=phase<.5?1:0;break;case 3:level=phase;break;case 4:level=1-phase;break;case 5:level=std::fmod(std::sin(std::floor(phase*8)+1)*43758.5453,1.0);if(level<0)level+=1;break;}cycle.points[(size_t)n]={phase*1000,level};}if(sound.lfoShape==0)for(int n=1;n<cycle.count;++n){const double phase=(n-.5)/(cycle.count-1);drum::bendEnvelopeSegment(cycle.points[(size_t)n-1].level,cycle.points[(size_t)n],.5,.5+.5*std::sin(phase*juce::MathConstants<double>::twoPi));}}
     lfoGraph->update({},cycle,false,1,"%",true,"One cycle / click to add / drag line to curve / Shift: fine",false);lfoGraph->setHistory(!lfoUndo.empty(),!lfoRedo.empty());
     routing->settings=selectedControls.sound;for(int n=0;n<drum::numMacros;++n){const auto& mapping=selectedControls.macros[(size_t)n];if(mapping.target>3)routing->settings.*(drum::macroTargets[(size_t)mapping.target].member)=mapping.minimum+(mapping.maximum-mapping.minimum)*processor.macro(n).get();}
-    routing->returnActive.fill(false);auto routingState=processor.getLibrary().snapshot();if(const auto* kit=drum::activeKit(routingState)){bool solo=false;for(const auto& g:kit->groups)for(const auto& i:g.instruments)solo|=i.controls.solo;for(const auto& g:kit->groups)for(const auto& i:g.instruments){if(i.controls.mute || (solo && !i.controls.solo))continue;auto sound=i.controls.sound;for(int m=0;m<drum::numMacros;++m){const auto& map=i.controls.macros[(size_t)m];if(map.target>3)sound.*(drum::macroTargets[(size_t)map.target].member)=map.minimum+(map.maximum-map.minimum)*processor.macro(m).get();}const double levels[]{sound.sendA,sound.sendB,sound.sendC,sound.sendD,sound.sendE,sound.sendF};for(int n=0;n<6;++n)routing->returnActive[(size_t)n]|=levels[n]>drum::sendFloor;}for(int step=0;step<6;++step)for(int a=0;a<6;++a)if(routing->returnActive[(size_t)a])for(int b=0;b<6;++b)if(kit->returnRouting[(size_t)a].sends[(size_t)b]>drum::sendFloor)routing->returnActive[(size_t)b]=true;routing->audible=!selectedControls.mute && (!solo || selectedControls.solo);for(int n=0;n<6;++n){const auto& slots=kit->returns[(size_t)n].effects;int active=0;for(const auto& slot:slots)if(!slot.bypassed)++active;routing->descriptions[(size_t)n]=active?juce::String(active)+" FX":"Pass-through";}}
+    routing->returnActive.fill(false);
+    auto routingState=processor.getLibrary().snapshot();
+    if(const auto* kit=drum::activeKit(routingState)){
+        bool solo=false,groupSolo=false;
+        for(const auto& group:kit->groups){groupSolo|=group.mixer.solo;for(const auto& instrument:group.instruments)solo|=instrument.controls.solo;}
+        routing->audible=!selectedControls.mute && selectedControls.volumeDb>-60 && (!solo || selectedControls.solo);
+        for(const auto& group:kit->groups)for(const auto& instrument:group.instruments)if(instrument.id==instrumentId)
+            routing->audible&=!group.mixer.mute && group.mixer.volumeDb>-70 && (!groupSolo || group.mixer.solo);
+        routing->returnRoutes=kit->returnRouting;
+        for(int n=0;n<6;++n)routing->destinations[(size_t)n].setButtonText("To: "+drum::sendDestinationText(*kit,kit->returnRouting[(size_t)n]));
+        routing->returnActive=drum::displayedSendRoutes(routing->settings,routing->audible,kit->returnRouting);
+        for(int n=0;n<6;++n){const auto& slots=kit->returns[(size_t)n].effects;int active=0;for(const auto& slot:slots)if(!slot.bypassed)++active;routing->descriptions[(size_t)n]=active?juce::String(active)+" FX":"Pass-through";}
+    }
     routing->instrument=name;routing->hasChain=chainPresent;for(int n=0;n<22;++n){auto* bus=processor.getBus(false,drum::outputBusIndex(n));routing->enabled[(size_t)n]=bus && bus->isEnabled();}if(page==4)routing->repaint();
     syncEnvelopeOverlay();
 }
@@ -1020,7 +1036,7 @@ void SoundEditor::setPage(int value)
 void SoundEditor::paint(juce::Graphics& g)
 {
     g.fillAll(panel);
-    text(g,name+(editingSend>=0?" / Send "+juce::String::charToString('A'+editingSend):""),{18,12,getWidth()-598,30},22);
+    text(g,name+(editingSend>=0?" / Send "+juce::String::charToString('A'+editingSend):""),{18,12,getWidth()-628,30},22);
     static const char* help[]{
         "Choose Source to drag trim markers; Edited previews the sound. Wheel zooms time; Shift + wheel zooms amplitude; middle-drag pans.",
         "Click line: add point. Drag point: move. Drag line: curve. Double-click point: remove. Right-click: hold at S.",
@@ -1028,7 +1044,7 @@ void SoundEditor::paint(juce::Graphics& g)
         "Turn LFO On and raise a depth to hear modulation and see it in Edited. Filter depth also needs Filter On.",
         "Sends A-F feed shared local effects, then Main. Edit A-F to add effects; set reverb/delay to 100% wet.",
         "Automate Macro 1-16 in your DAW. Mappings belong to each instrument; Min/Max allow inverted ranges. Later mappings take priority.",
-        "Add Click, Pulse or Noise independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note.",
+        "Add Click, Pulse, Noise, Snap, Thump, Metal, Wood or Clap independently of the sample envelopes. Position delays the hit in ms; 0 starts with the note.",
         "Drag VST3 effects into this instrument\'s chain. Audio flows left to right. The waveform shows the sound before this chain.",
         "C through B, combined across octaves. Coarse = semitones; Fine = cents. The spectrum follows the edited sound."};
     text(g,help[page],{page==1?376:18,116,juce::jmax(1,getWidth()-(page==1?544:page==6?410:184)),24},12,muted);
@@ -1037,13 +1053,13 @@ void SoundEditor::paint(juce::Graphics& g)
 void SoundEditor::resized()
 {
     noteIndicator.setBounds(18,46,getWidth()-36,22);
-    soloButton.setBounds(getWidth()-574,15,64,32);
-    settingsButton.setBounds(getWidth()-504,15,88,32);
-    notesButton.setBounds(getWidth()-410,15,78,32);exportButton.setBounds(getWidth()-324,15,86,32);
-    back.setBounds(getWidth()-230,15,125,32); reset.setBounds(getWidth()-95,15,80,32);
+    soloButton.setBounds(getWidth()-604,15,64,32);
+    settingsButton.setBounds(getWidth()-534,15,88,32);
+    notesButton.setBounds(getWidth()-440,15,78,32);exportButton.setBounds(getWidth()-354,15,86,32);
+    previous.setBounds(getWidth()-260,15,75,32);back.setBounds(getWidth()-180,15,75,32); reset.setBounds(getWidth()-95,15,80,32);
     const int tabWidth=(getWidth()-36-8*((int)tabs.size()-1))/(int)tabs.size();
-    constexpr int order[]{0,1,2,6,3,8,7,4,5};
-    for(int n=0;n<(int)tabs.size();++n) tabs[(size_t)order[n]].setBounds(18+n*(tabWidth+8),78,tabWidth,30);
+    constexpr int order[]{0,1,8,2,6,3,7,4,5};
+    for(int n=0;n<(int)tabs.size();++n){tabs[(size_t)order[n]].setBounds(18+n*(tabWidth+8),78,tabWidth,30);tabs[(size_t)order[n]].setExplicitFocusOrder(n+1);}
     ampOverlay.setBounds(18,116,112,24);pitchOverlay.setBounds(136,116,112,24);
     bypassButton.setBounds(getWidth()-148,116,130,24);
     adsrValues.setBounds(getWidth()-286,116,128,24);attackOnly.setBounds(getWidth()-386,116,230,24);

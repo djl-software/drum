@@ -132,7 +132,7 @@
         },
         {
           "type": "p",
-          "text": "An unsaved-change marker on a tab/name is a reminder to save that document. Opening a kit replaces the current kit; opening a library can replace a collection with the same identity. Save first when you need to keep both versions. Explicitly duplicate/save under a new identity when you want an independent variant; linked instances of the same kit identity can share edits."
+          "text": "An unsaved-change marker on a tab/name is a reminder to save that document. Opening a kit replaces the current kit; opening a library can replace a collection with the same identity. Save first when you need to keep both versions. Explicitly duplicate/save under a new identity when you want an independent variant; linked Mac instances share names and keyboard structure while retaining independent instrument and group processing."
         }
       ]
     },
@@ -695,7 +695,7 @@
           "items": [
             "On the main sound, enable LFO and raise a depth. Choose a waveform or draw Custom, set free Hz or tempo division, and decide whether it retriggers per note.",
             "Use small pitch/filter movement for variation; use pan movement carefully when checking mono compatibility.",
-            "Enable Attack to add a Click, Pulse or Noise transient. Set level, tone, decay and position.",
+            "Enable Attack to add a Click, Pulse, Noise, Snap, Thump, Metal, Wood or Clap transient. Set level, tone, decay and position.",
             "Start quietly: for example a low-level pulse around the front of a soft kick, then compare bypassed at similar loudness."
           ]
         },
@@ -1127,6 +1127,23 @@
         {
           "type": "p",
           "text": "This manual uses actual application-rendered demonstration images. Typography uses embedded Liberation Sans as a portable Segoe-style substitute on macOS. The editable manuscript and version-aware PDF builder are retained in the repository."
+        }
+      ]
+    },
+    {
+      "title": "Independent track settings and group processing (Mac)",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Each Live track retains every instrument tab, sample choice, chain, send shape and macro setting, including tracks using the same kit file. Linked kits share names and keyboard structure; they do not overwrite these sound settings."
+        },
+        {
+          "type": "p",
+          "text": "In Mixer, click Chain & sends on a group strip. Member dry outputs enter this group after their instrument chains and send taps. The group chain processes the sum, followed by the group fader and six group sends. Each group owns its own six return chains. An instrument with a separate output bypasses the group bus."
+        },
+        {
+          "type": "p",
+          "text": "Click a To: button in the instrument Outputs & Sends diagram or group/send editor. Choose Main, a named group, no direct output, or feeds to other sends. A return sent to a group enters before the group chain. Connections that would create feedback are disabled or rejected. Processing and routing are saved with the kit and Live project."
         }
       ]
     }

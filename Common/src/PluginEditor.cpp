@@ -5,8 +5,12 @@
 #include "MixerPage.h"
 #include "RotaryDial.h"
 #include "InstrumentNotes.h"
+#include "platform/DoneFooter.h"
 #include "DJLAssets.h"
 #include "SoundEditor.h"
+#if JUCE_MAC
+#include "../../Mac/src/EditorWidth.h"
+#endif
 #include <array>
 #include <cmath>
 
@@ -287,11 +291,15 @@ public:
 class DrumAudioProcessorEditor::Workspace final : public juce::Component, private juce::ListBoxModel, private juce::Timer, public juce::FileDragAndDropTarget
 {
 public:
-    std::function<void()> onShowLibrary,onBackToKit,onShowMixer;
+    std::function<void()> onShowLibrary,onBackToKit,onShowMixer,mixerExternalBack;
     std::function<void(int)> onLibraryAction,onKitAction;
     void copyPresentationFrom(const Workspace& other){groupId=other.groupId;instrumentId=other.instrumentId;refresh();if(other.mixerPage && other.mixerPage->isVisible()){mixerButton.onClick();mixerPage->selectGroup(other.mixerPage->selectedGroup());}}
     void updateFloatButton(){trackNameLabel.setText(setupProcessor.trackName(),juce::dontSendNotification);floatButton.setToggleState(setupProcessor.isFloatEnabled(),juce::dontSendNotification);const bool mixing=mixerPage && mixerPage->isVisible();kitMenu.setToggleState(processor.isMidiTrack() && !mixing,juce::dontSendNotification);libraryMenu.setToggleState(!processor.isMidiTrack(),juce::dontSendNotification);mixerButton.setToggleState(mixing,juce::dontSendNotification);}
     void openMixer(){mixerButton.onClick();}
+    bool mixerVisible() const{return mixerPage && mixerPage->isVisible();}
+    juce::String mixerGroup() const{return mixerPage?mixerPage->selectedGroup():juce::String();}
+    void restoreMixer(const juce::String& group){openMixer();mixerPage->selectGroup(group);}
+    int mixerWidthLimit() const{return mixerPage && mixerPage->isVisible()?mixerPage->widthForAllStrips()+48:0;}
     void navigateLibrary(){if(mixerPage)mixerPage->setVisible(false);if(patternEditor)patternEditor->setVisible(false);soundEditor.setVisible(false);refresh();}
     void navigateKit(){if(!processor.isMidiTrack()){if(onBackToKit)onBackToKit();return;}if(mixerPage)mixerPage->setVisible(false);if(patternEditor)patternEditor->setVisible(false);soundEditor.setVisible(false);refresh();}
     void performKitAction(int n){if(!processor.isMidiTrack()){if(onKitAction)onKitAction(n);return;}if(n==1)newKitButton.onClick();if(n==2)openDocumentButton.onClick();if(n==3)saveDocumentButton.onClick();if(n==4)saveAsButton.onClick();if(n==5){groupId.clear();instrumentId.clear();complete(processor.duplicateActiveKit());}if(n==6)renameKit();}
@@ -301,8 +309,13 @@ public:
     {
         setLookAndFeel(&look);
         addAndMakeVisible(trackNameLabel);trackNameLabel.setComponentID("track-name");trackNameLabel.setFont(juce::FontOptions(18));trackNameLabel.setColour(juce::Label::textColourId,text);trackNameLabel.setJustificationType(juce::Justification::centredRight);trackNameLabel.setBorderSize({0,0,0,0});
-        addAndMakeVisible(floatButton);floatButton.setButtonText("Float Window");floatButton.setComponentID("float-window");floatButton.setColour(juce::ToggleButton::textColourId,accent);floatButton.onClick=[this]{setupProcessor.setFloatEnabled(floatButton.getToggleState());};floatButton.setTooltip("Independent Drum window, like Meter. Stays open across track selection; other apps can cover it. Turn Float off to return to the host editor.");
-        setup(mixerButton,"Mixer","open-mixer");mixerButton.onClick=[this]{if(!processor.isMidiTrack() && onShowMixer){onShowMixer();return;}soundEditor.setVisible(false);if(patternEditor)patternEditor->setVisible(false);if(!mixerPage){mixerPage=std::make_unique<DrumMixerPage>(processor);mixerPage->onOpenInstrument=[this](juce::String id){const auto current=library.snapshot();const auto* active=drum::activeKit(current);if(!active)return;for(const auto& group:active->groups)for(const auto& sound:group.instruments)if(sound.id==id){groupId=group.id;instrumentId=id;mixerPage->setVisible(false);refresh();scrollToSelected();editSound.onClick();updateFloatButton();return;}};addChildComponent(*mixerPage);}resized();mixerPage->open();updateFloatButton();};
+        addAndMakeVisible(floatButton);floatButton.setButtonText("Float Window");floatButton.setComponentID("float-window");floatButton.setColour(juce::ToggleButton::textColourId,accent);floatButton.onClick=[this]{setupProcessor.setFloatEnabled(floatButton.getToggleState());};
+#if JUCE_MAC
+        floatButton.setTooltip("Keep the independent Drum window floating above Live, including browser drags. Turn Float off to return to the host editor.");
+#else
+        floatButton.setTooltip("Independent Drum window, like Meter. Stays open across track selection; other apps can cover it. Turn Float off to return to the host editor.");
+#endif
+        setup(mixerButton,"Mixer","open-mixer");mixerButton.onClick=[this]{if(!processor.isMidiTrack() && onShowMixer){onShowMixer();return;}if(mixerPage && mixerPage->isVisible())return;mixerOrigins.push_back(soundEditor.isVisible()?1:patternEditor && patternEditor->isVisible()?2:0);soundEditor.setVisible(false);if(patternEditor)patternEditor->setVisible(false);if(!mixerPage){mixerPage=std::make_unique<DrumMixerPage>(processor);mixerPage->onBack=[this]{mixerPage->setVisible(false);int origin=mixerOrigins.empty()?0:mixerOrigins.back();if(!mixerOrigins.empty())mixerOrigins.pop_back();if(origin==1){soundEditor.setVisible(true);soundEditor.toFront(false);}else if(origin==2 && patternEditor){patternEditor->setVisible(true);patternEditor->toFront(false);}else if(mixerExternalBack){auto callback=std::move(mixerExternalBack);mixerExternalBack={};callback();}else refresh();updateFloatButton();};mixerPage->onExit=[this]{mixerPage->setVisible(false);mixerOrigins.clear();mixerExternalBack={};refresh();updateFloatButton();};mixerPage->onOpenInstrument=[this](juce::String id){const auto current=library.snapshot();const auto* active=drum::activeKit(current);if(!active)return;for(const auto& group:active->groups)for(const auto& sound:group.instruments)if(sound.id==id){groupId=group.id;instrumentId=id;mixerPage->setVisible(false);refresh();scrollToSelected();editSound.onClick();instrumentCameFromMixer=true;updateFloatButton();return;}};addChildComponent(*mixerPage);}resized();mixerPage->open();updateFloatButton();};
         setup(kitMenu,"Kit","kit-menu");kitMenu.getProperties().set("direct-navigation",true);kitMenu.onClick=[this]{navigateKit();};kitMenu.context=[this]{showKitMenu();};kitMenu.setTooltip("Open the Kit page. Right-click for kit file operations.");
         setup(libraryMenu,"Library","library-menu");libraryMenu.getProperties().set("direct-navigation",true);libraryMenu.onClick=[this]{if(processor.isMidiTrack())showLibrary();else navigateLibrary();};libraryMenu.context=[this]{showLibraryMenu();};libraryMenu.setTooltip("Open the Library page. Right-click for library file operations.");
         setup(fileMenu,"File...","file-menu");fileMenu.onClick=[this]{showFileMenu();};
@@ -388,7 +401,7 @@ public:
         setup(playSample, "Play", "play-sample"); playSample.onClick=[this] {
             auto& engine=processor.getSampleEngine();
             if(loopSample.getToggleState() && engine.auditionLoopRunning())engine.pauseAudition();
-            else if(auto* i=instrument()) {if(loopSample.getToggleState())engine.setAuditionLoop(i->note);else engine.audition(i->note);}
+            else if(auto* i=instrument()) {engine.resetActivityLatch();if(loopSample.getToggleState())engine.setAuditionLoop(i->note);else engine.audition(i->note);}
             updateTransport();
         };
         setup(loopSample,"Loop","audition-loop");loopSample.setClickingTogglesState(true);
@@ -430,7 +443,7 @@ public:
         setupName(groupName,"group-name",[this]{ return groupId; });
         setupName(instrumentName,"instrument-name",[this]{ return instrumentId; });
         addAndMakeVisible(groups); groups.setModel(this); groups.setRowHeight(61); groups.setOutlineThickness(0);
-        groups.setComponentID("groups"); groups.setName("Instrument groups");
+        groups.setComponentID("groups"); groups.setName("Instrument groups");groups.setTooltip("Group activity latches instruments triggered since Play. Press Play to reset the count.");
         addAndMakeVisible(viewport);viewport.setComponentID("instrument-viewport");viewport.setViewedComponent(&grid,false);viewport.setScrollBarsShown(true,false);viewport.getVerticalScrollBar().setAutoHide(false);viewport.getVerticalScrollBar().setComponentID("instrument-scrollbar");viewport.setSingleStepSizes(0,36);
         grid.drop=[this](const juce::StringArray& files,juce::String id) { handleDrop(files,processor.isMidiTrack()?id:juce::String()); };
         grid.setWantsKeyboardFocus(true);grid.context=[this](juce::String id){showInstrumentMenu(id);};grid.remove=[this](juce::String id){removeLibraryInstrument(id);};if(!processor.isMidiTrack())grid.addToKit=[this](juce::String id){addLibraryInstrument(id);};
@@ -467,12 +480,13 @@ public:
         setup(importButton,"Import...","instrument-import");importButton.onClick=[this]{chooseInstrumentFile(false,{});};
         setup(editSound,"Edit","open-sound-editor"); editSound.setColour(juce::TextButton::buttonColourId,accent.darker(0.62f));
         addChildComponent(soundEditor);
-        editSound.onClick=[this] { soundEditor.select(view.activeKit,instrument()); soundEditor.setVisible(true); soundEditor.toFront(false); };
+        editSound.onClick=[this] { instrumentCameFromMixer=false;soundEditor.select(view.activeKit,instrument()); soundEditor.setVisible(true); soundEditor.toFront(false); };
         soundEditor.showNotes=[this]{showInstrumentNotes(instrumentId);};
         soundEditor.exportInstrument=[this]{chooseInstrumentFile(true,instrumentId);};
         soundEditor.instrumentSettings=[this](bool save){chooseInstrumentSettings(save,instrumentId);};
         soundEditor.controlsChanged=[this]{refresh(false);};
-        soundEditor.close=[this] { soundEditor.setVisible(false); refresh(); };
+        soundEditor.goBack=[this]{soundEditor.setVisible(false);if(instrumentCameFromMixer && mixerPage){mixerPage->setVisible(true);mixerPage->toFront(false);}else refresh();updateFloatButton();};
+        soundEditor.close=[this] {mixerOrigins.clear();mixerExternalBack={};soundEditor.setVisible(false);refresh();updateFloatButton();};
         status=processor.isMidiTrack()?(processor.hasOpenKit()?"Kit edits are independent of the library. Save kit to collect its samples.":"Choose Kit > New or Load to begin. Add instruments from Library."):"Right-click a library tab to save, duplicate or close it. * means unsaved changes.";
         for(int n=0;n<128;++n)noteSerials[(size_t)n]=processor.getSampleEngine().noteActivity(n)>>32;
         if(!processor.isMidiTrack()){groupId=processor.librarySelectedGroup;instrumentId=processor.librarySelectedInstrument;}
@@ -701,7 +715,12 @@ private:
     void showInstrumentNotes(const juce::String& id){
         auto* sound=drum::findInstrument(kit(),id);if(!sound)return;
         class NotesWindow final:public juce::DocumentWindow{public:NotesWindow(juce::String title):DocumentWindow(title,juce::Colour(0xff19212e),closeButton){setUsingNativeTitleBar(true);}void closeButtonPressed() override{setVisible(false);}};
-        notesWindow=std::make_unique<NotesWindow>(sound->name+" - Notes");notesWindow->setContentOwned(new InstrumentNotes(processor,view.activeKit,id),true);notesWindow->setResizable(true,false);notesWindow->setResizeLimits(360,240,1200,900);notesWindow->centreWithSize(560,380);notesWindow->setVisible(true);
+        notesWindow=std::make_unique<NotesWindow>(sound->name+" - Notes");notesWindow->setContentOwned(djl::withDoneButton(*notesWindow,new InstrumentNotes(processor,view.activeKit,id)),true);notesWindow->setResizable(true,false);notesWindow->setResizeLimits(360,240,1200,900);notesWindow->centreWithSize(560,380);
+#if JUCE_MAC
+        djl::HostFloat::showAuxiliaryWindow(*notesWindow,this);
+#else
+        notesWindow->setVisible(true);
+#endif
     }
     void chooseInstrumentSettings(bool save,juce::String id){
         const auto* instrument=drum::findInstrument(kit(),id);if(!instrument)return;const auto sourceKit=view.activeKit;
@@ -919,10 +938,15 @@ private:
         if(row<0 || row>=(int)kit().groups.size()) return;
         const auto& group=kit().groups[(size_t)row];
         if(row==groupDropRow){g.setColour(accent);g.drawRoundedRectangle(juce::Rectangle<float>(2,1,(float)width-4,(float)height-2),6,2);}
+        const auto slot=(size_t)row;const bool known=groupActivityIds[slot]==group.id;
+        const float activity=known?groupActivity[slot]:0;const int playing=known?groupPlaying[slot]:0;
+        if(activity>0){auto bounds=juce::Rectangle<float>(4,2,(float)width-8,(float)height-4);g.setColour(groupColour(group.colour).withAlpha(activity*.18f));g.fillRoundedRectangle(bounds,7);g.setColour(accent.withAlpha(activity*.8f));g.drawRoundedRectangle(bounds.reduced(.5f),7,1.5f);}
         if(selected) { g.setColour(groupColour(group.colour).withAlpha(0.1f)); g.fillRoundedRectangle(4,2,(float)width-8,(float)height-4,7); }
         g.setColour(groupColour(group.colour)); g.fillRoundedRectangle(12,16,4,28,2);
         label(g,group.name,{25,9,width-60,24},14);
-        label(g,juce::String(group.instruments.size())+" instruments",{25,34,width-40,18},11,muted);
+        const auto detail=playing>0?juce::String(playing)+" active / "+juce::String(group.instruments.size()):juce::String(group.instruments.size())+" instruments";
+        label(g,detail,{25,34,width-60,18},11,playing>0?accent:muted);
+        if(activity>0){g.setColour(accent.withAlpha(activity*.16f));g.fillEllipse((float)width-31,35,18,18);g.setColour(accent.withAlpha(activity));g.fillEllipse((float)width-26,40,8,8);}
         {g.setColour(text);juce::Path arrow;float x=(float)width-23;arrow.addTriangle(x-5,19,x+5,19,x,25);g.fillPath(arrow);}
     }
     void listBoxItemClicked(int row,const juce::MouseEvent& event) override
@@ -980,6 +1004,16 @@ private:
             keyboard.depression[n]=juce::jlimit(0.0f,1.0f,previous+(target>previous?0.5f:target<previous?-0.34f:0.0f));
             moving|=keyboard.depression[n]!=previous;
         }
+        const auto pass=processor.getSampleEngine().activityPassId();bool groupChanged=pass!=groupActivityPass;
+        if(groupChanged){groupActivity.fill(0);groupPlaying.fill(0);groupActivityPass=pass;}
+        const auto* currentKit=drum::activeKit(view);
+        for(size_t n=0;n<groupActivity.size();++n){int count=0;float pulse=0;juce::String id;
+            if(currentKit && n<currentKit->groups.size()){const auto& group=currentKit->groups[n];id=group.id;for(const auto& instrument:group.instruments){const auto note=(size_t)instrument.note;const bool triggered=processor.getSampleEngine().triggeredThisPass(instrument.note);
+                if(triggered){++count;pulse=juce::jmax(pulse,.55f+.45f*grid.pulse[note]);}}}
+            const bool same=groupActivityIds[n]==id;const float previous=same?groupActivity[n]:0;const float next=juce::jmax(pulse,juce::jmax(0.f,previous-.2f));
+            groupChanged|=!same || groupPlaying[n]!=count || groupActivity[n]!=next;groupActivityIds[n]=id;groupPlaying[n]=count;groupActivity[n]=next;
+        }
+        if(groupChanged)groups.repaint();
         if(changed)grid.repaint();
         if(changed || moving)keyboard.repaint();
     }
@@ -1046,6 +1080,8 @@ private:
     ResetSlider volume,pan,tuning;
     std::unique_ptr<juce::FileChooser> chooser;
     uint64_t sampleEpoch = 0;
+    uint64_t groupActivityPass=0;
+    std::array<juce::String,drum::maxGroups> groupActivityIds{};std::array<float,drum::maxGroups> groupActivity{};std::array<int,drum::maxGroups> groupPlaying{};
     std::array<uint64_t,128> noteSerials {};
     std::array<int,128> flashes {};
     std::array<bool,128> localHeld {};
@@ -1053,7 +1089,7 @@ private:
     juce::Label note;
     juce::ComboBox destination,choke;
     std::unique_ptr<DrumPatternEditor> patternEditor;
-    std::unique_ptr<DrumMixerPage> mixerPage;juce::TextButton mixerButton;juce::ToggleButton floatButton;juce::Label trackNameLabel;
+    bool instrumentCameFromMixer=false;std::vector<int> mixerOrigins;std::unique_ptr<DrumMixerPage> mixerPage;juce::TextButton mixerButton;juce::ToggleButton floatButton;juce::Label trackNameLabel;
     bool addingToKit=false;
     juce::TextButton liveSetupButton,useKitButton,patternButton,newLibraryButton;
     juce::TextButton openLibrary,saveLibrary,reloadLibrary,useSound,newKitButton,openDocumentButton,saveDocumentButton,saveAsButton;
@@ -1072,18 +1108,30 @@ DrumAudioProcessorEditor::DrumAudioProcessorEditor(DrumAudioProcessor& p,bool co
 {
     workspace->onShowLibrary=[this]{showLibraryScreen(true);};
     workspace->onLibraryAction=[this](int action){auto result=processor.openSharedLibrary();if(!result.ok){juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Library",result.message);return;}showLibraryScreen(true);libraryWorkspace->performLibraryAction(action);};
-    addAndMakeVisible(*workspace); setResizable(true,true); setResizeLimits(800,600,1920,1200);
+    addAndMakeVisible(*workspace); setResizable(true,true);
+#if JUCE_MAC
+    setResizeLimits(800,600,djl::editorWidthLimit(*this),1200);
+#else
+    setResizeLimits(800,600,1920,1200);
+#endif
     int width=1280,height=900;
     if(auto* display=juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
     {
         width=juce::jlimit(800,1280,(int)(display->userArea.getWidth()*0.84));
         height=juce::jlimit(600,900,(int)(display->userArea.getHeight()*0.90));
     }
+#if JUCE_MAC
+    {const juce::ScopedLock guard(processor.editorPresentation.lock);const auto& placement=companionView?processor.editorPresentation.floating:processor.editorPresentation.hosted;if(placement.validSize()){width=placement.width;height=placement.height;}if(processor.editorPresentation.mixer)workspace->restoreMixer(processor.editorPresentation.group);}
+#endif
     setSize(width,height);if(!companionView)processor.registerHostedDrumEditor(this);startTimerHz(25);
 }
-DrumAudioProcessorEditor::~DrumAudioProcessorEditor(){if(!companionView && processor.getHostedDrumEditor()==this)processor.registerHostedDrumEditor(nullptr);stopTimer();libraryWorkspace.reset();if(!companionView && !processor.isFloatEnabled())processor.closeSharedLibrary();}
+DrumAudioProcessorEditor::~DrumAudioProcessorEditor(){
+#if JUCE_MAC
+    rememberPresentation();
+#endif
+    if(!companionView && processor.getHostedDrumEditor()==this)processor.registerHostedDrumEditor(nullptr);stopTimer();libraryWorkspace.reset();if(!companionView && !processor.isFloatEnabled())processor.closeSharedLibrary();}
 void DrumAudioProcessorEditor::showLibraryScreen(bool show){
-    if(show && !libraryWorkspace){libraryWorkspace=std::make_unique<Workspace>(*processor.libraryEditorProcessor(),&processor);libraryWorkspace->onShowMixer=[this]{showLibraryScreen(false);workspace->openMixer();};libraryWorkspace->onBackToKit=[this]{showLibraryScreen(false);workspace->navigateKit();};libraryWorkspace->onKitAction=[this](int n){showLibraryScreen(false);workspace->navigateKit();workspace->performKitAction(n);};addChildComponent(*libraryWorkspace);}
+    if(show && !libraryWorkspace){libraryWorkspace=std::make_unique<Workspace>(*processor.libraryEditorProcessor(),&processor);libraryWorkspace->onShowMixer=[this]{showLibraryScreen(false);workspace->mixerExternalBack=[this]{showLibraryScreen(true);};workspace->openMixer();};libraryWorkspace->onBackToKit=[this]{showLibraryScreen(false);workspace->navigateKit();};libraryWorkspace->onKitAction=[this](int n){showLibraryScreen(false);workspace->navigateKit();workspace->performKitAction(n);};addChildComponent(*libraryWorkspace);}
     if(!show)processor.closeSharedLibrary();
     if(show && libraryWorkspace)libraryWorkspace->navigateLibrary();
     showingLibrary=show;workspace->setVisible(!show);if(libraryWorkspace)libraryWorkspace->setVisible(show);resized();
@@ -1097,4 +1145,26 @@ void DrumAudioProcessorEditor::resized()
 
 void DrumAudioProcessorEditor::copyPresentationFrom(const DrumAudioProcessorEditor& other){workspace->copyPresentationFrom(*other.workspace);if(other.showingLibrary){processor.openSharedLibrary();showLibraryScreen(true);if(other.libraryWorkspace)libraryWorkspace->copyPresentationFrom(*other.libraryWorkspace);}else showLibraryScreen(false);}
 void DrumAudioProcessorEditor::setHostedWindowSuppressed(bool suppress){if(companionView)return;setAlpha(suppress?0.f:1.f);djl::HostFloat::showHostedEditor(*this,!suppress && processor.shouldShowHostedEditor());}
-void DrumAudioProcessorEditor::timerCallback(){if(!companionView)djl::HostFloat::setHostedTitle(*this,processor.windowTitle());if(processor.isDuplicateBlocked()){setHostedWindowSuppressed(true);return;}workspace->updateFloatButton();if(libraryWorkspace)libraryWorkspace->updateFloatButton();if(!companionView && processor.isFloatEnabled()){setHostedWindowSuppressed(true);return;}hostFloat.update(*this,companionView,companionView);}
+#if JUCE_MAC
+void DrumAudioProcessorEditor::rememberPresentation(){
+    if(!companionView && processor.isFloatEnabled())return;
+    const juce::ScopedLock guard(processor.editorPresentation.lock);
+    auto& placement=companionView?processor.editorPresentation.floating:processor.editorPresentation.hosted;
+    if(placementRestored && !djl::captureEditorPlacement(*this,placement))placementRestored=false;
+    processor.editorPresentation.mixer=!showingLibrary && workspace->mixerVisible();processor.editorPresentation.group=workspace->mixerGroup();
+}
+#endif
+void DrumAudioProcessorEditor::timerCallback(){
+#if JUCE_MAC
+    if(isShowing() && (companionView || !processor.isFloatEnabled())){
+        const juce::ScopedLock guard(processor.editorPresentation.lock);
+        const auto& placement=companionView?processor.editorPresentation.floating:processor.editorPresentation.hosted;
+        if(!placementRestored)placementRestored=djl::restoreEditorPlacement(*this,placement);
+    }
+    auto* screen=showingLibrary?libraryWorkspace.get():workspace.get();
+    const int mixerWidth=screen?screen->mixerWidthLimit():0;
+    const int scaledWidth=mixerWidth && screen->getWidth()>0?(int)std::ceil(mixerWidth*(double)getWidth()/screen->getWidth()):0;
+    djl::updateEditorWidth(*this,scaledWidth);
+    rememberPresentation();
+#endif
+    if(!companionView)djl::HostFloat::setHostedTitle(*this,processor.windowTitle());if(processor.isDuplicateBlocked()){setHostedWindowSuppressed(true);return;}workspace->updateFloatButton();if(libraryWorkspace)libraryWorkspace->updateFloatButton();if(!companionView && processor.isFloatEnabled()){setHostedWindowSuppressed(true);return;}hostFloat.update(*this,companionView,companionView);}

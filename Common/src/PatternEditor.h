@@ -15,7 +15,7 @@ public:
         button(undo,"Undo",[this]{history(false);});button(redo,"Redo",[this]{history(true);});
         button(back,"Back to kit",[this]{processor.getPatterns().stop();setVisible(false);});
         addAndMakeVisible(name);name.setComponentID("midi-clip-name");name.onReturnKey=[this]{rename();};name.onFocusLost=[this]{rename();};
-        button(play,"Play",[this]{if(processor.getPatterns().isRunning())processor.getPatterns().stop();else processor.getPatterns().start(selectedClip);});
+        button(play,"Play",[this]{if(processor.getPatterns().isRunning())processor.getPatterns().stop();else {processor.getSampleEngine().resetActivityLatch();processor.getPatterns().start(selectedClip);}});
         toggle(loop,"Loop",true,[this]{if(refreshing)return;auto edit=current;edit.looping=loop.getToggleState();commit(edit);});
         toggle(draw,"Draw [B]",false,[this]{roll.repaint();});toggle(fold,"Fold",false,[this]{rebuildRows();resized();repaintAll();});toggle(preview,"Preview",true,[]{});
         addAndMakeVisible(grid);grid.setComponentID("midi-grid");for(auto item:std::initializer_list<std::pair<const char*,int>>{{"Grid off",1},{"1/4",2},{"1/8",3},{"1/16",4},{"1/32",5},{"1/64",6}})grid.addItem(item.first,item.second);grid.setSelectedId(4);grid.onChange=[this]{repaintAll();};toggle(triplet,"Triplet",false,[this]{repaintAll();});
