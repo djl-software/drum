@@ -1,5 +1,7 @@
 # DJL Drum
 
+Development handover: [live status and source migration log](handover/LIVE.md), [Windows build/handover](handover/WINDOWS.md), [Mac handover](handover/MAC.md). All authoritative handover notes live in `Common/handover/`; repository rules are in [AGENTS.md](../AGENTS.md).
+
 
 Version 0.26.2 now includes the envelope audit fixes: transparent on/off, retained release/hold state, independent-send bypass updates and unticked new processing defaults.
 
