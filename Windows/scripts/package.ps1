@@ -17,12 +17,11 @@ $drumDestination = Join-Path $OutputDirectory 'DJL Drum.vst3'
 New-Item -ItemType Directory -Force -Path $drumDestination | Out-Null
 Copy-Item -Path (Join-Path $drumBundle '*') -Destination $drumDestination -Recurse -Force
 if ($Standalone) { Copy-Item -LiteralPath $drumApp -Destination $OutputDirectory -Force }
-Copy-Item -LiteralPath "$PSScriptRoot\..\..\Common\README.md" -Destination $OutputDirectory -Force
+Copy-Item -LiteralPath "$PSScriptRoot\..\README.md" -Destination $OutputDirectory -Force
+Copy-Item -LiteralPath "$PSScriptRoot\..\..\Common\README.md" -Destination (Join-Path $OutputDirectory 'README-common.md') -Force
 $drumDocsDestination = Join-Path $OutputDirectory 'docs'
 New-Item -ItemType Directory -Force -Path $drumDocsDestination | Out-Null
 Copy-Item -Path "$PSScriptRoot\..\..\Common\docs\*" -Destination $drumDocsDestination -Recurse -Force
-$drumManual = "$PSScriptRoot\..\output\pdf\DJL-Drum-User-Manual-0.12.3-Windows.pdf"
-if (Test-Path -LiteralPath $drumManual) { Copy-Item -LiteralPath $drumManual -Destination $OutputDirectory -Force }
 Write-Output "Packaged development build: $OutputDirectory"
 
 $drumCompanionDestination = Join-Path $OutputDirectory 'companion'

@@ -40,3 +40,6 @@ tmp/
 
 # Local macOS validation scratch files
 Mac/work/
+
+# Local Windows setup downloads and virtual machines
+Windows/work/
