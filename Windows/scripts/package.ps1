@@ -17,8 +17,20 @@ $drumDestination = Join-Path $OutputDirectory 'DJL Drum.vst3'
 New-Item -ItemType Directory -Force -Path $drumDestination | Out-Null
 Copy-Item -Path (Join-Path $drumBundle '*') -Destination $drumDestination -Recurse -Force
 if ($Standalone) { Copy-Item -LiteralPath $drumApp -Destination $OutputDirectory -Force }
-Copy-Item -LiteralPath "$PSScriptRoot\..\README.md" -Destination $OutputDirectory -Force
-Copy-Item -LiteralPath "$PSScriptRoot\..\..\Common\README.md" -Destination (Join-Path $OutputDirectory 'README-common.md') -Force
+# The tracked handover remains in Common; include a distribution copy there too.
+$drumHandoverDestination = Join-Path $OutputDirectory 'Common\handover'
+New-Item -ItemType Directory -Force -Path $drumHandoverDestination | Out-Null
+Copy-Item -Path "$PSScriptRoot\..\..\Common\handover\*" -Destination $drumHandoverDestination -Recurse -Force
+Copy-Item -LiteralPath "$PSScriptRoot\..\..\AGENTS.md" -Destination $OutputDirectory -Force
+@'
+# DJL Drum for Windows
+
+Build instructions and platform handover: [Common/handover/WINDOWS.md](Common/handover/WINDOWS.md).
+Live status and source migration register: [Common/handover/LIVE.md](Common/handover/LIVE.md).
+This is a development package; copy the entire DJL Drum.vst3 bundle for DAW testing.
+'@ | Set-Content -LiteralPath (Join-Path $OutputDirectory 'README.md') -Encoding UTF8
+$drumCommonReadme = Get-Content -LiteralPath "$PSScriptRoot\..\..\Common\README.md" -Raw
+$drumCommonReadme.Replace('(handover/', '(Common/handover/').Replace('(../AGENTS.md)', '(AGENTS.md)') | Set-Content -LiteralPath (Join-Path $OutputDirectory 'README-common.md') -Encoding UTF8
 $drumDocsDestination = Join-Path $OutputDirectory 'docs'
 New-Item -ItemType Directory -Force -Path $drumDocsDestination | Out-Null
 Copy-Item -Path "$PSScriptRoot\..\..\Common\docs\*" -Destination $drumDocsDestination -Recurse -Force
